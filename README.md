@@ -25,17 +25,35 @@ Production scheduling in pharma fermentation often lives inside Excel spreadshee
 | **Commit Log** | Planners only | Immutable record of all committed plan changes with criticality flags. |
 | **Audit Trail** | Compliance | Append-only, time-stamped, attributable business audit entries. |
 
+## Try It Free
+
+Visit **plantpulse.pro** to try PlantPulse instantly:
+
+1. Open the app -- a realistic demo schedule is generated automatically
+2. Explore the **Wallboard** (operator view) and **Planner** (scheduling view)
+3. Edit the schedule: drag, stretch, add new batch chains, bulk shift
+4. **Export to Excel** to save your work
+5. Next visit: fresh demo data, or **import your Excel** to pick up where you left off
+
+No account needed. No data stored on our servers. Your browser, your data.
+
+Interested in the full Enterprise version with multi-user, approvals, audit trail,
+and ERP integration? **Join the waitlist** on the landing page.
+
 ## Editions
 
-| | Free (Session Mode) | Enterprise Cloud | Enterprise On-Prem |
+| | Free (plantpulse.pro) | Enterprise Cloud | Enterprise On-Prem |
 |---|---|---|---|
+| Demo data on every visit | Yes | N/A | N/A |
 | Import/export Excel | Yes | Yes | Yes |
-| In-memory operation | Yes | Persistent DB | Persistent DB |
+| In-memory (no persistence) | Yes | Persistent DB | Persistent DB |
+| Planner + Wallboard | Yes | Yes | Yes |
+| Drafts & approvals workflow | No | Yes | Yes |
 | Multi-user | No | Yes | Yes |
 | SSO / MFA / RBAC | No | Yes | Yes |
 | ERP integration | No | SAP S/4HANA, ECC | SAP S/4HANA, ECC |
 | GxP audit trail | Excel audit sheet | Immutable store | Immutable store |
-| Deployment | Browser-only | Single-tenant cloud | Self-hosted / private cloud |
+| Deployment | Vercel (free) | Single-tenant cloud | Self-hosted / private cloud |
 
 ## Tech Stack
 
@@ -75,7 +93,8 @@ plantpulse.pro/
 | [Masterplan](docs/masterplan.md) | Product vision, editions, roles, data model, operating rules, GxP direction |
 | [App Flow & Roles](docs/app-flow-pages-and-roles.md) | Site map, role-based access, primary user journeys |
 | [Design Guidelines](docs/design-guidelines.md) | Visual design system, interaction patterns, accessibility |
-| [Implementation Plan](docs/implementation-plan.md) | Phased build sequence (Phase 0-12) |
+| [Implementation Plan](docs/implementation-plan.md) | Phased build sequence (Phase 0-13) |
+| [Gaps & Open Questions](docs/gaps-and-open-questions.md) | Specification gaps, decisions made, remaining open items |
 
 ## Background
 

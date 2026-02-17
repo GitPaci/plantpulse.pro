@@ -5,11 +5,88 @@ versus what can wait for Enterprise phases.
 
 ---
 
+## Decisions Made
+
+### Free Edition Product Strategy (decided)
+
+The Free edition is a **self-service demo that doubles as a lead generation tool**
+for Enterprise sales.
+
+**User flow:**
+1. User visits plantpulse.pro
+2. Sees a landing page explaining what PlantPulse does
+3. Clicks "Try it" -> enters the app with **randomly generated demo data**
+   (realistic 2-week fermentation schedule across GNT + KK lines)
+4. User can explore the Wallboard and Planner views, edit bars, try the tools
+5. User can **export to Excel** to save their work
+6. **Nothing is persisted** between sessions -- next visit generates fresh random data
+7. User can **import a previously exported Excel** to pick up where they left off
+8. A waitlist/interest capture collects emails from users who want the full
+   Enterprise version
+
+**Key decisions:**
+- Planner View is included in Free (it's the selling point -- "look how easy this is")
+- No accounts, no login, no server-side persistence
+- Random data generator replaces the need for a "blank start" or "upload first" flow
+- Export is the only way to save; import is the only way to restore
+- The app needs a server-side component for waitlist capture (not pure static)
+
+### Deployment (decided)
+
+**Vercel** is the best fit:
+- Native Next.js support (zero config)
+- Free tier handles the traffic of a product demo site
+- Serverless functions for the waitlist API endpoint (email capture)
+- Edge network for fast global loading
+- Automatic preview deploys from git branches
+- Easy custom domain setup for plantpulse.pro
+- Analytics built in (or add PostHog/Plausible for product analytics)
+
+**Architecture:**
+- Next.js with App Router (SSR/SSG hybrid, not pure static export)
+- Landing page: statically generated
+- App pages (wallboard, planner): client-side rendered (all state in Zustand)
+- One API route: `POST /api/waitlist` — stores email + optional metadata
+- Waitlist storage: Vercel KV (Redis), or Vercel Postgres free tier, or
+  external service (Loops, Resend, or simple Google Sheet via API)
+
+### Open Questions — Answered
+
+| # | Question | Answer |
+|---|----------|--------|
+| 1 | Demo data or start blank? | **Random generated data** on every visit. Realistic schedule. |
+| 2 | Static export or server? | **Vercel with serverless** — need API route for waitlist. |
+| 3 | Shift rotation editable in Free? | **Fixed** to 4-team/12h/8-step cycle. Enterprise: editable. |
+| 4 | Show Planner in Free? | **Yes** — it's the main selling point. |
+| 5 | Deploy target? | **Vercel** on plantpulse.pro. |
+| 6 | Tasks in same Excel or separate? | Same file, Sheet2. |
+| 7 | Maintenance separate import? | Separate file — different update cadence. |
+
+---
+
 ## Blocks Free MVP
 
-### 1. Excel Template Schemas (Phase 1 blocker)
+### 1. Demo Data Generator (new — Phase 0)
 
-The Free edition's entire data layer is Excel import/export. Need finalized templates
+Since every session starts with random data, we need a generator that produces
+realistic schedules.
+
+**What it needs to produce:**
+- 8-15 active batch chains across GNT and KK product lines
+- Each chain with correct seed train stages (PR -> PF -> F)
+- Realistic durations (GNT: 48h PR, 55h PF, variable F; KK: 44h PR, 20h PF, variable F)
+- Some chains completed (in the past), some active (spanning now), some planned (future)
+- A few checkpoint tasks (mix of planned/done/not_possible)
+- A few maintenance tasks
+- No impossible overlaps, but maybe 1-2 tight fits to make it interesting
+- Anchored to the current date so the wallboard now-line always shows activity
+
+**Decision needed:** How many batches, how dense? Should it look busy or calm?
+Suggest: moderately busy — enough to fill the screen, not so much it overwhelms.
+
+### 2. Excel Template Schemas (Phase 1 blocker)
+
+The Free edition's data layer is Excel import/export. Need finalized templates
 before building the import validator.
 
 **What's defined:** Column names and types in CLAUDE.md (pososda, nacep, precep, serija).
@@ -28,7 +105,7 @@ before building the import validator.
 
 **Decision needed:** Freeze the template schema and create sample files.
 
-### 2. Rule Engine Edge Cases (Phase 2 blocker)
+### 3. Rule Engine Edge Cases (Phase 2 blocker)
 
 The VBA business rules are documented, but several edge cases need decisions
 before coding the scheduling module.
@@ -52,30 +129,46 @@ before coding the scheduling module.
 
 **Decision needed:** Document exact rules for each case, even if "same as VBA" is the answer.
 
-### 3. Test Strategy (Phase 1-2)
+### 4. Test Strategy (Phase 1-2)
 
 Need test patterns established before building lib modules, not after.
 
 **What's needed for Free MVP:**
 - Unit tests for all `lib/` modules (timeline-math, holidays, colors, shift-rotation,
-  scheduling, seed-train, excel-io)
+  scheduling, seed-train, excel-io, demo-data-generator)
 - Component tests for timeline rendering (does a known dataset produce expected
   bar positions?)
-- Integration test: import Excel -> store -> render timeline -> export Excel roundtrip
-- Browser targets: which browsers and minimum versions?
+- Integration test: generate demo data -> render timeline -> export -> import -> compare
+- Browser targets: Chrome, Firefox, Safari, Edge (last 2 versions)
 
 **What can wait:**
 - E2E tests with Playwright/Cypress (needs actual pages first)
 - Role-permission test matrix (Enterprise RBAC)
 - GxP evidence test pack (Enterprise compliance)
 
-**Decision needed:** Pick browser support targets. Set up Vitest config.
+### 5. Landing Page and Waitlist
+
+The landing page needs to convert visitors into waitlist signups.
+
+**What's needed:**
+- Hero section: tagline + screenshot/animation of the wallboard
+- Problem/solution section: legacy VBA pain -> modern browser tool
+- Feature highlights: wallboard, planner, Excel import/export
+- "Try it now" CTA -> opens the app with demo data
+- Waitlist capture: email + company name (optional) + plant type (optional)
+- Social proof section (later: testimonials, logos)
+
+**Waitlist API:**
+- `POST /api/waitlist` with email, optional company, optional notes
+- Store in Vercel KV or Postgres
+- Send confirmation email (Resend or similar)
+- Admin view or export for reviewing signups
 
 ---
 
 ## Important but Enterprise-phase
 
-### 4. Physical Database Schema
+### 6. Physical Database Schema
 
 **Not needed for Free MVP** (in-memory + Excel only).
 
@@ -88,9 +181,9 @@ Need test patterns established before building lib modules, not after.
 - Tenant isolation model (schema-per-tenant vs row-level)
 - Retention/archival policy for completed batches
 
-### 5. API Contract
+### 7. API Contract
 
-**Not needed for Free MVP** (no server, all client-side).
+**Not needed for Free MVP** (no server, all client-side except waitlist endpoint).
 
 **When needed:** Phase 11 (Enterprise Cloud).
 
@@ -102,15 +195,15 @@ Need test patterns established before building lib modules, not after.
 - Rate limiting and request validation rules
 - Websocket or SSE for multi-user real-time updates
 
-### 6. Event and Audit Taxonomy
+### 8. Event and Audit Taxonomy
 
 **Partially needed for Free MVP** (Excel audit sheet with basic events).
 **Full taxonomy needed for Enterprise** (immutable audit store).
 
 **What's needed for Free:**
 - Basic event list: import, export, task_confirmed, task_not_possible,
-  maintenance_acknowledged, draft_created, draft_committed
-- Fields: timestamp, actor (Free: "session user"), event_type, entity_id, description
+  maintenance_acknowledged, stage_edited, stage_moved, stage_deleted
+- Fields: timestamp, event_type, entity_id, description
 
 **What can wait for Enterprise:**
 - Full event catalog with exact payload schemas
@@ -119,16 +212,15 @@ Need test patterns established before building lib modules, not after.
 - Retention and immutability enforcement
 - System log events (API access, auth, errors, performance)
 
-### 7. Non-Functional Requirements / SLOs
+### 9. Non-Functional Requirements / SLOs
 
-**Mostly Enterprise concerns.** A few items worth deciding now:
+**Mostly Enterprise concerns.** Items decided for Free:
 
-**Decide now:**
-- Browser support: Chrome, Firefox, Safari, Edge — minimum versions?
-- Minimum screen resolution: 1920x1080 (matches legacy wallboard)?
-  What about tablet/laptop at 1366x768?
-- Canvas rendering performance target: smooth at 30 machines x 25 days?
-- Max Excel file size for import?
+**Decided:**
+- Browser support: Chrome, Firefox, Safari, Edge (last 2 major versions)
+- Primary screen: 1920x1080 (matches legacy wallboard)
+- Also support: 1366x768 laptop (responsive, may reduce visible days)
+- Canvas rendering: must be smooth at 30 machines x 25 days
 
 **Enterprise-phase:**
 - Uptime SLA (99.9%? 99.95%?)
@@ -138,14 +230,20 @@ Need test patterns established before building lib modules, not after.
 
 ---
 
-## Open Questions (need answers before or during build)
+## Usage Analytics (Free edition — for Enterprise validation)
 
-| # | Question | Impacts | Suggested default |
-|---|----------|---------|-------------------|
-| 1 | Should the app ship with hardcoded demo data for the landing page, or start blank? | Landing page UX | Hardcoded demo dataset showing a realistic 2-week schedule |
-| 2 | Is the Free edition a static export (no server at all) or does it need `next start`? | Deployment to plantpulse.pro | Static export (`next export`) — host on any CDN |
-| 3 | Should the shift rotation config be editable in Free, or fixed to the 4-team/12h/8-step cycle? | Admin page scope | Fixed in Free, editable in Enterprise |
-| 4 | Do we show the Planner View in Free, or just the Wallboard? | Scope of Free demo | Show both — Planner with local draft editing, no governance workflow |
-| 5 | What's the deploy target for plantpulse.pro? | CI/CD setup | Vercel (free tier works for static Next.js) |
-| 6 | Do checkpoint tasks come from the same Excel file as the schedule, or a separate file? | Import UX | Same file, different sheet (Sheet2) |
-| 7 | Should the maintenance template be a separate import, or combined? | Import UX | Separate file — different update cadence |
+Track anonymous product usage to validate Enterprise demand:
+
+**Events to capture (client-side, privacy-friendly):**
+- Session started (with/without Excel import)
+- Planner view opened
+- Wallboard view opened
+- Batch chain created/edited/deleted
+- Bulk shift used
+- Excel exported
+- Excel imported
+- Time spent in session
+- Waitlist form opened / submitted
+
+**Tool:** PostHog (free tier, self-hostable) or Plausible (privacy-first).
+No PII in analytics events. Email only in waitlist (explicit opt-in).
