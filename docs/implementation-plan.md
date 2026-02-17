@@ -11,8 +11,10 @@ Phases 8-12 are Enterprise-only.
 
 - Initialize Next.js 15 + TypeScript + Tailwind CSS + Zustand
 - Configure Vitest + Testing Library
-- Define TypeScript interfaces (`src/lib/types.ts`)
-- Define machine list with display order, groups, product lines
+- Define TypeScript interfaces (`src/lib/types.ts`), including ProductLine, StageDefault
+- Define default facility config (product lines, machines, stage durations)
+  - GNT + KK as demo defaults, but all user-configurable at runtime
+  - Users can add/rename/remove product lines, machines, and stage durations
 - Set up Vercel project + connect plantpulse.pro domain
 - Define edition adapter interfaces (conceptual):
   - StorageAdapter: ExcelSession | CloudDB | OnPremDB
@@ -103,6 +105,11 @@ Phases 8-12 are Enterprise-only.
   - Overlap checking
 - `components/planner/BulkShiftTool.tsx` — Shift multiple batches by N hours
 - `components/planner/StageDetailPanel.tsx` — Side panel editor
+- Facility configuration panel (in Planner or Settings):
+  - Add/rename/remove product lines
+  - Add/rename/remove machines, assign to product lines
+  - Edit default stage durations per product line
+  - Changes apply to current session (export to save)
 - Conflict indicators: overlap, hold risk, shutdown crossing
 
 ### Phase 7 — Landing page + waitlist + deploy

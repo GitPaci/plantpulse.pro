@@ -74,7 +74,12 @@ The task file (Opravila_Tabla.xlsx) has:
 
 ### Vessel hierarchy (seed train)
 
-Two product lines share the facility:
+**Product lines, machines, and stage durations are fully user-configurable.**
+Users can add, rename, or remove product lines and machines to match their
+facility. The GNT/KK setup below is the legacy VBA default, used as the
+demo data template for new sessions.
+
+**Default demo configuration (from legacy VBA):**
 
 **GNT (Gentamicin) line:**
 - Propagators: PR-1, PR-2 (seed stage, default duration 48h)
@@ -88,7 +93,7 @@ Two product lines share the facility:
 
 **Other:** bkk1–bkk5 (inoculum/flask-scale vessels)
 
-The full display order (hardcoded in VBA as `imena` array):
+The full display order (hardcoded in VBA as `imena` array, configurable in modern app):
 ```
 PR-1, PR-2, PF-1, PF-2, F-2, F-3,
 bkk1, bkk2, bkk3, bkk4, bkk5,
@@ -182,11 +187,27 @@ Based on the masterplan vision + VBA reality:
 ### Core entities
 
 ```typescript
+// Product lines are user-configurable. GNT/KK are the legacy defaults used
+// in demo data. Users can add/rename/remove product lines and their associated
+// machines, stage types, and default durations.
+interface ProductLine {
+  id: string;             // user-defined, e.g. "GNT", "KK", "API-X"
+  name: string;           // display name, e.g. "Gentamicin", "KK Line"
+  stageDefaults: StageDefault[];  // ordered seed train template
+  displayOrder: number;
+}
+
+interface StageDefault {
+  stageType: string;      // e.g. "propagation", "pre_fermentation", "fermentation"
+  defaultDurationHours: number;
+  machineGroup: string;   // which machine group to pick from
+}
+
 interface Machine {
   id: string;             // e.g. "F-2", "PR-1"
   name: string;           // display name
   group: MachineGroup;    // "propagator" | "pre_fermenter" | "fermenter" | "inoculum"
-  productLine?: string;   // "GNT" | "KK" | null
+  productLine?: string;   // assigned product line, or null if shared
   displayOrder: number;
   holds?: HoldConfig;     // min/max duration constraints
 }
@@ -195,7 +216,7 @@ interface BatchChain {
   id: string;             // unique chain identifier
   batchName: string;      // human-readable (e.g. "GNT-142")
   seriesNumber: number;   // legacy series_id
-  productLine: string;    // "GNT" | "KK"
+  productLine: string;    // references ProductLine.id
   color: string;          // deterministic from seriesNumber
   status: "draft" | "proposed" | "committed";
   nameLocked: boolean;
@@ -541,18 +562,32 @@ function currentShiftTeam(now: Date, anchorDate: Date): number {
 
 ### 4. Seed train back-calculation (seed-train.ts)
 
+Uses the product line's `stageDefaults` array to back-calculate from the
+final stage. Works with any number of stages and any user-defined durations.
+
 ```typescript
+// Generic: works with any product line configuration
 function backCalculateChain(
-  fermenterStart: Date,
-  productLine: "GNT" | "KK"
-): { prStart: Date; pfStart: Date } {
-  const durations = productLine === "GNT"
-    ? { pr: 48, pf: 55 }  // hours
-    : { pr: 44, pf: 20 };
-  const pfStart = subHours(fermenterStart, durations.pf);
-  const prStart = subHours(pfStart, durations.pr);
-  return { prStart, pfStart };
+  finalStageStart: Date,
+  stageDefaults: StageDefault[]  // from ProductLine.stageDefaults
+): { stageType: string; start: Date }[] {
+  const stages: { stageType: string; start: Date }[] = [];
+  let cursor = finalStageStart;
+
+  // Walk backwards through stage defaults (last = final stage)
+  for (let i = stageDefaults.length - 1; i >= 0; i--) {
+    stages.unshift({ stageType: stageDefaults[i].stageType, start: cursor });
+    if (i > 0) {
+      cursor = subHours(cursor, stageDefaults[i].defaultDurationHours);
+    }
+  }
+  return stages;
 }
+
+// Legacy VBA defaults for reference:
+// GNT: propagation 48h, pre_fermentation 55h, fermentation (variable)
+// KK:  propagation 44h, pre_fermentation 20h, fermentation (variable)
+
 ```
 
 ---

@@ -69,17 +69,26 @@ for Enterprise sales.
 ### 1. Demo Data Generator (new — Phase 0)
 
 Since every session starts with random data, we need a generator that produces
-realistic schedules.
+realistic schedules. The generator uses the **default product line configuration**
+(GNT + KK from legacy VBA) but all of this is configurable by the user after
+the session starts.
 
 **What it needs to produce:**
-- 8-15 active batch chains across GNT and KK product lines
-- Each chain with correct seed train stages (PR -> PF -> F)
-- Realistic durations (GNT: 48h PR, 55h PF, variable F; KK: 44h PR, 20h PF, variable F)
+- A default facility config: 2 product lines (GNT, KK) with their machines and stage durations
+- 8-15 active batch chains across those product lines
+- Each chain with correct seed train stages (driven by product line's stageDefaults)
+- Realistic durations from the default config
 - Some chains completed (in the past), some active (spanning now), some planned (future)
 - A few checkpoint tasks (mix of planned/done/not_possible)
 - A few maintenance tasks
 - No impossible overlaps, but maybe 1-2 tight fits to make it interesting
 - Anchored to the current date so the wallboard now-line always shows activity
+
+**After generation, users can:**
+- Add/rename/remove product lines (e.g. replace "GNT" with their own product)
+- Add/rename/remove machines and reassign to product lines
+- Change default stage durations per product line
+- All changes are in-memory; export to Excel to save
 
 **Decision needed:** How many batches, how dense? Should it look busy or calm?
 Suggest: moderately busy — enough to fill the screen, not so much it overwhelms.
