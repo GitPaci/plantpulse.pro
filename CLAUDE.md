@@ -13,18 +13,18 @@ shift ownership, maintenance coordination, and GxP-ready audit integrity.
 
 | File | Purpose |
 |------|---------|
-| `masterplan.md` | Vision, editions, roles, data model, operating rules, GxP direction |
-| `app-flow-pages-and-roles.md` | Site map, role permissions, primary user journeys |
-| `design-guidelines.md` | Visual language, color system, interaction design, accessibility |
-| `implementation-plan.md` | Phased build sequence (Phase 0–12) |
+| `docs/masterplan.md` | Vision, editions, roles, data model, operating rules, GxP direction |
+| `docs/app-flow-pages-and-roles.md` | Site map, role permissions, primary user journeys |
+| `docs/design-guidelines.md` | Visual language, color system, interaction design, accessibility |
+| `docs/implementation-plan.md` | Phased build sequence (Phase 0–12) |
 
 ### Legacy VBA source files (reference, do not modify)
 
 | File | Origin | Purpose |
 |------|--------|---------|
-| `FormaZaPlan_macros.txt` | `FormaZaPlan.xls` | Interactive planner: load data, render Gantt in UserForm, edit/add/delete/shift batches, export |
-| `InfoTabla20180201_macros.txt` | `InfoTabla20180201.ppt` | Operator wallboard: auto-render 25-day Gantt on 1920×1080 slide with shifts, tasks, KPI |
-| `Izberidatum5_macros.txt` | `Izberidatum5.ppt` | Configurable planning view: date picker + vessel group filters, renders Gantt on slide |
+| `docs/legacy/FormaZaPlan_macros.txt` | `FormaZaPlan.xls` | Interactive planner: load data, render Gantt in UserForm, edit/add/delete/shift batches, export |
+| `docs/legacy/InfoTabla20180201_macros.txt` | `InfoTabla20180201.ppt` | Operator wallboard: auto-render 25-day Gantt on 1920×1080 slide with shifts, tasks, KPI |
+| `docs/legacy/Izberidatum5_macros.txt` | `Izberidatum5.ppt` | Configurable planning view: date picker + vessel group filters, renders Gantt on slide |
 
 ---
 
@@ -298,13 +298,17 @@ interface ShiftRotation {
 ```
 plantpulse.pro/
 ├── CLAUDE.md                    # This file
-├── masterplan.md                # Vision document
-├── app-flow-pages-and-roles.md  # UX specification
-├── design-guidelines.md         # Visual design system
-├── implementation-plan.md       # Phased build plan
-├── FormaZaPlan_macros.txt       # Legacy VBA reference
-├── InfoTabla20180201_macros.txt # Legacy VBA reference
-├── Izberidatum5_macros.txt      # Legacy VBA reference
+├── README.md                    # Project introduction
+├── .gitignore
+├── docs/
+│   ├── masterplan.md            # Vision document
+│   ├── app-flow-pages-and-roles.md  # UX specification
+│   ├── design-guidelines.md     # Visual design system
+│   ├── implementation-plan.md   # Phased build plan
+│   └── legacy/                  # Original VBA macro extracts (reference only)
+│       ├── FormaZaPlan_macros.txt
+│       ├── InfoTabla20180201_macros.txt
+│       └── Izberidatum5_macros.txt
 ├── src/
 │   ├── app/                     # Next.js App Router pages
 │   │   ├── page.tsx             # Landing / session start
