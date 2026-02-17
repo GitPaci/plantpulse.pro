@@ -1,0 +1,909 @@
+olevba 0.60.2 on Python 3.9.6 - http://decalage.info/python/oletools
+===============================================================================
+FILE: Izberidatum5.ppt
+Type: PPT
+WARNING  For now, VBA stomping cannot be detected for files in memory
+-------------------------------------------------------------------------------
+VBA MACRO PoIzbiri.bas 
+in file: None - OLE stream: 'VBA/PoIzbiri'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+
+
+Sub PlanZaFermentorjeDolociObdobje()
+  
+ Dim IsUserFormLoaded As Boolean
+ 'preverjanje če je forma odprta
+ Dim UForm As Object
+ 
+ IsUserFormLoaded = False
+    For Each UForm In VBA.UserForms
+        If UForm.Name = "Datum" Then
+            IsUserFormLoaded = True
+            Exit For
+        End If
+    Next
+ If IsUserFormLoaded = False Then Datum.Show
+  
+ ' MsgBox "vrednosti" & IsUserFormLoaded
+ 
+ 
+                                         Dim Imena As Variant
+                                                    Dim ceDvaDatuma As Boolean
+    
+                                        If Datum.SamoFerm.Value = False Then
+                                                
+                                         Imena = Array("PR-1", "PR-2", "PF-1", "PF-2", "F-1", "F-2", "F-3", "", "PR-3", "PR-4", "PR-5", "PR-6", "PR-7", "PR-8", "PF-3", "PF-4", "PF-5", "PF-6", "F-4", "F-5", "F-6", "F-7", "F-8", "F-9", "F-10", "F-11")
+                                        Else
+                                        Imena = Array("F-2", "F-3", "F-1", "F-4", "F-5", "F-6", "F-7", "F-8", "F-9", "F-10", "F-11")
+                                        End If
+                                        
+                                        If Datum.SamoGenta.Value = True Then
+                                        Imena = Array("PR-1", "PR-2", "PF-1", "PF-2", "F-2", "F-3")
+                                    
+                                        End If
+                                        
+                                        If Datum.BuceTudi.Value = True Then
+                                          Imena = Array("bkk1", "bkk2", "bkk3", "bkk4", "bkk5", "PR-3", "PR-4", "PR-5", "PR-6", "PR-7", "PR-8", "PF-3", "PF-4", "PF-5", "PF-6", "F-1", "F-4", "F-5", "F-6", "F-7", "F-8", "F-9", "F-10", "F-11")
+                                       
+                                    
+                                        End If
+                                        
+                                        Dim imenaFERM As Variant
+                                                imenaFERM = Array("F-1", "F-2", "F-3", "F-4", "F-5", "F-6", "F-7", "F-8", "F-9", "F-10", "F-11")
+                            
+                            
+ 
+ 
+ 
+ 
+  'procenti naperdek
+  Datum.ProgressBar1.Visible = True
+  
+                Dim longHeight As Long
+                Dim longWidth As Long
+                Dim i As Integer
+                Dim mojeSteviloDni As Integer
+                Dim mojaPrvaLinija As Integer
+                Dim mojDatum, mojDan, zacetniDan, mojFaktor, sodoLiho, imeDatoteke
+                Dim NiPuscic As Boolean
+                Dim OpravilaVidna As Boolean
+                        ' da vse zbiše
+                        'if preveri če je sploh kaj za zrisati
+                If ActivePresentation.Slides(1).Shapes.Count > 0 Then
+                        ActivePresentation.Slides(1).Shapes.Range.Delete
+                End If
+                        
+                     
+                        'obliko spremeni
+                With ActivePresentation.PageSetup
+                    '.SlideWidth = 1920
+                    .SlideHeight = 1250
+                    
+                    .SlideWidth = 1920
+                    '.SlideHeight = 1357
+                
+                    '.SlideWidth = 1920
+                    '.SlideHeight = 1080
+                    .FirstSlideNumber = 1
+                End With
+                longHeight = ActivePresentation.PageSetup.SlideHeight
+                longWidth = ActivePresentation.PageSetup.SlideWidth
+                        'določi interval
+                        ' loading
+                With ActivePresentation.Slides(1).Shapes
+                    Set Nalagam = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.4, longHeight * 0.45, 500, 30)
+                        Nalagam.TextFrame.TextRange.Text = "Pridobivam podatke..."
+                        Nalagam.Name = "Nalagam"
+                        Nalagam.TextFrame.TextRange.Font.Size = 30
+                        Nalagam.TextFrame.TextRange.Font.Bold = True
+                        Nalagam.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 4)
+                        Nalagam.Fill.ForeColor.RGB = RGB(242, 242, 242)
+                End With
+                        ' kje je sredinski dan
+                        ' NovDatum = InputBox("Vpiši željen datum", "Datum", Date)
+                        'NovDatum = Date
+                NovDatum = Datum.LbDatum.Caption
+                        ' kje je sredinski dan
+                NovDatum = DateValue(NovDatum)
+                        'mojeSteviloDni = 36
+                        ' ali uporabnij
+                        OpravilaVidna = False
+                If Datum.Opravila.Value = True Then
+                OpravilaVidna = True
+                'MsgBox "hej res je"
+                'Else
+                'MsgBox "hej NI res "
+                End If
+                
+                If Datum.LbDni.Caption = "" Then Exit Sub
+                
+                If Datum.LbDni.Caption Mod 4 = 0 Then
+               mojeSteviloDni = Datum.LbDni.Caption + 2
+               Else
+                mojeSteviloDni = Datum.LbDni.Caption + 1
+                
+                End If
+                mojFaktor = 2
+' ------------------ DANES _ konec----------
+                Dim prva As Date
+                Dim zadnja As Date
+                        ' začetni datum kaseje to tudi pomembno
+                prva = DateAdd("d", mojeSteviloDni * 0.5 * -1, NovDatum)
+                        ' končni datum
+                zadnja = DateAdd("d", mojeSteviloDni, prva)
+                        'koliko dni se prikazujejo
+                mojaPrvaLinija = longWidth / mojeSteviloDni
+                        ' barva ozadaja
+                ActivePresentation.SlideMaster.Background.Fill.ForeColor.RGB = RGB(255, 255, 255)
+                        'vodoravne črte
+                    For i = 1 To UBound(Imena, 1) + 1
+                                                With ActivePresentation.Slides(1).Shapes
+                                                    Set vodoravnaKocka = .AddShape(msoShapeRectangle, 0, i * (longHeight + 920 / i) / (UBound(Imena, 1) + 3), longWidth, longHeight / (UBound(Imena, 1) + 13))
+                                                        vodoravnaKocka.Name = "ozadje " & i
+                                                                sodoLiho = i Mod 2
+                                                                        If sodoLiho <> 0 Then
+                                                                            vodoravnaKocka.Fill.ForeColor.RGB = RGB(219, 238, 244)
+                                                                            Else
+                                                                            vodoravnaKocka.Fill.ForeColor.RGB = RGB(249, 249, 249)
+                                                                            vodoravnaKocka.Fill.Transparency = 0.75
+                                                                        End If
+                                                        vodoravnaKocka.Line.Visible = msoFalse
+                                                End With
+                        ' črta za aktualen dan
+                    Next i
+                        'datumi in črte
+                For i = 1 To (mojeSteviloDni - 1)
+                
+                                      ' ozaje za week end
+                                     
+                                     If Weekday(NovDatum - mojeSteviloDni / mojFaktor + i) = 7 Or Weekday(NovDatum - mojeSteviloDni / mojFaktor + i) = 1 Then
+                                                With ActivePresentation.Slides(1).Shapes
+                                                 Set weekendKocka = .AddShape(msoShapeRectangle, i * mojaPrvaLinija, 0, ((i + 1) * mojaPrvaLinija - i * mojaPrvaLinija), longHeight)
+                                                    weekendKocka.Name = "WeekEnd " & i
+                                                    weekendKocka.Fill.ForeColor.RGB = RGB(255, 218, 101)
+                                                    weekendKocka.Fill.Transparency = 0.55
+                                                    weekendKocka.Line.Visible = msoFalse
+                                                End With
+                                
+                                    End If
+                
+                
+                
+                        ' Create the line.
+                                                With ActivePresentation.Slides(1).Shapes
+                                                    Set vertikalne = .AddLine(i * mojaPrvaLinija, 0, i * mojaPrvaLinija, longHeight)
+                                                    'črtkano in sivo
+                                                    
+                                                    '    vertikalne.Line.DashStyle = msoLineDash
+                                                        vertikalne.Line.DashStyle = msoLineSolid
+                                                        vertikalne.Line.ForeColor.RGB = RGB(89, 89, 89)
+                                                        vertikalne.Name = "Črtkana vertikalna " & i
+                                                    ' dodatek datuma
+                                                    Set datumi = .AddTextbox(msoTextOrientationHorizontal, i * mojaPrvaLinija + mojaPrvaLinija / 5, 20, 46, 50)
+                                                        datumi.TextFrame.TextRange.Text = (Day(NovDatum - mojeSteviloDni / mojFaktor + i))
+                                                    ' mora se deliti s parnim število ratzmerje datuma na prezentaciji
+                                                        datumi.Name = "Dan " & Day(NovDatum - mojeSteviloDni / mojFaktor + i)
+    
+                                                End With
+                                
+                                   
+                                
+                                
+                                'spreminjane pisava na datumu
+                                                With datumi.TextFrame.TextRange.Font
+                                                        .Size = 30
+                                                        .Bold = True
+                                                        .Color.RGB = RGB(94, 94, 94)
+                                                End With
+                                'rdeče ko je weekend in čtrkano ko je nedelja
+                                            If Weekday(NovDatum - mojeSteviloDni / mojFaktor + i) = 7 Then
+                                                With datumi.TextFrame.TextRange.Font
+                                                    .Size = 30
+                                                    .Bold = True
+                                                    .Color.RGB = RGB(192, 0, 0)
+                                                End With
+                                                ElseIf Weekday(NovDatum - mojeSteviloDni / mojFaktor + i) = 1 Then
+                                           
+                                                
+                                                
+                                                With datumi.TextFrame.TextRange.Font
+                                                    .Size = 30
+                                                    .Bold = True
+                                                    .Color.RGB = RGB(192, 0, 0)
+                                                    datumi.Fill.Patterned Pattern:=msoPatternLightUpwardDiagonal
+                                                    datumi.Fill.ForeColor.RGB = RGB(128, 0, 0)
+                                                End With
+                                                
+
+                                                
+                                            End If
+                                ' slovenski prazniki
+                            Dim mojiPrazniki_mesc As Variant ' mesci preznikov
+                            Dim mojiPrazniki_dan As Variant  ' dan praznikov
+                                'vsi "statični" prazniki (dela prosti dni) | to je vese razne veliko nočnega pondeljka
+                                '11 elementov
+                                mojiPrazniki_dan = Array("1", "8", "27", "1", "2", "25", "15", "31", "1", "25", "26")
+                                mojiPrazniki_mesc = Array("1", "2", "4", "5", "5", "6", "8", "10", "11", "12", "12")
+                                ' SLOVENSKI PRAZNIKI
+                                            For prazniki = 0 To 10
+        If DateValue(NovDatum - mojeSteviloDni / mojFaktor + i) = DateSerial(Year(NovDatum), mojiPrazniki_mesc(prazniki), mojiPrazniki_dan(prazniki)) Then
+        With datumi.TextFrame.TextRange.Font
+        .Size = 30
+        .Bold = True
+        .Color.RGB = RGB(192, 0, 0)
+        datumi.Fill.Patterned Pattern:=msoPatternLightDownwardDiagonal
+        datumi.Fill.ForeColor.RGB = RGB(128, 0, 0)
+        
+        End With
+       
+        End If
+                                            Next prazniki
+                            'veliko nocni ponedeljek računanje:
+                            Dim G_noc As Integer
+                            Dim C_noc As Integer
+                            Dim H_noc As Integer
+                            Dim I_noc As Integer
+                            Dim J_noc As Integer
+                            Dim L_noc As Integer
+                            Dim EM_noc As Integer
+                            Dim ED_noc As Integer
+                            Dim letoValikaNoc As Integer
+                            Dim velikanoc As Date
+                                'fORMULA ZA VELIKONOČ
+                            letoValikaNoc = Year(Date)
+                            G_noc = letoValikaNoc Mod 19
+                            C_noc = letoValikaNoc \ 100
+                            H_noc = (C_noc - C_noc \ 4 - (8 * C_noc + 13) \ 25 + 19 * G_noc + 15) Mod 30
+                            I_noc = H_noc - (H_noc \ 28) * (1 - (29 \ (H_noc + 1)) * ((21 - G_noc) \ 11))
+                            J_noc = (letoValikaNoc + letoValikaNoc \ 4 + I_noc + 2 - C_noc + C_noc \ 4) Mod 7
+                            L_noc = I_noc - J_noc
+                            EM_noc = 3 + (L_noc + 40) \ 44
+                            ED_noc = L_noc + 28 - (31 * (EM_noc \ 4))
+                                'If ActiveWorkbook.Date1904 = True Then
+                                ' Adj1904 = 365 * 4 + 2
+                                'End If
+                                'velika noč:
+                            velikanoc = DateSerial(letoValikaNoc, EM_noc, ED_noc) + 1
+                                'BARVANJE IN OZNAČEVENJE VELIKENOČNEGA PONDELJKA
+                                    If DateValue(Date - mojeSteviloDni / mojFaktor + i) = velikanoc Then
+                                        With datumi.TextFrame.TextRange.Font
+                                            .Size = 30
+                                            .Bold = True
+                                            .Color.RGB = RGB(192, 0, 0)
+                                            datumi.Fill.Patterned Pattern:=msoPatternLightDownwardDiagonal
+                                            datumi.Fill.ForeColor.RGB = RGB(128, 0, 0)
+                                        End With
+                                    End If
+                                'konec velika noč
+                Next i
+      ' konec barvanja datumov
+      
+      '================================ vpis fermentorjev in loading sekvence
+  
+      '----------------------- vpiše fermentorje ---------
+      
+                                        Dim cnn As New ADODB.Connection
+                                        Dim rs As New ADODB.Recordset
+                                        rs.CursorLocation = adUseClient
+                                        
+                                        Dim dataReadArray() As Variant
+                                        Dim myPress As Presentation
+                                        Dim newSlide As Slide
+                                        Dim konecNasel As Boolean
+                                        Dim Vrstice As Integer
+                                    imeDatoteke = "G:\BusUnits\FAU\Fermentacija\InfoTabla\PlanFermentacije_Tabla.xlsx"
+                                    'imeDatoteke = "\\gxsigx-s4010\VIDAPA1$\data\Fermentacija\Gantt\practice\Stariplani\PalanFermentacije_Tabla.xlsx"
+                                        ' preveri če obstaj datoteka
+                                    If Len(Dir(imeDatoteke, vbDirectory)) = 0 Then
+                                        Set FD = Application.FileDialog(msoFileDialogOpen)
+                                            FD.Show
+                                            If FD.SelectedItems.Count <> 0 Then
+                                                imeDatoteke = FD.SelectedItems(1)
+                                                Else
+                                                MsgBox "izberi prosim excel file"
+                                                Exit Sub
+                                            End If
+                                      Else
+                                      
+                                      End If
+                                           If cnn.State = adStateOpen Then cnn.Close
+                                            
+                                            cnn.ConnectionString = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DBQ=" & imeDatoteke
+                                                cnn.Open
+                                                        Nalagam.TextFrame.TextRange.Text = "Opravilo cnn.Open uspel"
+                                          
+                                           
+                                            strSQL = "SELECT  * FROM [Sheet1$] WHERE " '[pososda]='" & Imena(j) & "'"
+                            ' dodatni pogoji pa datum da ne kaže že zelo stare in pre "nova" opravila
+                                              ' strSQL = strSQL & "  [nacep]>#" & Format(prva, "yyyy-mm-dd ttttt") & "# AND [nacep] <#" & Format(zadnja, "yyyy-mm-dd ttttt") & "#"
+                                                
+                                                strSQL = strSQL & "  [precep]>#" & Format(prva, "yyyy-mm-dd ttttt") & "# AND [nacep] <#" & Format(zadnja, "yyyy-mm-dd ttttt") & "#"
+                                                
+                                           
+                                             If rs.State = adStateOpen Then
+                                                    rs.Close
+                                                End If
+                                           
+                                             rs.Open strSQL, cnn, adOpenForwardOnly, adLockReadOnly
+                                             
+                                             
+                                             
+                                              If rs.RecordCount > 0 Then
+                                                                    dataReadArray = rs.GetRows
+                                                                    
+                                                             End If
+                                                             
+                                                           
+                                                         Nalagam.TextFrame.TextRange.Text = "rs.Close"
+                                                            If rs.State = adStateOpen Then
+                                                                rs.Close
+                                                            End If
+                                                            
+                                                            'cnn = Nothing
+       
+                                           
+                                      
+                          
+                          Set cnn = Nothing
+                              
+                                    Nalagam.TextFrame.TextRange.Text = "Vpisujem podatke..."
+                            ' zapre excel
+                          
+                            'nalagam
+                                    Nalagam.TextFrame.TextRange.Text = "Zaključujem..."
+                            
+                            'za puščice
+                        If OpravilaVidna = True Then
+                            Dim cnn_p As New ADODB.Connection
+                            Dim rs_p As New ADODB.Recordset
+                                rs_p.CursorLocation = adUseClient
+                            ' --- preverjanje in odpiranje excel podatkov
+                            imeDatoteke = "G:\BusUnits\FAU\Fermentacija\InfoTabla\Opravila_Tabla.xlsx"
+                                ' preveri če obstaj datoteke
+                                    Nalagam.TextFrame.TextRange.Text = "preverija če obstaj datoteka Opravila_Tabela"
+                           
+                                        If Len(Dir(imeDatoteke, vbDirectory)) = 0 Then
+                                                            NiPuscic = True
+                                        End If
+                            'za puščice
+                                        If cnn_p.State = adStateOpen Then
+                                            cnn_p.Close
+                                        End If
+                                            If NiPuscic = False Then
+                                                cnn_p.ConnectionString = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DBQ=" & imeDatoteke
+                                                cnn_p.Open
+                                                        Nalagam.TextFrame.TextRange.Text = "Opravilo cnn_p.Open uspel"
+                                            End If
+                                                Dim dataReadArray_pu() As Variant
+                                                strSQL = "SELECT  * FROM [Sheet1$] WHERE " '[pososda]='" & Imena(j) & "'"
+                            ' dodatni pogoji pa datum da ne kaže že zelo stare in pre "nova" opravila
+                                                strSQL_pu = strSQL & "  [nacep]>#" & Format(prva, "yyyy-mm-dd ttttt") & "# AND [nacep] <#" & Format(zadnja, "yyyy-mm-dd ttttt") & "#"
+                                                If rs_p.State = adStateOpen Then
+                                                    rs_p.Close
+                                                End If
+                            'MsgBox cnn_p.State & " " & NiPuscic
+                            'odpiranje SQL statmenta *****************************
+                                                rs_p.Open strSQL_pu, cnn_p, adOpenForwardOnly, adLockReadOnly
+       
+                                                                If rs_p.RecordCount > 0 Then
+                                                                    dataReadArray_pu = rs_p.GetRows
+                                                                    koncano = rs_p.RecordCount
+                                                                    koncano = koncano - 1
+                                                                   ' dim alisoPu
+                                                             End If
+                                                             
+                                                            If NiPuscic = False Then
+                                                                 Nalagam.TextFrame.TextRange.Text = "cnn_p.Close"
+                                                                 cnn_p.Close
+                                                            End If
+            
+                                                         Nalagam.TextFrame.TextRange.Text = "rs_p.Close"
+                                                            If rs_p.State = adStateOpen Then
+                                                                rs_p.Close
+                                                            End If
+                                                             
+                                                             
+                                                             
+                            End If ' preverje OpravilaVidna
+                                                Vrstice = Vrstice - 1
+    
+                                               
+     'proces napredek
+     Datum.ProgressBar1.Value = 15
+     
+     'preverjanje če je array prazen
+      If (Not dataReadArray) = -1 Then
+      MsgBox "Ni podatkov"
+       Datum.ProgressBar1.Visible = False
+      Exit Sub
+      End If
+
+    ' odločevenje x,y posicije fermentorjev in risanje
+    For i = 0 To UBound(dataReadArray, 2) - 1
+        For j = 0 To UBound(Imena, 1)
+        
+                    ' poišče imena fermentorjev  in poda vrstico
+            If dataReadArray(0, i + 1) = Imena(j) Then
+                j = j + 1
+               
+                If IsDate(dataReadArray(2, i + 1)) = True Or IsNumeric(dataReadArray(2, i + 1)) = True Then
+                    If IsNumeric(dataReadArray(2, i + 1)) = True Then
+                        ceDvaDatuma = False
+                    End If
+                        ' j ponazarja vrstico v katero se vriše fermentor
+                        'preveri če sta oba datuma prisotna
+        
+                    With ActivePresentation.Slides(1).Shapes
+                            'izmeri razliko med danim datum in sedanjim datumom
+                        zaceTEK = DateDiff("d", NovDatum, dataReadArray(1, i + 1))
+                        zaceTEK = zaceTEK * mojaPrvaLinija
+                        zaceTEK = zaceTEK + (mojaPrvaLinija / 24) * Hour(dataReadArray(1, i + 1))
+                            'konC = Day(dataReadArray(2, i + 2)) - Day(Date)
+                            'konC = konC * mojaPrvaLinija
+                            'konC = konC + (mojaPrvaLinija / 24) * Hour(dataReadArray(2, i + 2))
+                            If IsNumeric(dataReadArray(2, i + 1)) = True Then
+                                mojaDolz = (mojaPrvaLinija / 24) * dataReadArray(2, i + 1)
+                                Else
+                                mojaDolz = DateDiff("h", dataReadArray(1, i + 1), dataReadArray(2, i + 1))
+                                mojaDolz = (mojaPrvaLinija / 24) * mojaDolz
+                            End If
+                                    'mojaDolz = zaceTEK - konC
+                                    ' ta if izkluči pre stare serije
+                            If (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK + mojaDolz > 0 Then
+                                        ' ta if izključi pre nove serije
+                                If (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK < 1.1 * longWidth Then
+                                        ' barava okvirja
+                                        'preveri če je oznaka serije štveilka
+                                    If IsNumeric(dataReadArray(3, i + 1)) = True Then
+                                            mojaBarvaOkviraj = dataReadArray(3, i + 1) Mod 5
+                                            'spodnji okvir
+                                            Set okvir = .AddShape(msoShapeRectangle, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK - 2, j * (longHeight + 920 / j) / (UBound(Imena, 1) + 3) + 14, mojaDolz + 4, longHeight / 72)
+                                                    If ceDvaDatuma = False Then
+                                                        okvir.Name = "okvir " & dataReadArray(0, i + 1) & " serija" & dataReadArray(3, i + 1) & "/" & Year(DateAdd("h", dataReadArray(2, i + 1), dataReadArray(1, i + 1)))
+                                                        Else
+                                                        okvir.Name = "okvir " & dataReadArray(0, i + 1) & " serija" & dataReadArray(3, i + 1) & "/" & Year(dataReadArray(2, i + 1))
+                                                    End If
+                                                        'razne barve okvirjev na osnovi st. serije
+                                                    If mojaBarvaOkviraj = 0 Then
+                                                        okvir.Fill.ForeColor.RGB = RGB(56, 93, 138)
+                                                        ElseIf mojaBarvaOkviraj = 1 Then
+                                                        okvir.Fill.ForeColor.RGB = RGB(195, 3, 8)
+                                                        ElseIf mojaBarvaOkviraj = 2 Then
+                                                        okvir.Fill.ForeColor.RGB = RGB(222, 202, 54)
+                                                        ElseIf mojaBarvaOkviraj = 3 Then
+                                                        okvir.Fill.ForeColor.RGB = RGB(2, 2, 5)
+                                                        Else
+                                                        okvir.Fill.ForeColor.RGB = RGB(119, 158, 56)
+                                                    End If 'poda barve okvirjv
+                                                    okvir.Line.Visible = msoFalse
+                                                            ' če je drugi datum števika
+                                        'Else
+                                           ' Set okvir = .AddShape(msoShapeRectangle, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK - 2, j * (longHeight + 920 / j) / (UBound(Imena, 1) + 3) + 14, mojaDolz + 4, longHeight / 72)
+                                           ' If ceDvaDatuma = False Then
+                                           '     okvir.Name = "okvir " & dataReadArray(0, i + 1) & " serija" & dataReadArray(3, i + 1) & "/" & Year(DateAdd("h", dataReadArray(2, i + 1), dataReadArray(1, i + 1)))
+                                           '     Else
+                                           '     okvir.Name = "okvir " & dataReadArray(0, i + 1) & " serija" & dataReadArray(3, i + 1) & "/" & Year(dataReadArray(2, i + 1))
+                                           ' End If
+                                           ' okvir.Fill.ForeColor.RGB = RGB(255, 29, 29)
+                                                   
+                                            okvir.Line.Visible = msoFalse
+                                            
+                                                'End If ' if zanka od preverjanja številčnosti oznake serije
+                                                'stirikotnik
+                                            Set fermentor = .AddShape(msoShapeRectangle, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK, j * (longHeight + 920 / j) / (UBound(Imena, 1) + 3) + 10, mojaDolz, longHeight / 70)
+                                            If ceDvaDatuma = False Then ' če ni datuma izpusta ampak samo PON
+                                                fermentor.Name = "Ferm. " & dataReadArray(0, i + 1) & " serija" & dataReadArray(3, i + 1) & "/" & Year(DateAdd("h", dataReadArray(2, i + 1), dataReadArray(1, i + 1)))
+                                                Else
+                                                fermentor.Name = "Ferm. " & dataReadArray(0, i + 1) & " serija" & dataReadArray(3, i + 1) & "/" & Year(dataReadArray(2, i + 1))
+                                            End If
+                                                ' pogoj za Gento
+                                            If dataReadArray(0, i + 1) = "F-2" Or dataReadArray(0, i + 1) = "F-3" Or dataReadArray(0, i + 1) = "PF-1" Or dataReadArray(0, i + 1) = "PF-2" Or dataReadArray(0, i + 1) = "PR-1" Or dataReadArray(0, i + 1) = "PR-2" Then
+                                                fermentor.Fill.ForeColor.RGB = RGB(221, 217, 195)
+                                                Else
+                                                fermentor.Fill.ForeColor.RGB = RGB(220, 230, 242)
+                                            End If
+                                            ' prozono za ženske
+                                            If Datum.BuceTudi.Value = True Then
+                                            fermentor.Fill.Transparency = 0.8
+                                            End If
+                                            
+                                            
+                                            fermentor.Line.Visible = msoFalse
+                                                    'ura nacepitve
+                                             If Datum.BrezNa.Value = False Then
+                                            Set ime = .AddTextbox(msoTextOrientationHorizontal, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK - 10, j * (longHeight + 920 / j) / (UBound(Imena, 1) + 3) - 10, 100, 80)
+                                                ime.TextFrame.TextRange.Text = Hour(dataReadArray(1, i + 1))
+                                                ime.TextFrame.TextRange.Font.Size = 25
+                                                ime.Name = "nacep" & Hour(dataReadArray(1, i + 1)) & "Ferm. " & dataReadArray(0, i + 1) & " serija" & dataReadArray(3, i + 1)
+                                              End If
+                                                    
+                                                    'serija fermentacije
+                                            Set serijaFerm = .AddTextbox(msoTextOrientationHorizontal, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK + (mojaDolz / 4), j * (longHeight + 920 / j) / (UBound(Imena, 1) + 3) + 4, 100, 80)
+                                                serijaFerm.TextFrame.TextRange.Text = dataReadArray(3, i + 1)
+                                                serijaFerm.TextFrame.TextRange.Font.Size = 20
+                                                    '    pogoj za Gento in barvanje drugače
+                                            If dataReadArray(0, i + 1) = "F-2" Or dataReadArray(0, i + 1) = "F-3" Or dataReadArray(0, i + 1) = "PF-1" Or dataReadArray(0, i + 1) = "PF-2" Or dataReadArray(0, i + 1) = "PR-1" Or dataReadArray(0, i + 1) = "PR-2" Then
+                                                serijaFerm.TextFrame.TextRange.Font.Color.RGB = RGB(151, 0, 51)
+                                                Else
+                                                serijaFerm.TextFrame.TextRange.Font.Color.RGB = RGB(0, 176, 240)
+                                            End If
+                                            
+                                              ' prozono za ženske
+                                            If Datum.BuceTudi.Value = True Then
+                                            serijaFerm.TextFrame.TextRange.Font.Color.RGB = RGB(217, 217, 217)
+                                            End If
+                                            
+                                                serijaFerm.Name = "ime serije " & dataReadArray(3, i + 1)
+                                                    ' če je fermentor čas izpšusta
+                                                    For f = 0 To 10
+                                                            ' poišče imena fermentorjev  in poda vrstico
+                                                        If dataReadArray(0, i + 1) = imenaFERM(f) Then
+                                                                ' j ponazarja vrstico v katero se vriše fermentor in so še vedno veljavno
+                                                            Set imeCASiz = .AddTextbox(msoTextOrientationHorizontal, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK + mojaDolz - 30, j * (longHeight + 920 / j) / (UBound(Imena, 1) + 3) + 2, 100, 80)
+                                                                If IsNumeric(dataReadArray(2, i + 1)) = True Then
+                                                                    imeCASiz.TextFrame.TextRange.Text = Hour(DateAdd("h", dataReadArray(2, i + 1), dataReadArray(1, i + 1)))
+                                                                    Else
+                                                                    imeCASiz.TextFrame.TextRange.Text = Hour(dataReadArray(2, i + 1))
+                                                                End If
+                                                                imeCASiz.TextFrame.TextRange.Font.Size = 22
+                                                                imeCASiz.Name = "čas izpusta " & Hour(dataReadArray(2, i + 1)) & " Ferm. " & dataReadArray(0, i + 1) & " serija" & dataReadArray(3, i + 1)
+                                                        End If ' if za imenaFERM
+                                                    Next f ' ime fermentorjev
+                                    End If ' is numerik
+                                End If ' selekcija pre stare     in pre
+                            End If  ' selekcij pre nov
+                    
+                    End With 'izmeri razliko med danim datum in sedanjim datumom
+        
+                  '  Else
+        'Exit For
+               '---- Doda puščico ---
+               'nov sistem
+        '-----------------------------
+        If OpravilaVidna = True And Not koncano = empthy Then
+                    For ipu = 0 To koncano
+                        If Imena(j - 1) = dataReadArray_pu(0, ipu) Then
+                        
+                        
+                            'izmeri razliko med danim datum in sedanjim datumom
+                            zaceTEK = DateDiff("d", NovDatum, dataReadArray_pu(1, ipu))
+                            zaceTEK = zaceTEK * mojaPrvaLinija
+                            zaceTEK = zaceTEK + (mojaPrvaLinija / 24) * Hour(dataReadArray_pu(1, ipu))
+                            With ActivePresentation.Slides(1).Shapes
+                                Set puscica = .AddShape(36, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK - 12, j * (longHeight + 920 / j) / (UBound(Imena, 1) + 3) + 1, 24, 27)
+                                    ' pogoj za barvanje pučšice
+                                    If dataReadArray_pu(3, ipu) = "OPRAVLJENO" Then
+                                        puscica.Fill.ForeColor.RGB = RGB(0, 153, 0)
+                                        Else
+                                        puscica.Fill.ForeColor.RGB = RGB(250, 20, 75)
+                                    End If
+                                    puscica.Line.Visible = msoFalse
+                                    puscica.Name = "Puščica KOCKA " & dataReadArray_pu(0, ipu) & " ;" & dataReadArray_pu(0, ipu) & " ;" & dataReadArray_pu(1, ipu) & " ;" & dataReadArray_pu(2, ipu) & " ;"
+                                            'pa še besedilo
+                                Set puscicaText = .AddTextbox(msoTextOrientationHorizontal, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK - 6, j * (longHeight + 920 / j) / (UBound(Imena, 1) + 3) - 18, 200, 200)
+                                    puscicaText.TextFrame.TextRange.Text = dataReadArray_pu(2, ipu)
+                                    puscicaText.TextFrame.TextRange.Font.Size = 21
+                                    If dataReadArray_pu(3, ipu) = "OPRAVLJENO" Then
+                                        'ChrW(10003) decimal charater set doda kljzukico
+                                        puscicaText.TextFrame.TextRange.Text = dataReadArray_pu(2, ipu) & ChrW(10003)
+                                        puscicaText.TextFrame.TextRange.Font.Color.RGB = RGB(0, 153, 0)
+                                        Else
+                                        puscicaText.TextFrame.TextRange.Font.Color.RGB = RGB(250, 20, 75)
+                                    End If
+                                    puscicaText.Name = "Pri Puščici " & dataReadArray_pu(0, ipu) & " " & dataReadArray_pu(2, ipu)
+                            End With
+                           
+                        End If ' preverja fermentor
+                     Next ipu
+          
+        ' standardni način -------------- za piščice
+                        
+        '                'izmeri razliko med danim datum in sedanjim datumom
+        '                zaceTEK = DateDiff("d", NovDatum, dataReadArray(1, i + 1))
+        '                zaceTEK = zaceTEK * mojaPrvaLinija
+        '                zaceTEK = zaceTEK + (mojaPrvaLinija / 24) * Hour(dataReadArray(1, i + 1))
+        '                    ' ta if izkluči pre stare serije
+         '           If (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK > 0 Then
+         '                       ' ta if izključi pe mlade serije
+         '               If (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK < longWidth Then
+         '                   With ActivePresentation.Slides(1).Shapes
+        '                        Set puscica = .AddShape(36, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK - 12, j * (longHeight + 920 / j) / (UBound(Imena, 1) + 3) + 1, 24, 27)
+        '                                'puscica.Fill.Visible = msoFalse
+        '                                ' pogoj za barvanje pučšice
+         '                           If dataReadArray(3, i + 1) = "OPRAVLJENO" Then
+         '                               puscica.Fill.ForeColor.RGB = RGB(0, 153, 0)
+         '                               Else
+        '                                puscica.Fill.ForeColor.RGB = RGB(250, 20, 75)
+        '                            End If
+        '                            puscica.Line.Visible = msoFalse
+        '                            puscica.Name = "Puščica KOCKA " & Imena(j - 1) & " ;" & dataReadArray(0, i + 1) & " ;" & dataReadArray(1, i + 1) & " ;" & dataReadArray(2, i + 1) & " ;"
+        '                                'pa še besedilo
+        '                        Set puscicaText = .AddTextbox(msoTextOrientationHorizontal, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK - 6, j * (longHeight + 920 / j) / (UBound(Imena, 1) + 3) - 18, 200, 200)
+        '                            puscicaText.TextFrame.TextRange.Text = dataReadArray(2, i + 1)
+        '                            puscicaText.TextFrame.TextRange.Font.Size = 21
+        '                            If dataReadArray(3, i + 1) = "OPRAVLJENO" Then
+        '                                puscicaText.TextFrame.TextRange.Font.Color.RGB = RGB(0, 153, 0)
+        ''                                Else
+        '                                puscicaText.TextFrame.TextRange.Font.Color.RGB = RGB(250, 20, 75)
+        '                            End If
+        '                            puscicaText.Name = "Pri Puščici " & Imena(j - 1) & " " & dataReadArray(2, i + 1)
+        ''                    End With
+        '                        ' te dva if-a zaključita prverjanje če so vnosi stari ali mladi
+        '                End If ' pre stare
+        '            End If  ' pre mlade puščice
+                 End If ' za OpravilaVidna
+                    
+                End If 'preveri če sta prisotna oba datuma
+            End If 'preveri če je v začetni celici fermentor
+        Next j
+        
+        Datum.ProgressBar1.Value = Datum.ProgressBar1.Value + ((i / UBound(dataReadArray, 2) * (100 - Datum.ProgressBar1.Value)))
+        
+    Next i
+    
+    
+
+        
+            
+    'rdeča vodoravna-------------------------------------
+    'With ActivePresentation.Slides(1).Shapes
+    '     Set rdeca = .AddLine((Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + (mojaPrvaLinija / 24) * 1, 0, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + (mojaPrvaLinija / 24) * 1, longHeight)
+    '     rdeca.Line.ForeColor.RGB = RGB(180, 0, 0)
+    'End With
+    
+    
+    'For i = 1 To 50
+    'With ActivePresentation.Slides(1).Shapes
+    '      Set prvi = .AddTextbox(msoTextOrientationHorizontal, 7, 60 * i + 1, 250, 80)
+    '       prvi.TextFrame.TextRange.Text = dataReadArray(1, i)
+    '
+    '    prvi.TextFrame.TextRange.Text = Format(dataReadArray(i), "long time") & vbNewLine & Format(dataReadArray(i), "long date") & vbNewLine & Hour(Format(dataReadArray(i), "long time"))
+    '
+    '    prvi.TextFrame.TextRange.Font.Size = 20
+        
+    
+    'End With
+    'Next i
+    
+     
+      
+      
+      
+      '--------------------- vriše fermentorje konec -----------
+     ' Imena = Array("PR-1", "PR-2", "PF-1", "PF-2", "F-1", "F-2", "F-3", "", "PR-3", "PR-4", "PR-5", "PR-6", "PR-7", "PR-8", "PF-3", "PF-4", "PF-5", "PF-6", "F-4", "F-5", "F-6", "F-7", "F-8", "F-9", "F-10", "F-11")
+      For j = 1 To UBound(Imena, 1) + 1
+            'Dim imena As Variant
+        
+        With ActivePresentation.Slides(1).Shapes
+          Set fermentorji = .AddTextbox(msoTextOrientationHorizontal, 7, j * (longHeight + 920 / j) / (UBound(Imena, 1) + 3), 70, 80)
+            fermentorji.TextFrame.TextRange.Text = Imena(j - 1)
+            fermentorji.Name = "Posoda " & Imena(j - 1)
+            fermentorji.Fill.ForeColor.RGB = RGB(242, 242, 242) ' -- barvanje besedila posod
+        End With
+        
+        'spreminjane pisava na datumu_mescu
+        With fermentorji.TextFrame.TextRange.Font
+            .Size = 23
+            .Bold = True
+            .Color.RGB = RGB(94, 94, 94)
+        End With
+    
+      Next j
+    ' imena mescev
+    Dim mojMesec As Variant
+            mojMesec = Array("Januar", "Februar", "Marec", "April", "Maj", "Junij", "Julij", "Avgust", "September", "Oktober", "November", "December")
+    With ActivePresentation.Slides(1).Shapes
+          Set mesec = .AddTextbox(msoTextOrientationHorizontal, 30, -10, 250, 20)
+        
+            mesec.TextFrame.TextRange.Text = mojMesec(Month(NovDatum) - 1) & " " & Year(NovDatum)
+            mesec.Name = mojMesec(Month(NovDatum) - 1) & " " & Year(NovDatum)
+            mesec.TextFrame.TextRange.Font.Size = 30
+            mesec.TextFrame.TextRange.Font.Bold = True
+            mesec.TextFrame.TextRange.Font.Color.RGB = RGB(94, 94, 94)
+        
+    End With
+
+  Datum.ProgressBar1.Visible = False
+   Nalagam.Delete
+End Sub
+
+Sub zaseniFormo()
+Datum.Show
+End Sub
+
+-------------------------------------------------------------------------------
+VBA MACRO Datum.frm 
+in file: None - OLE stream: 'VBA/Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+Private Sub CommandButton1_Click()
+PoIzbiri.PlanZaFermentorjeDolociObdobje
+
+End Sub
+
+Private Sub CommandButton2_Click()
+ProgressBar1.Value = ProgressBar1.Value + 15
+End Sub
+
+Private Sub LbDatum_Click()
+
+End Sub
+
+Private Sub MonthView1_DateClick(ByVal DateClicked As Date)
+LbDatum.Caption = DateClicked
+End Sub
+
+Private Sub OptionButton1_Click()
+
+End Sub
+
+Private Sub Opravila_Click()
+
+End Sub
+
+Private Sub TextBox1_Change()
+LbDni.Caption = TextBox1.Text
+End Sub
+
+Private Sub UserForm_Activate()
+LbDni.Caption = TextBox1.Text
+
+End Sub
+
+
+
+
+
+
+Private Sub UserForm_Initialize()
+LbDatum.Caption = DateValue(Now)
+MonthView1.Value = DateValue(Now)
+'določi izhodiščini datum
+ 
+End Sub
+
+
+Private Sub UserForm_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+
+End Sub
+
+
+-------------------------------------------------------------------------------
+VBA FORM STRING IN None - OLE stream: 'Datum/o'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+Tahoma�
+-------------------------------------------------------------------------------
+VBA FORM STRING IN None - OLE stream: 'Datum/o'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+Tahoma�
+-------------------------------------------------------------------------------
+VBA FORM STRING IN None - OLE stream: 'Datum/o'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+Tahoma�
+-------------------------------------------------------------------------------
+VBA FORM STRING IN None - OLE stream: 'Datum/o'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+Tahoma�
+-------------------------------------------------------------------------------
+VBA FORM STRING IN None - OLE stream: 'Datum/o'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+Tahoma�
+-------------------------------------------------------------------------------
+VBA FORM STRING IN None - OLE stream: 'Datum/o'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+�datuma�
+-------------------------------------------------------------------------------
+VBA FORM STRING IN None - OLE stream: 'Datum/o'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+Tahoma�
+-------------------------------------------------------------------------------
+VBA FORM STRING IN None - OLE stream: 'Datum/o'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+Tahoma�
+-------------------------------------------------------------------------------
+VBA FORM STRING IN None - OLE stream: 'Datum/o'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+Prikaz opravil
+-------------------------------------------------------------------------------
+VBA FORM STRING IN None - OLE stream: 'Datum/o'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+��������D�"
+-------------------------------------------------------------------------------
+VBA FORM STRING IN None - OLE stream: 'Datum/o'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+Samo Fermentorji
+-------------------------------------------------------------------------------
+VBA FORM STRING IN None - OLE stream: 'Datum/o'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+Brez ure nacepljanja
+-------------------------------------------------------------------------------
+VBA FORM STRING IN None - OLE stream: 'Datum/o'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+Samo Gentant
+ERROR: Unsupported stored type in user form: 32768
+-------------------------------------------------------------------------------
+VBA FORM Variable "b'MonthView1'" IN None - OLE stream: 'Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+None
+-------------------------------------------------------------------------------
+VBA FORM Variable "b'TextBox1'" IN None - OLE stream: 'Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+None
+-------------------------------------------------------------------------------
+VBA FORM Variable "b'Label1'" IN None - OLE stream: 'Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+None
+-------------------------------------------------------------------------------
+VBA FORM Variable "b'LbDatum'" IN None - OLE stream: 'Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+None
+-------------------------------------------------------------------------------
+VBA FORM Variable "b'Label2'" IN None - OLE stream: 'Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+None
+-------------------------------------------------------------------------------
+VBA FORM Variable "b'LbDni'" IN None - OLE stream: 'Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+None
+-------------------------------------------------------------------------------
+VBA FORM Variable "b'Label3'" IN None - OLE stream: 'Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+None
+-------------------------------------------------------------------------------
+VBA FORM Variable "b'CommandButton1'" IN None - OLE stream: 'Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+None
+-------------------------------------------------------------------------------
+VBA FORM Variable "b'Opravila'" IN None - OLE stream: 'Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+None
+-------------------------------------------------------------------------------
+VBA FORM Variable "b'ProgressBar1'" IN None - OLE stream: 'Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+None
+-------------------------------------------------------------------------------
+VBA FORM Variable "b'SamoFerm'" IN None - OLE stream: 'Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+None
+-------------------------------------------------------------------------------
+VBA FORM Variable "b'BrezNa'" IN None - OLE stream: 'Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+None
+-------------------------------------------------------------------------------
+VBA FORM Variable "b'SamoGenta'" IN None - OLE stream: 'Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+None
+-------------------------------------------------------------------------------
+VBA FORM Variable "b'BuceTudi'" IN None - OLE stream: 'Datum'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+None
++----------+--------------------+---------------------------------------------+
+|Type      |Keyword             |Description                                  |
++----------+--------------------+---------------------------------------------+
+|AutoExec  |CommandButton1_Click|Runs when the file is opened and ActiveX     |
+|          |                    |objects trigger events                       |
+|AutoExec  |TextBox1_Change     |Runs when the file is opened and ActiveX     |
+|          |                    |objects trigger events                       |
+|Suspicious|Open                |May open a file                              |
+|Suspicious|Create              |May execute file or a system command through |
+|          |                    |WMI                                          |
+|Suspicious|ChrW                |May attempt to obfuscate specific strings    |
+|          |                    |(use option --deobf to deobfuscate)          |
+|Suspicious|Hex Strings         |Hex-encoded strings were detected, may be    |
+|          |                    |used to obfuscate strings (option --decode to|
+|          |                    |see all)                                     |
+|Suspicious|Base64 Strings      |Base64-encoded strings were detected, may be |
+|          |                    |used to obfuscate strings (option --decode to|
+|          |                    |see all)                                     |
+|Base64    |nI5                 |bkk1                                         |
+|String    |                    |                                             |
+|Base64    |nI6                 |bkk2                                         |
+|String    |                    |                                             |
+|Base64    |nI7                 |bkk3                                         |
+|String    |                    |                                             |
+|Base64    |nI8                 |bkk4                                         |
+|String    |                    |                                             |
+|Base64    |nI9                 |bkk5                                         |
+|String    |                    |                                             |
++----------+--------------------+---------------------------------------------+
+

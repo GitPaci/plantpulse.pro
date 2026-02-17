@@ -1,0 +1,2473 @@
+olevba 0.60.2 on Python 3.9.6 - http://decalage.info/python/oletools
+===============================================================================
+FILE: InfoTabla20180201.ppt
+Type: PPT
+WARNING  For now, VBA stomping cannot be detected for files in memory
+-------------------------------------------------------------------------------
+VBA MACRO Predeleva.bas 
+in file: None - OLE stream: 'VBA/Predeleva'
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+
+
+Sub PredelavaRisiTablo()
+' vse od koledarja v ozadu do fermentorjev
+
+
+        Dim longHeight As Long
+        Dim longWidth As Long
+        Dim i As Integer
+        Dim mojeSteviloDni As Integer
+        Dim mojaPrvaLinija As Integer
+        Dim mojDatum, mojDan, zacetniDan, mojFaktor, sodoLiho, imeDatoteke, dolzinaIzmene
+      
+    'MsgBox "dela"
+    
+      'obliko spremeni
+      With ActivePresentation.PageSetup
+        .SlideWidth = 1920
+        .SlideHeight = 1080
+        .FirstSlideNumber = 1
+      End With
+      
+            Dim Imena As Variant
+               ' doloèa vrstni red fermentorjev
+            Imena = Array("PR-1", "PR-2", "PF-1", "PF-2", "F-2", "F-3", "", "PR-3", "PR-4", "PR-5", "PR-6", "PR-7", "PR-8", "PF-3", "PF-4", "PF-5", "PF-6", "F-1", "F-4", "F-5", "F-6", "F-7", "F-8", "F-9", "F-10", "F-11")
+             
+      
+           
+     
+        longHeight = ActivePresentation.PageSetup.SlideHeight
+        longWidth = ActivePresentation.PageSetup.SlideWidth
+        mojeSteviloDni = 25
+       
+         'loading sekvenca za preverjenje povezave in poatkovne beze èe se odziva
+      
+       With ActivePresentation.Slides(1).Shapes
+          Set Nalagam_malenkonsti = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.63, longHeight * 0.95, 500, 30)
+         
+             Nalagam_malenkonsti.TextFrame.TextRange.Text = "èrta za aktualan èas"
+            Nalagam_malenkonsti.Name = "Nalagam"
+            Nalagam_malenkonsti.TextFrame.TextRange.Font.Size = 20
+            Nalagam_malenkonsti.TextFrame.TextRange.Font.Bold = True
+            Nalagam_malenkonsti.TextFrame.TextRange.Font.Color.RGB = RGB(166, 166, 166)
+           
+        End With
+       
+     'MsgBox "poveže se z Excel datoteko kot s podatkovno bazo"
+         'poveže se z Excel datoteko kot s podatkovno bazo
+   
+    Nalagam_malenkonsti.TextFrame.TextRange.Text = "ADODB.Connection"
+        Dim cnn As ADODB.Connection
+        Set cnn = New ADODB.Connection
+        Dim rs As New ADODB.Recordset
+        Dim strSQL As String
+    
+    rs.CursorLocation = adUseClient
+      
+                    ' --- preverjanje in odpiranje excel podatkov
+    
+                     'imeDatoteke_plan = "\\gxsigx-s4010\VIDAPA1$\data\Fermentacija\Gantt\practice\Stariplani\PlanFermentacije_Tabla.xlsx"
+        imeDatoteke_plan = Mid(ActivePresentation.FullName, 1, InStrRev(ActivePresentation.FullName, "\"))
+        
+        imeDatoteke_plan = imeDatoteke_plan & "\PlanFermentacije_Tabla.xlsx"
+                    ' preveri èe obstaj datoteke
+        Nalagam_malenkonsti.TextFrame.TextRange.Text = "preverija èe obstaj datoteka"
+     
+    If Len(Dir(imeDatoteke_plan, vbDirectory)) = 0 Then
+     
+        Set FD = Application.FileDialog(msoFileDialogOpen)
+            FD.Show ' pogovorno okno za izbiro alternativne datoteke
+            If FD.SelectedItems.count <> 0 Then
+                imeDatoteke_plan = FD.SelectedItems(1)
+                Nalagam_malenkonsti.TextFrame.TextRange.Text = "Postavlje povezavo cnn.ConnectionString"
+                cnn.ConnectionString = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DBQ=" & imeDatoteke_plan
+    
+                cnn.Open
+                Nalagam_podrobnosti.TextFrame.TextRange.Text = "cnn.Open uspel"
+                
+                Else
+                MsgBox "izberi prosim excel file"
+                Nalagam.TextFrame.TextRange.Text = "Plan se ni naložil..."
+                Nalagam_malenkonsti.TextFrame.TextRange.Text = "Datoteka ne obstaj"
+                desni_meni
+                Exit Sub
+            End If
+    
+        Else
+            If cnn.State = adStateOpen Then cnn.Close
+                Nalagam_malenkonsti.TextFrame.TextRange.Text = "Postavlje povezavo cnn.ConnectionString"
+                cnn.ConnectionString = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DBQ=" & imeDatoteke_plan
+    
+                cnn.Open
+                Nalagam_malenkonsti.TextFrame.TextRange.Text = "cnn.Open uspel"
+    
+    End If ' if za preverjenje imena datoteke
+    
+    
+        strSQL = "SELECT  * FROM [Sheet1$]"
+    
+                    ' za ziher
+    If rs.State = adStateOpen Then
+        rs.Close
+    End If
+    
+    
+        Nalagam_malenkonsti.TextFrame.TextRange.Text = "Èakam na odziv podatkovne baze"
+                'prevejanje delovanja baze
+        rs.Open strSQL, cnn, adOpenForwardOnly, adLockReadOnly, True
+            
+        Nalagam_malenkonsti.TextFrame.TextRange.Text = "Recordset.Open uspel"
+    If rs.State = adStateOpen Then
+            rs.Close
+           '
+    End If
+        Nalagam_malenkonsti.TextFrame.TextRange.Text = "Preverjenje podatkovne baze uspel"
+       
+          ' MsgBox "Preverjenje podatkovnje baze uspel"
+       
+       
+       
+        Nalagam_malenkonsti.Delete
+                ' da vse zbiše
+                'if preveri èe je sploh kaj za zrisati
+    If ActivePresentation.Slides(1).Shapes.count > 0 Then
+      ActivePresentation.Slides(1).Shapes.Range.Delete
+    End If
+      
+      
+                    'koliko dni se prikazujejo
+        mojaPrvaLinija = longWidth / mojeSteviloDni
+                    ' kje je sredinski dan
+        mojFaktor = 5
+                    ' barva ozadaja
+      
+        ActivePresentation.SlideMaster.Background.Fill.ForeColor.RGB = RGB(242, 242, 242)
+                    '--------------- DANES ----------
+    With ActivePresentation.Slides(1).Shapes
+        Set danesKocka = .AddShape(msoShapeRectangle, Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija, 0, mojaPrvaLinija, longHeight)
+        danesKocka.Name = "danes"
+        danesKocka.Fill.ForeColor.RGB = RGB(217, 217, 222)
+     '   danesKocka.Fill.Transparency = 0.1
+        danesKocka.Line.Visible = msoFalse
+    End With
+       
+                        ' ------------------ DANES _ konec----------
+        Dim prva As Date
+        Dim zadnja As Date
+                    ' zaèetni datum kaseje to tudi pomembno
+        prva = DateAdd("d", mojFaktor * -1, Now)
+                    ' konèni datum
+        zadnja = DateAdd("d", mojeSteviloDni, prva)
+                    ' //////////////////////// izmene
+        Dim zacetekIzmen As Date
+        zacetekIzmen = DateAdd("d", -3, Date)
+        Dim prvaIzmena As Variant
+      
+        prvaIzmena = DateDiff("d", Now, zacetekIzmen)
+        prvaIzmena = prvaIzmena * mojaPrvaLinija
+                    ' prvaIzmena = prvaIzmena + (mojaPrvaLinija / 24) * 6
+        prvaIzmena = prvaIzmena + (mojaPrvaLinija / 24) * 18
+        dolzinaIzmene = (mojaPrvaLinija / 24) * 12
+      
+        Dim vrstniREd As Variant
+                    '7
+        vrstniREd = Array(0, 2, 1, 3, 2, 0, 3, 1)
+        k = 0
+        Dim ura As Integer
+        ura = Hour(Now)
+        Select Case ura
+        Case 18 To 23
+        ko = 2
+        Case 0 To 5
+        ko = 4
+        Case Else
+        ko = 0
+        End Select
+      
+        Do While prvaIzmena < longWidth
+            With ActivePresentation.Slides(1).Shapes
+                ' zacetekIzmen = zacetekIzmen * mojaPrvaLinija
+                '  zacetekIzmen = zacetekIzmen + (mojaPrvaLinija / 24)
+        
+                Set Izmene = .AddShape(msoShapeRectangle, Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija + prvaIzmena, 0, dolzinaIzmene, 6)
+                    Izmene.Name = "izmene " & k
+                    kateraIzmena = vrstniREd(ko)
+                    'spodnji okvir
+                    Select Case kateraIzmena
+                        Case 0
+                            'modro
+                        Izmene.Fill.ForeColor.RGB = RGB(0, 102, 255)
+                        Case 1
+                            ' zeleno
+                        Izmene.Fill.ForeColor.RGB = RGB(0, 204, 0)
+                        Case 2
+                            'rdeèe
+                        Izmene.Fill.ForeColor.RGB = RGB(255, 0, 0)
+                        Case 3
+                            'rumeno
+                        Izmene.Fill.ForeColor.RGB = RGB(255, 253, 0)
+                    End Select
+                    Izmene.Line.Visible = msoFalse
+            End With
+            prvaIzmena = prvaIzmena + dolzinaIzmene
+            k = k + 1
+            ko = ko + 1
+            If ko > 7 Then
+            ko = 0
+            End If
+       
+        Loop
+                        ' ///////////// izmene konec
+                        'vodoravne èrte 26 ker je 25 posod ine ene prazna èrta
+    For i = LBound(Imena) + 1 To UBound(Imena) + 1
+        With ActivePresentation.Slides(1).Shapes
+        
+        Set vodoravnaKocka = .AddShape(msoShapeRectangle, 0, i * (longHeight + 920 / i) / (UBound(Imena) + 3), longWidth, longHeight / 38)
+        vodoravnaKocka.Name = "ozadje " & i
+        sodoLiho = i Mod 2
+        If sodoLiho <> 0 Then
+        
+        vodoravnaKocka.Fill.ForeColor.RGB = RGB(102, 204, 255)
+        vodoravnaKocka.Fill.Transparency = 0.8
+        Else
+        vodoravnaKocka.Fill.ForeColor.RGB = RGB(249, 249, 249)
+        vodoravnaKocka.Fill.Transparency = 0.75
+        End If
+               
+        vodoravnaKocka.Line.Visible = msoFalse
+        End With
+      ' èrta za aktualen dan
+    Next i
+      
+          'veliko nocni ponedeljek raèunanje:
+        Dim G_noc As Integer
+        Dim C_noc As Integer
+        Dim H_noc As Integer
+        Dim I_noc As Integer
+        Dim J_noc As Integer
+        Dim L_noc As Integer
+        Dim EM_noc As Integer
+        Dim ED_noc As Integer
+        Dim letoValikaNoc As Integer
+        Dim velikanoc As Date
+                'fORMULA ZA VELIKONOÈ
+        letoValikaNoc = Year(Date)
+        G_noc = letoValikaNoc Mod 19
+        C_noc = letoValikaNoc \ 100
+        H_noc = (C_noc - C_noc \ 4 - (8 * C_noc + 13) \ 25 + 19 * G_noc + 15) Mod 30
+        I_noc = H_noc - (H_noc \ 28) * (1 - (29 \ (H_noc + 1)) * ((21 - G_noc) \ 11))
+        J_noc = (letoValikaNoc + letoValikaNoc \ 4 + I_noc + 2 - C_noc + C_noc \ 4) Mod 7
+        L_noc = I_noc - J_noc
+        EM_noc = 3 + (L_noc + 40) \ 44
+        ED_noc = L_noc + 28 - (31 * (EM_noc \ 4))
+                'velika noè: velikonoèni pondelje je en danpozneje paè "+1"
+    
+        velikanoc = DateSerial(letoValikaNoc, EM_noc, ED_noc) + 1
+                    ' slovenski prazniki  =========================
+        Dim mojiPrazniki_mesc As Variant ' mesci preznikov
+        Dim mojiPrazniki_dan As Variant  ' dan praznikov
+        'vsi "statièni" slo prazniki (dela prosti dni) | to je vese razne veliko noènega pondeljka
+        '11 elementov
+            mojiPrazniki_dan = Array("1", "2", "8", "27", "1", "2", "25", "15", "31", "1", "25", "26")
+            mojiPrazniki_mesc = Array("1", "1", "2", "4", "5", "5", "6", "8", "10", "11", "12", "12")
+        'datumi in èrte
+    For i = 1 To (mojeSteviloDni - 1)
+            ' Create the line.
+            With ActivePresentation.Slides(1).Shapes
+                Set vertikalne = .AddLine(i * mojaPrvaLinija, 0, i * mojaPrvaLinija, longHeight)
+                    'èrtkano in sivo
+                    If Weekday(Date - mojeSteviloDni / mojFaktor + i) = 2 Then
+                    
+                    vertikalne.Line.DashStyle = msoLineSolid
+                    vertikalne.Line.ForeColor.RGB = RGB(217, 217, 217)
+                    vertikalne.Name = "Èrtkana vertikalna " & i
+                    
+                    Else
+                    
+                    vertikalne.Line.DashStyle = msoLineDash
+                    vertikalne.Line.ForeColor.RGB = RGB(217, 217, 217)
+                    vertikalne.Name = "Èrtkana vertikalna " & i
+                        
+                    End If
+                        
+                        ' dodatek datuma
+                Set datumi = .AddTextbox(msoTextOrientationHorizontal, i * mojaPrvaLinija + mojaPrvaLinija / 5, 20, 46, 50)
+                    datumi.TextFrame.TextRange.Text = (Day(Date - mojeSteviloDni / mojFaktor + i))
+                        ' mora se deliti s parnim število ratzmerje datuma na prezentaciji
+                    datumi.Name = "Dan " & Day(Date - mojeSteviloDni / mojFaktor + i)
+    
+            End With
+        'spreminjane pisava na datumu
+        With datumi.TextFrame.TextRange.Font
+            .Size = 24
+            .Bold = True
+            .Name = "News Gothic MT"
+            .Color.RGB = RGB(94, 94, 94)
+        End With
+                'rdeèe ko je weekend in ètrkano ko je nedelja
+                ' sobota
+            If Weekday(Date - mojeSteviloDni / mojFaktor + i) = 7 Then
+                With datumi.TextFrame.TextRange.Font
+                    .Size = 24
+                    .Bold = True
+                    .Name = "News Gothic MT"
+                    .Color.RGB = RGB(192, 0, 0)
+                End With
+                ' dedelja
+                ElseIf Weekday(Date - mojeSteviloDni / mojFaktor + i) = 1 Then
+                    With datumi.TextFrame.TextRange.Font
+                        .Size = 24
+                        .Bold = True
+                        .Name = "News Gothic MT"
+                        .Color.RGB = RGB(192, 0, 0)
+                        datumi.Fill.Patterned Pattern:=msoPatternLightUpwardDiagonal
+                        datumi.Fill.ForeColor.RGB = RGB(128, 0, 0)
+                    End With
+       
+            End If
+                ' SLOVENSKI PRAZNIKI
+        For prazniki = LBound(mojiPrazniki_dan) To UBound(mojiPrazniki_dan)
+
+                ' za hitrejše preverjanje se prviè preverjajo pavi mesci in nato dnevi
+        If Month(DateValue(Date - mojeSteviloDni / mojFaktor + i)) = Month(DateSerial(Year(Date), mojiPrazniki_mesc(prazniki), mojiPrazniki_dan(prazniki))) Then
+            If Day(DateValue(Date - mojeSteviloDni / mojFaktor + i)) = Day(DateSerial(Year(Date), mojiPrazniki_mesc(prazniki), mojiPrazniki_dan(prazniki))) Then
+            'If DateValue(Date - mojeSteviloDni / mojFaktor + i) = DateSerial(Year(Date), mojiPrazniki_mesc(prazniki), mojiPrazniki_dan(prazniki)) Then
+                With datumi.TextFrame.TextRange.Font
+                    .Size = 24
+                    .Bold = True
+                    .Color.RGB = RGB(192, 0, 0)
+                    datumi.Fill.Patterned Pattern:=msoPatternLightDownwardDiagonal
+                    datumi.Fill.ForeColor.RGB = RGB(128, 0, 0)
+                End With
+       
+            End If
+        End If ' za mesec
+        Next prazniki
+                'BARVANJE IN OZNAÈEVENJE VELIKENOÈNEGA PONDELJKA
+        If DateValue(Date - mojeSteviloDni / mojFaktor + i) = velikanoc Then
+        With datumi.TextFrame.TextRange.Font
+            .Size = 24
+            .Bold = True
+            .Color.RGB = RGB(192, 0, 0)
+            datumi.Fill.Patterned Pattern:=msoPatternLightDownwardDiagonal
+            datumi.Fill.ForeColor.RGB = RGB(128, 0, 0)
+        End With
+       
+        End If
+    'konec velika noè
+      
+      
+      
+    Next i
+      ' konec barvanja datumov
+      
+    
+      
+      '================================ vpis fermentorjev in loading sekvence
+      ' loading text ko opisuje stanje
+        With ActivePresentation.Slides(1).Shapes
+            Set Nalagam = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.4, longHeight * 0.45, 500, 30)
+         
+                Nalagam.TextFrame.TextRange.Text = "Pridobivam podatke..."
+                Nalagam.Name = "Nalagam"
+                Nalagam.TextFrame.TextRange.Font.Size = 30
+                Nalagam.TextFrame.TextRange.Font.Bold = True
+                Nalagam.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 4)
+                Nalagam.Fill.ForeColor.RGB = RGB(242, 242, 242)
+            
+            
+        End With
+    
+        With ActivePresentation.Slides(1).Shapes
+            Set Nalagam_podrobnosti = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.4, longHeight * 0.5, 500, 30)
+         
+                Nalagam_podrobnosti.TextFrame.TextRange.Text = "èrta za aktualan èas"
+                Nalagam_podrobnosti.Name = "Nalagam"
+                Nalagam_podrobnosti.TextFrame.TextRange.Font.Size = 20
+                Nalagam_podrobnosti.TextFrame.TextRange.Font.Bold = True
+                Nalagam_podrobnosti.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 4)
+                Nalagam_podrobnosti.Fill.ForeColor.RGB = RGB(242, 242, 242)
+        End With
+      
+      
+      
+      
+        '   '////////////////////////////////////////////////èrta za aktualan èas
+        With ActivePresentation.Slides(1).Shapes
+            Set vertikalne = .AddLine((Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + (mojaPrvaLinija / 24) * Hour(Now), (longHeight + 920) / 28, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + (mojaPrvaLinija / 24) * Hour(Now), longHeight)
+                vertikalne.Line.ForeColor.RGB = RGB(180, 0, 0)
+                vertikalne.Line.Transparency = 0.7
+                vertikalne.Name = "aktualen èas"
+        End With
+      
+        '----------------------- vpiše fermentorje ---------
+        'MsgBox "Loadenje fementorjev"
+        'RecordCount
+
+          ' nalagam
+            Nalagam.TextFrame.TextRange.Text = "Vpisujem podatke..."
+            Nalagam_podrobnosti.TextFrame.TextRange.Text = "ADODB.Connection"
+                
+            'za pušèice
+            Dim cnn_p As New ADODB.Connection
+            Dim rs_p As New ADODB.Recordset
+    
+            '   rs.CursorLocation = adUseClient
+                rs_p.CursorLocation = adUseClient
+     
+    
+            Nalagam_podrobnosti.TextFrame.TextRange.Text = "cnn.Open uspel"
+            'imeDatoteke = "\\gxsigx-s4010\VIDAPA1$\data\Fermentacija\Gantt\practice\Stariplani\Opravila_Tabla.xlsx"
+            imeDatoteke = "G:\BusUnits\FAU\Fermentacija\InfoTabla\Opravila_Tabla.xlsx"
+                ' preveri èe obstaj datoteke
+            Nalagam_podrobnosti.TextFrame.TextRange.Text = "preverija èe obstaj datoteka Opravila_Tabela"
+   
+            Dim NiPuscic As Boolean
+                If Len(Dir(imeDatoteke, vbDirectory)) = 0 Then
+                    NiPuscic = True
+                End If
+                    'za pušèice
+            If cnn_p.State = adStateOpen Then cnn_p.Close
+            If NiPuscic = False Then
+                cnn_p.ConnectionString = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DBQ=" & imeDatoteke
+                cnn_p.Open
+                Nalagam_podrobnosti.TextFrame.TextRange.Text = "Opravilo cnn_p.Open uspel"
+            End If
+                
+                Dim ceDvaDatuma As Boolean
+                Dim dataReadArray() As Variant
+                Dim dataTextArray_Serija() As String
+                  ' odloèevenje x,y posicije fermentorjev in risanje
+            i = 0
+            Nalagam_podrobnosti.TextFrame.TextRange.Text = "Vrstni red fermentorjev doloèen"
+    For kj = LBound(Imena) To UBound(Imena)
+                ' poišèe imena fermentorjev  in poda vrstico
+            Nalagam_podrobnosti.TextFrame.TextRange.Text = "Ime trenutne posode: " & Imena(kj)
+      
+                If Imena(kj) = "" Then
+                    GoTo Line1
+      
+                    Else
+                        Nalagam_podrobnosti.TextFrame.TextRange.Text = "Sestavljanje SQL stringa"
+                        strSQL = "SELECT  * FROM [Sheet1$] WHERE [pososda]='" & Imena(kj) & "'"
+                            ' dodatni pogoji pa datum
+                        strSQL_plan = strSQL & " AND [precep]>#" & Format(prva, "yyyy-mm-dd ttttt") & "# AND [nacep] <#" & Format(zadnja, "yyyy-mm-dd ttttt") & "#"
+                            'naèin formatiranje da ADODB razume datum #" & Format(vse(1), "yyyy-mm-dd ttttt") & "#
+                        Nalagam_podrobnosti.TextFrame.TextRange.Text = "Odpiranje rs.Open: preverjanje, èe je odprto"
+                        If rs.State = adStateOpen Then
+                            rs.Close
+                        End If
+                        Nalagam_podrobnosti.TextFrame.TextRange.Text = "Odpiranje rs.Open"
+                            ' èasovni zamik in ponovni poskus
+                            ' ============= PROBLEMATIÈNO
+      
+                        
+                        With ActivePresentation.Slides(1).Shapes
+                            Set NALAGAMMeniOzadje = .AddShape(msoShapeRectangle, longWidth * 0.602, longHeight * 0.5, 100, 90)
+                            NALAGAMMeniOzadje.Name = "NalagamMeniOzadje"
+                            NALAGAMMeniOzadje.Fill.ForeColor.RGB = RGB(99, 67, 41)
+                            NALAGAMMeniOzadje.Line.Visible = msoFalse
+       
+                            Set NALAGAMMeniGumb0 = .AddShape(msoShapeRectangle, longWidth * 0.61, longHeight * 0.51, 70, 30)
+                            NALAGAMMeniGumb0.Name = "NalagamMeniGumb0"
+                            NALAGAMMeniGumb0.Fill.ForeColor.RGB = RGB(228, 76, 22)
+                            NALAGAMMeniGumb0.Line.Visible = msoFalse
+        
+                            Set NALAGAMMeniGumb1 = .AddShape(msoShapeRectangle, longWidth * 0.61, longHeight * 0.51 + 40, 70, 30)
+                            NALAGAMMeniGumb1.Name = "NalagamMeniGumb1"
+                            NALAGAMMeniGumb1.Fill.ForeColor.RGB = RGB(228, 76, 22)
+                            NALAGAMMeniGumb1.Line.Visible = msoFalse
+      
+                            Set nalagamMeniText1 = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.61, longHeight * 0.51, 70, 30)
+                            nalagamMeniText1.TextFrame.TextRange.Text = "Preklièi"
+                            nalagamMeniText1.Name = "DesniMenitext1"
+                            nalagamMeniText1.TextFrame.TextRange.Font.Size = 16
+                            nalagamMeniText1.TextFrame.TextRange.Font.Bold = True
+                            nalagamMeniText1.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 4)
+        
+                            Set nalagamMeniText2 = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.61, longHeight * 0.51 + 40, 70, 30)
+                            nalagamMeniText2.TextFrame.TextRange.Text = "Reset"
+                            nalagamMeniText2.Name = "DesniMenitext2"
+                            nalagamMeniText2.TextFrame.TextRange.Font.Size = 16
+                            nalagamMeniText2.TextFrame.TextRange.Font.Bold = True
+                            nalagamMeniText2.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 4)
+                        End With
+      
+      
+                        With ActivePresentation.Slides(1).Shapes("DesniMenitext1").ActionSettings(ppMouseClick)
+                            .Action = ppActionRunMacro
+                            .Run = "PredelavaRisiTablo"
+                            .AnimateAction = True
+                        End With
+    
+                        With ActivePresentation.Slides(1).Shapes("DesniMenitext2").ActionSettings(ppMouseClick)
+                            .Action = ppActionRunMacro
+                            .Run = "VznovicniZagon"
+                            .AnimateAction = True
+                        End With
+      
+      
+        
+        
+                        rs.Open strSQL_plan, cnn, adOpenForwardOnly, adLockReadOnly
+         
+                        NALAGAMMeniOzadje.Delete
+                        NALAGAMMeniGumb0.Delete
+                        NALAGAMMeniGumb1.Delete
+                        nalagamMeniText1.Delete
+                        nalagamMeniText2.Delete
+         
+                        Nalagam_podrobnosti.TextFrame.TextRange.Text = "RecordSet za Plan, se je upešno odprl rs.open "
+                            ' število vrstic
+                        Vrstice = rs.RecordCount
+                        Nalagam_podrobnosti.TextFrame.TextRange.Text = "Število vrstic " & Vrstice
+                        Vrstice = Vrstice - 1
+                        'prenese se iz datoteke v array
+                        If rs.RecordCount > 0 Then
+                            Nalagam_podrobnosti.TextFrame.TextRange.Text = "Prenos podatkov iz rs v Array"
+                            dataReadArray = rs.GetRows
+                           
+                            
+                            
+                            
+                            rs.Close
+                            Nalagam_podrobnosti.TextFrame.TextRange.Text = "rs. close po uspešnem prenosu v dataReadArry"
+                            Else
+                             j = kj + 1
+                            GoTo Line2
+                        End If
+                End If
+                
+                
+                
+        For i = 0 To Vrstice
+                j = kj + 1
+                Nalagam_podrobnosti.TextFrame.TextRange.Text = "IsDate(dataReadArray(1, i)) = True And IsDate(dataReadArray(2, i)) = True"
+                If IsDate(dataReadArray(1, i)) = True And IsDate(dataReadArray(2, i)) = True Then
+                    Nalagam_podrobnosti.TextFrame.TextRange.Text = "zmeri razliko med danim datum in sedanjim datumom"
+                    With ActivePresentation.Slides(1).Shapes
+                                'izmeri razliko med danim datum in sedanjim datumom
+                        zaceTEK = DateDiff("d", Now, dataReadArray(1, i))
+                        
+                        zaceTEK = zaceTEK * mojaPrvaLinija
+                        zaceTEK = zaceTEK + (mojaPrvaLinija / 24) * Hour(dataReadArray(1, i))
+                        mojaDolz = DateDiff("h", dataReadArray(1, i), dataReadArray(2, i))
+                        mojaDolz = (mojaPrvaLinija / 24) * mojaDolz
+                        If IsNumeric(dataReadArray(3, i)) = True Then
+                                
+                                Nalagam_podrobnosti.TextFrame.TextRange.Text = "doloèanje barve ozadje za dan fermentor in vrisanje"
+                                Set okvir = .AddShape(msoShapeRectangle, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK - 2, j * (longHeight + 920 / j) / (UBound(Imena) + 3) + 14, mojaDolz + 4, longHeight / 72)
+                                    If ceDvaDatuma = False Then
+                                        okvir.Name = "okvir " & dataReadArray(0, i) & " serija" & dataReadArray(3, i) & "/" & Year(DateAdd("h", dataReadArray(2, i), dataReadArray(1, i)))
+                                        Else
+                                        okvir.Name = "okvir " & dataReadArray(0, i) & " serija" & dataReadArray(3, i) & "/" & Year(dataReadArray(2, i))
+                                    End If
+                                    
+                                
+                            If DateDiff("d", Now, dataReadArray(1, i)) > 2 Then
+                                    mojaBarvaOkviraj = dataReadArray(3, i) Mod 3
+                                    
+                                     Select Case mojaBarvaOkviraj
+                                        Case 0 ' siva
+                                        okvir.Fill.ForeColor.RGB = RGB(191, 191, 191)
+                                        Case 2
+                                            ' siva
+                                        okvir.Fill.ForeColor.RGB = RGB(166, 166, 166)
+                                        Case 1
+                                        ' še vedno siva
+                                        okvir.Fill.ForeColor.RGB = RGB(127, 127, 127)
+                                        ' pa še bolj siva
+                                         Case Else
+                                        okvir.Fill.ForeColor.RGB = RGB(221, 221, 221)
+                                    End Select
+                                    
+                                    
+                                    
+                                    Else
+                                    
+                                    mojaBarvaOkviraj = dataReadArray(3, i) Mod 10
+                                        'razne barve okvirjev na osnovi st. serije
+                                    Select Case mojaBarvaOkviraj
+                                        Case 0 ' lek modra
+                                        okvir.Fill.ForeColor.RGB = RGB(0, 51, 102)
+                                        Case 1
+                                            ' lek oranžna
+                                        okvir.Fill.ForeColor.RGB = RGB(255, 153, 0)
+                                        Case 2
+                                        ' lek indigo
+                                        okvir.Fill.ForeColor.RGB = RGB(0, 102, 255)
+                                        Case 7
+                                        ' lek petrolej
+                                        okvir.Fill.ForeColor.RGB = RGB(112, 48, 160)
+                                        Case 4
+                                            ' lek nebo
+                                        okvir.Fill.ForeColor.RGB = RGB(102, 204, 255)
+                                        Case 6
+                                        ' novartis Blue
+                                        okvir.Fill.ForeColor.RGB = RGB(0, 127, 161)
+                                        Case 9
+                                        ' lek rdeèa
+                                        okvir.Fill.ForeColor.RGB = RGB(255, 0, 0)
+                                        Case 5
+                                            ' novartis red
+                                        okvir.Fill.ForeColor.RGB = RGB(228, 76, 22)
+                                        Case 8
+                                            ' lek karmin
+                                        okvir.Fill.ForeColor.RGB = RGB(153, 0, 51)
+                                        Case 3
+                                        ' Novartis Maroon
+                                        okvir.Fill.ForeColor.RGB = RGB(0, 176, 80)
+                                        Case 10
+                                        ' lek sonce
+                                        okvir.Fill.ForeColor.RGB = RGB(255, 204, 0)
+                                        Case Else
+                                        okvir.Fill.ForeColor.RGB = RGB(119, 158, 56)
+                                    End Select
+                                    
+                                    
+                                  End If
+                                    
+                                    
+                                    'poda barve okvirjv
+                                    
+                                    
+                                    okvir.Line.Visible = msoFalse
+                                            ' dodaten okrira za  poudarek aktualnega na dnevno izmeno
+                                    If Hour(Now) > 5 And Hour(Now) < 8 And DateValue(dataReadArray(1, i)) = DateValue(Now) And Hour(dataReadArray(1, i)) > 5 And Hour(dataReadArray(1, i)) < 19 Then
+                                            okvir.Line.Weight = 2
+                                            okvir.Line.DashStyle = msoLineDash
+                                            okvir.Line.Visible = msoTrue
+                                            okvir.Line.ForeColor.RGB = RGB(255, 255, 0)
+                                    End If
+                                        ' za noèno izmrno
+                                    If Hour(Now) > 17 And Hour(Now) < 20 Then
+                                        If DateValue(dataReadArray(1, i)) = DateValue(Now) And Hour(dataReadArray(1, i)) > 17 Then
+                                            okvir.Line.Visible = msoTrue
+                                            okvir.Line.Weight = 2
+                                            okvir.Line.DashStyle = msoLineDash
+                                            okvir.Line.ForeColor.RGB = RGB(10, 250, 250)
+                                            End If
+                                            If DateValue(dataReadArray(1, i)) = DateAdd("d", 1, DateValue(Now)) And Hour(dataReadArray(1, i)) < 6 Then
+                                                okvir.Line.Visible = msoTrue
+                                                okvir.Line.Weight = 2
+                                                okvir.Line.DashStyle = msoLineDash
+                                                okvir.Line.ForeColor.RGB = RGB(10, 250, 250)
+                                            End If
+            
+                                        End If
+                                            ' èe je drugi datum števika
+                                        Else
+                                        Nalagam_podrobnosti.TextFrame.TextRange.Text = "èe je drugi datum števika"
+                                        Set okvir = .AddShape(msoShapeRectangle, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK - 2, j * (longHeight + 920 / j) / (UBound(Imena) + 3) + 14, mojaDolz + 4, longHeight / 72)
+                                        If ceDvaDatuma = False Then
+                                                okvir.Name = "okvir " & dataReadArray(0, i) & " serija" & dataReadArray(3, i) & "/" & Year(DateAdd("h", dataReadArray(2, i), dataReadArray(1, i)))
+                                                Else
+                                                okvir.Name = "okvir " & dataReadArray(0, i) & " serija" & dataReadArray(3, i) & "/" & Year(dataReadArray(2, i))
+                                        End If
+                                        okvir.Fill.ForeColor.RGB = RGB(255, 29, 29)
+                                        okvir.Line.Visible = msoFalse
+                                        If DateValue(dataReadArray(1, i)) = DateValue(Now) And Hour(dataReadArray(1, i)) > 5 And Hour(dataReadArray(1, i)) < 19 Then
+                                            okvir.Line.Visible = msoTrue
+                                            okvir.Line.ForeColor.RGB = RGB(255, 255, 0)
+                                        End If
+                                    End If ' if zanka od preverjanja številènosti oznake serije
+                                    Set fermentor = .AddShape(msoShapeRectangle, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK, j * (longHeight + 920 / j) / (UBound(Imena) + 3) + 10, mojaDolz, longHeight / 70)
+                                    If ceDvaDatuma = False Then ' èe ni datuma izpusta ampak samo PON
+                                            fermentor.Name = "Ferm. " & dataReadArray(0, i) & " serija" & dataReadArray(3, i) & "/" & Year(DateAdd("h", dataReadArray(2, i), dataReadArray(1, i)))
+                                            Else
+                                            fermentor.Name = "Ferm. " & dataReadArray(0, i) & " serija" & dataReadArray(3, i) & "/" & Year(dataReadArray(2, i))
+                                    End If
+                                    If dataReadArray(0, i) = "F-2" Or dataReadArray(0, i) = "F-3" Or dataReadArray(0, i) = "PF-1" Or dataReadArray(0, i) = "PF-2" Or dataReadArray(0, i) = "PR-1" Or dataReadArray(0, i) = "PR-2" Then
+                                        fermentor.Fill.ForeColor.RGB = RGB(221, 217, 195)
+                                        Else
+                                        fermentor.Fill.ForeColor.RGB = RGB(220, 230, 242)
+                                    End If
+                                    fermentor.Line.Visible = msoFalse
+                                    'ura nacepitve
+                                    Set ime = .AddTextbox(msoTextOrientationHorizontal, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK - 10, j * (longHeight + 920 / j) / (UBound(Imena) + 3) - 10, 100, 80)
+                                    ime.TextFrame.TextRange.Text = Hour(dataReadArray(1, i))
+                                    ime.TextFrame.TextRange.Font.Size = 25
+                                    ime.Name = "nacep" & Hour(dataReadArray(1, i)) & "Ferm. " & dataReadArray(0, i) & " serija" & dataReadArray(3, i)
+                                    'serija fermentacije
+                                    Set serijaFerm = .AddTextbox(msoTextOrientationHorizontal, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK + (mojaDolz / 4), j * (longHeight + 920 / j) / (UBound(Imena) + 3) + 3, 100, 80)
+                                        If IsNull(dataReadArray(3, i)) Then
+                                            Else
+                                            serijaFerm.TextFrame.TextRange.Text = dataReadArray(3, i)
+                                    
+                                        End If
+                                    serijaFerm.TextFrame.TextRange.Font.Size = 20
+                                    ' pogoj za Gento in barvanje drugaèe
+                                    If dataReadArray(0, i) = "F-2" Or dataReadArray(0, i) = "F-3" Or dataReadArray(0, i) = "PF-1" Or dataReadArray(0, i) = "PF-2" Or dataReadArray(0, i) = "PR-1" Or dataReadArray(0, i) = "PR-2" Then
+                                        serijaFerm.TextFrame.TextRange.Font.Color.RGB = RGB(151, 0, 51)
+                                        Else
+                                        serijaFerm.TextFrame.TextRange.Font.Color.RGB = RGB(0, 176, 240)
+                                    End If
+                                    ' --------------- pogoj za Gento in barvanje drugaèe
+                                    serijaFerm.Name = "ime serije " & dataReadArray(3, i)
+                                    ' èe je fermentor èas izpšusta
+                                    Dim imenaFERM As Variant
+                                    imenaFERM = Array("F-1", "F-2", "F-3", "F-4", "F-5", "F-6", "F-7", "F-8", "F-9", "F-10", "F-11")
+                                    For f = 0 To 10
+                                            ' poišèe imena fermentorjev  in poda vrstico
+                                        If dataReadArray(0, i) = imenaFERM(f) Then
+                                                ' j ponazarja vrstico v katero se vriše fermentor in so še vedno veljavno
+                                            Set imeCASiz = .AddTextbox(msoTextOrientationHorizontal, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK + mojaDolz - 30, j * (longHeight + 920 / j) / (UBound(Imena) + 3) + 2, 100, 80)
+                                            If IsNumeric(dataReadArray(2, i)) = True Then
+                                                imeCASiz.TextFrame.TextRange.Text = Hour(DateAdd("h", dataReadArray(2, i), dataReadArray(1, i)))
+                                                Else
+                                                imeCASiz.TextFrame.TextRange.Text = Hour(dataReadArray(2, i))
+                                            End If
+                                            imeCASiz.TextFrame.TextRange.Font.Size = 22
+                                            imeCASiz.Name = "èas izpusta " & Hour(dataReadArray(2, i)) & " Ferm. " & dataReadArray(0, i) & " serija" & dataReadArray(3, i)
+                                        End If ' if za èas
+                                    Next f ' ime fermentorjev za vpisovanje èas izpust
+                    End With 'izmeri razliko med danim datum in sedanjim datumom
+                End If
+        Next i
+        Nalagam_podrobnosti.TextFrame.TextRange.Text = "Brisanje Erase dataReadArray"
+        Erase dataReadArray
+        If rs.State = adStateOpen Then rs.Close
+        
+Line2:               'pušèica
+            If NiPuscic = False Then
+                Nalagam_podrobnosti.TextFrame.TextRange.Text = "Obvestila se vpisujejo"
+                    ' dodatni pogoji pa datum da ne kaže že zelo stare in pre "nova" opravila
+                strSQL_pu = strSQL & " AND [nacep]>#" & Format(prva, "yyyy-mm-dd ttttt") & "# AND [nacep] <#" & Format(zadnja, "yyyy-mm-dd ttttt") & "#"
+                If rs_p.State = adStateOpen Then
+                    rs_p.Close
+                End If
+                    rs_p.Open strSQL_pu, cnn_p, adOpenForwardOnly, adLockReadOnly
+                If rs_p.RecordCount > 0 Then
+                    dataReadArray = rs_p.GetRows
+                    koncano = rs_p.RecordCount
+                    koncano = koncano - 1
+                    For ipu = 0 To koncano
+                        'izmeri razliko med danim datum in sedanjim datumom
+                        zaceTEK = DateDiff("d", Now, dataReadArray(1, ipu))
+                        zaceTEK = zaceTEK * mojaPrvaLinija
+                        zaceTEK = zaceTEK + (mojaPrvaLinija / 24) * Hour(dataReadArray(1, ipu))
+                        With ActivePresentation.Slides(1).Shapes
+                            Set puscica = .AddShape(36, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK - 12, j * (longHeight + 920 / j) / (UBound(Imena) + 3) + 1, 24, 27)
+                                '     ' pogoj za barvanje puèšice
+                                If dataReadArray(3, ipu) = "OPRAVLJENO" Then
+                                    puscica.Fill.ForeColor.RGB = RGB(0, 153, 0)
+                                    Else
+                                    puscica.Fill.ForeColor.RGB = RGB(250, 20, 75)
+                                End If
+                                puscica.Line.Visible = msoFalse
+                                puscica.Name = "Pušèica KOCKA " & dataReadArray(0, ipu) & " ;" & dataReadArray(0, ipu) & " ;" & dataReadArray(1, ipu) & " ;" & dataReadArray(2, ipu) & " ;"
+                                ' za klik
+                                puscica.ActionSettings(ppMouseClick).Action = ppActionRunMacro
+                                puscica.ActionSettings(ppMouseClick).Run = "SelectMe"
+                                puscica.ActionSettings(ppMouseClick).AnimateAction = True
+                                'pa še besedilo
+                                Set puscicaText = .AddTextbox(msoTextOrientationHorizontal, (Round(mojeSteviloDni / mojFaktor) * mojaPrvaLinija) + zaceTEK - 6, j * (longHeight + 920 / j) / (UBound(Imena) + 3) - 18, 200, 200)
+                                puscicaText.TextFrame.TextRange.Text = dataReadArray(2, ipu)
+                                puscicaText.TextFrame.TextRange.Font.Size = 21
+                                If dataReadArray(3, ipu) = "OPRAVLJENO" Then
+                                    'ChrW(10003) decimal charater set doda kljzukico
+                                    puscicaText.TextFrame.TextRange.Text = dataReadArray(2, ipu) & ChrW(10003)
+                                    puscicaText.TextFrame.TextRange.Font.Color.RGB = RGB(0, 153, 0)
+                                    Else
+                                    puscicaText.TextFrame.TextRange.Font.Color.RGB = RGB(250, 20, 75)
+                                End If
+                                puscicaText.Name = "Pri Pušèici " & dataReadArray(0, ipu) & " " & dataReadArray(2, ipu)
+                        End With
+                    Next ipu
+                    Erase dataReadArray
+                End If
+                Nalagam_podrobnosti.TextFrame.TextRange.Text = "rs_p.Close"
+                If rs_p.State = adStateOpen Then rs_p.Close
+            End If ' preverjanje pušèic
+  
+Line1:
+    Next kj
+                Nalagam_podrobnosti.TextFrame.TextRange.Text = "cnn.Close"
+                cnn.Close
+            If NiPuscic = False Then
+                Nalagam_podrobnosti.TextFrame.TextRange.Text = "cnn_p.Close"
+                cnn_p.Close
+            End If
+                'nalagam
+            Nalagam.TextFrame.TextRange.Text = "Zakljuèujem..."
+                    '---------------------   fermentorje konec -----------
+            Nalagam_podrobnosti.TextFrame.TextRange.Text = "Naziv podod se vpisujejo"
+            For j = LBound(Imena) + 1 To UBound(Imena) + 1
+                With ActivePresentation.Slides(1).Shapes
+                    Set fermentorji = .AddTextbox(msoTextOrientationHorizontal, 7, j * (longHeight + 920 / j) / (UBound(Imena) + 3), 70, 80)
+                    fermentorji.TextFrame.TextRange.Text = Imena(j - 1)
+                    fermentorji.Name = "Posoda " & Imena(j - 1)
+                    ' -- barvanje besedila posod
+                    fermentorji.Fill.ForeColor.RGB = RGB(242, 242, 242)
+                End With
+                'spreminjane pisava na datumu_mescu
+                With fermentorji.TextFrame.TextRange.Font
+                    .Size = 23
+                    .Bold = True
+                    .Color.RGB = RGB(94, 94, 94)
+                End With
+            Next j
+            ' imena mescev
+            Nalagam_podrobnosti.TextFrame.TextRange.Text = "Ime mesca se poišèe in vpiše"
+            Dim mojMesec As Variant
+            mojMesec = Array("Januar", "Februar", "Marec", "April", "Maj", "Junij", "Julij", "Avgust", "September", "Oktober", "November", "December")
+            With ActivePresentation.Slides(1).Shapes
+                Set mesec = .AddTextbox(msoTextOrientationHorizontal, 30, -10, 200, 20)
+                    mesec.TextFrame.TextRange.Text = mojMesec(Month(Date) - 1)
+                    mesec.Name = mojMesec(Month(Date) - 1)
+                    mesec.TextFrame.TextRange.Font.Size = 30
+                    mesec.TextFrame.TextRange.Font.Bold = True
+                    mesec.TextFrame.TextRange.Font.Color.RGB = RGB(94, 94, 94)
+            End With
+            ' --------------Dodatek za desni meni----------
+            Nalagam_podrobnosti.TextFrame.TextRange.Text = "desni meni se dodaja"
+            desni_meni
+            'brisi
+            Nalagam_podrobnosti.TextFrame.TextRange.Text = "Nalagam.Delete"
+            Nalagam.Delete
+            Nalagam_podrobnosti.Delete
+            ' dodatke obvestil
+            'Obvestila
+    
+           ' Grafi
+    
+    
+        
+   End Sub
+   
+   Sub VznovicniZagon()
+   SlideShowWindows(1).View.Exit
+   
+    ActivePresentation.SlideShowSettings.Run
+    
+   End Sub
+   
+   
+  Sub desni_meni()
+  
+  ' --------------Dodatek za desni meni----------
+       longHeight = ActivePresentation.PageSetup.SlideHeight
+      longWidth = ActivePresentation.PageSetup.SlideWidth
+  
+   With ActivePresentation.Slides(1).Shapes
+     '
+        
+        Set DesniMeniOzadje = .AddShape(msoShapeRectangle, longWidth - 60, longHeight / 2 - 100, 60, 255)
+        DesniMeniOzadje.Name = "DesniMeniOzadje"
+        DesniMeniOzadje.Fill.ForeColor.RGB = RGB(250, 217, 222)
+        DesniMeniOzadje.Fill.Transparency = 0.5
+        DesniMeniOzadje.Line.Visible = msoFalse
+       
+       
+       For l = 0 To 3
+       Set DesniMeniGumb1 = .AddShape(msoShapeRectangle, longWidth - 50, longHeight / 2 - 80 + (60 * l), 50, 30)
+        DesniMeniGumb1.Name = "DesniMeniGumb " & l + 1
+        DesniMeniGumb1.Fill.ForeColor.RGB = RGB(0, 176, 240)
+        'DesniMeniGumb1.Fill.Transparency = 0.9
+        DesniMeniGumb1.Line.Visible = msoFalse
+      
+       
+       
+        Set DesniMeniText1 = .AddTextbox(msoTextOrientationHorizontal, longWidth - 55, longHeight / 2 - 78 + (60 * l), 60, 30)
+        
+        Select Case l
+         Case 0
+        DesniMeniText1.TextFrame.TextRange.Text = "Osveži"
+        DesniMeniText1.Name = "DesniMenitext " & l + 1
+        Case 1
+        DesniMeniText1.TextFrame.TextRange.Text = "Pisalo"
+        DesniMeniText1.Name = "DesniMenitext " & l + 1
+         Case 2
+        DesniMeniText1.TextFrame.TextRange.Text = "Goba"
+        DesniMeniText1.Name = "DesniMenitext " & l + 1
+       
+        Case 3
+        DesniMeniText1.TextFrame.TextRange.Text = "Reset"
+       DesniMeniText1.Name = "DesniMenitext " & l + 1
+       
+       Case Else
+       DesniMeniText1.TextFrame.TextRange.Text = "Prazno"
+       DesniMeniText1.Name = "DesniMenitext " & l + 1
+        End Select
+      '  DesniMeniText1.Name = "DesniMenitext " & l + 1
+        DesniMeniText1.TextFrame.TextRange.Font.Size = 16
+        DesniMeniText1.TextFrame.TextRange.Font.Bold = True
+        DesniMeniText1.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 4)
+        
+        Next l
+    End With
+   '-------------- =========== dodajanje komand objektom
+    With ActivePresentation.Slides(1).Shapes("DesniMenitext 1").ActionSettings(ppMouseClick)
+        .Action = ppActionRunMacro
+        .Run = "PredelavaRisiTablo"
+        .AnimateAction = True
+        End With
+    
+    
+     With ActivePresentation.Slides(1).Shapes("DesniMenitext 2").ActionSettings(ppMouseClick)
+        .Action = ppActionRunMacro
+        .Run = "ZamenjajPinter"
+        .AnimateAction = True
+        End With
+    
+    With ActivePresentation.Slides(1).Shapes("DesniMenitext 3").ActionSettings(ppMouseClick)
+        .Action = ppActionRunMacro
+        .Run = "brisi"
+        .AnimateAction = True
+        End With
+    
+    With ActivePresentation.Slides(1).Shapes("DesniMenitext 4").ActionSettings(ppMouseClick)
+        .Action = ppActionRunMacro
+        .Run = "VznovicniZagon"
+        .AnimateAction = True
+        End With
+        
+   ' With ActivePresentation.Slides(1).Shapes("DesniMenitext 5").ActionSettings(ppMouseClick)
+   '     .Action = ppActionRunMacro
+   '     .Run = "testGunb"
+   '     .AnimateAction = True
+   '     End With
+  
+  End Sub
+  
+Sub testGunb()
+MsgBox "Gumb dela!"
+
+Dim oEffect As Effect
+Dim oShpA As Shape
+Dim oShpB As Shape
+With ActivePresentation.Slides(1)
+    'Create two autoshapes on the slide.
+    Set oShpA = .Shapes.AddShape(msoShapeRectangle, 100, 100, 50, 50)
+    Set oShpB = .Shapes.AddShape(msoShapeRectangle, 200, 100, 50, 50)
+    oShpB.Fill.ForeColor.RGB = RGB(50, 0, 128)
+
+    ' Assign an interactive animation to shape A
+    Set oEffect = .TimeLine.InteractiveSequences.Add _
+                .AddEffect(Shape:=oShpA, effectId:=msoAnimEffectChangeLineColor, trigger:=msoAnimTriggerOnShapeClick)
+
+    End With
+' Define the triggering shape. If you omit this line then the animation will be
+' triggered by clicking on the shape A itself.
+oEffect.Timing.TriggerShape = oShpB
+
+End Sub
+
+
+   
+Sub ZamenjajPinter()
+' pisalo se doda
+ 
+ Dim PauseTime, Start, Finish, TotalTime, TrenutniCas, dif
+If (MsgBox("Klikni 'Yes', da se pisalo aktivira za 60 sekund", 4)) = vbYes Then
+    PauseTime = 60    ' Set duration.
+    Start = Timer    ' Set start time.
+    
+      longHeight = ActivePresentation.PageSetup.SlideHeight
+      longWidth = ActivePresentation.PageSetup.SlideWidth
+   'pionter
+    With ActivePresentation.SlideShowSettings.Run.View
+            .PointerColor.RGB = RGB(255, 0, 0)
+            If .PointerType = ppSlideShowPointerPen Then
+            .PointerType = ppSlideShowPointerArrow
+            Else
+            .PointerType = ppSlideShowPointerPen
+            End If
+         End With
+         
+         ' doda text
+         
+         With ActivePresentation.Slides(1).Shapes
+         Set cadovnica = .AddTextbox(msoTextOrientationHorizontal, longWidth - 60, longHeight / 2, 60, 30)
+     
+            cadovnica.TextFrame.TextRange.Text = 60
+            cadovnica.Name = "cadovnica"
+            cadovnica.TextFrame.TextRange.Font.Size = 16
+            cadovnica.TextFrame.TextRange.Font.Bold = True
+            cadovnica.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 4)
+         End With
+    
+    ' tu se èas odšteva
+    Do While Timer < Start + PauseTime
+        TrenutniCas = Timer
+        dif = TrenutniCas - Start
+        If TrenutniCas - Start > 45 Then
+        ActivePresentation.Slides(1).Shapes("cadovnica").TextFrame.TextRange.Text = Round(PauseTime - (TrenutniCas - Start), 0)
+        End If
+        
+        ' za rane èase--- ni updatano vsako sekundo ker postane pisanje težko
+         Select Case dif
+         Case 9 To 10
+        ActivePresentation.Slides(1).Shapes("cadovnica").TextFrame.TextRange.Text = Round(PauseTime - (TrenutniCas - Start), 0)
+        Case 29 To 30
+        ActivePresentation.Slides(1).Shapes("cadovnica").TextFrame.TextRange.Text = Round(PauseTime - (TrenutniCas - Start), 0)
+         Case 39 To 40
+         ActivePresentation.Slides(1).Shapes("cadovnica").TextFrame.TextRange.Text = Round(PauseTime - (TrenutniCas - Start), 0)
+       
+      
+        End Select
+        
+        
+        
+        
+        DoEvents    ' Yield to other processes.
+    Loop
+    Finish = Timer    ' Set end time.
+    TotalTime = Finish - Start    ' Calculate total time.
+    
+ ' spremeni v pušèico
+ With ActivePresentation.SlideShowSettings.Run.View
+            '.PointerColor.RGB = RGB(255, 0, 0)
+            
+            .PointerType = ppSlideShowPointerAutoArrow
+          
+         End With
+ 'ppSlideShowPointerAutoArrow
+'.Delete
+    cadovnica.Delete
+    ' sporoèilo da je èas potekel
+  'MsgBox "Èas je potekel, skupen èas " & TotalTime & " sekund"
+Else
+    End
+End If
+ 
+
+   
+End Sub
+
+Sub SelectMe(oSh As Shape)
+'Sub SelectMe()
+'barvanhe pušèic na zeleno in rdeèo
+' vsak Shape, kateremu se pripne ta macro se ob kliku zažene opracijo.
+' assign this macro to each of the shapes you want to color
+' saves time to assign it to one shape, then copy the shape as many
+' times as needed.
+  
+
+Dim Odgovor, lokacija1, lokacija2, locnica, k
+Dim vse(2) As Variant
+'zmeri slide
+    longHeight = ActivePresentation.PageSetup.SlideHeight
+    longWidth = ActivePresentation.PageSetup.SlideWidth
+
+    locnica = ";"
+    ActivePresentation.Tags.Add "LastSelected", oSh.Name
+   'Pušèica KOCKA F-4 ;F-4 ;4.9.2015 6:00:00 ;PP ;
+    
+    lokacija2 = 1
+    For k = 0 To 2
+    lokacija1 = InStr(lokacija2, oSh.Name, locnica)
+    lokacija2 = InStr(lokacija1 + 1, oSh.Name, locnica)
+    vse(k) = Mid(oSh.Name, lokacija1 + 1, lokacija2 - lokacija1 - 1)
+    Next k
+   
+    
+     ' odstrani zadnji presledek
+     For k = 0 To 2
+    vse(k) = Mid(vse(k), 1, Len(vse(k)) - 1)
+    
+    Next k
+    
+   Odgovor = MsgBox("Ali želiš potrditi " & vse(2) & " na " & vse(0) & "?", vbYesNoCancel + vbExclamation, "Potrditev opravila")
+    
+    If Odgovor = vbYes Then
+            ' --- preverjanje in odpiranje excel podatkov
+  ' sivi overlay za cel zaslon
+  
+     With ActivePresentation.Slides(1).Shapes
+     '
+        
+      ' loadeing stuff
+       Set Zakasnitev = .AddShape(msoShapeRectangle, 0, 0, longWidth - 20, longHeight)
+        Zakasnitev.Name = "Zakasnitev"
+        Zakasnitev.Fill.ForeColor.RGB = RGB(217, 217, 222)
+        Zakasnitev.Fill.Transparency = 0.7
+        Zakasnitev.Line.Visible = msoFalse
+       End With
+    
+      ' loading
+      With ActivePresentation.Slides(1).Shapes
+          Set NalagamT = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.4, longHeight * 0.45, 500, 30)
+         
+             NalagamT.TextFrame.TextRange.Text = "Obdelujem spremembo... "
+            NalagamT.Name = "Nalagam"
+            NalagamT.TextFrame.TextRange.Font.Size = 30
+            NalagamT.TextFrame.TextRange.Font.Bold = True
+            NalagamT.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 4)
+            NalagamT.Fill.ForeColor.RGB = RGB(242, 242, 242)
+            
+            
+    End With
+    
+    
+    ' vpisovanje
+    
+    
+    
+    
+      Dim strSQL As String
+    
+    'za pušèice
+    Dim cnn_p As New ADODB.Connection
+    Dim rs_p As New ADODB.Recordset
+    
+ 
+     rs_p.CursorLocation = adUseClient
+     
+  
+    
+    'za pušèice odpiranje povezave
+    
+      If cnn_p.State = adStateOpen Then
+      cnn_p.Close
+      End If
+    'cnn_p.ConnectionString = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DBQ=\\gxsigx-s4010\VIDAPA1$\data\Fermentacija\Gantt\practice\Stariplani\Opravila_Tabla.xlsx;ReadOnly=0;"
+    cnn_p.ConnectionString = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DBQ=G:\BusUnits\FAU\Fermentacija\InfoTabla\Opravila_Tabla.xlsx;ReadOnly=0;"
+    'G:\BusUnits\FAU\Fermentacija\InfoTabla\Opravila_Tabla.xlsx
+    cnn_p.Open
+    
+    
+    
+      
+       strSQL = "UPDATE [Sheet1$] SET [status] = 'OPRAVLJENO' WHERE [pososda]='" & vse(0) & "' AND  [nacep]=#" & Format(vse(1), "yyyy-mm-dd ttttt") & "# AND [opravilo]='" & vse(2) & "'"
+       
+
+      
+
+      If rs_p.State = adStateOpen Then
+      rs_p.Close
+      End If
+      rs_p.LockType = adLockPessimistic
+        rs_p.Open strSQL, cnn_p, adOpenDynamic, adLockPessimistic
+       ' število vrstic
+  
+      If rs_p.State = adStateOpen Then
+      rs_p.Close
+      End If
+      
+      
+      
+      strSQL = "UPDATE [Sheet1$] SET [datum_potrditve] = #" & Format(Now(), "yyyy-mm-dd ttttt") & "# WHERE [pososda]='" & vse(0) & "' AND  [nacep]=#" & Format(vse(1), "yyyy-mm-dd ttttt") & "# AND [opravilo]='" & vse(2) & "'"
+
+      
+      If rs_p.State = adStateOpen Then
+      rs_p.Close
+      End If
+      rs_p.LockType = adLockPessimistic
+        rs_p.Open strSQL, cnn_p, adOpenDynamic, adLockPessimistic
+       ' število vrstic
+  
+      If rs_p.State = adStateOpen Then
+      rs_p.Close
+      End If
+      
+      
+      
+      
+        If cnn_p.State = adStateOpen Then
+      cnn_p.Close
+      End If
+        'zapita loading
+   Zakasnitev.Delete
+    NalagamT.Delete
+     
+    
+    
+    ' barvanje na zeleno
+        If Len(ActivePresentation.Tags("LastSelected")) > 0 Then
+            With oSh.Parent.Shapes(ActivePresentation.Tags("LastSelected"))
+             .Fill.ForeColor.RGB = RGB(0, 153, 0)
+            End With
+        End If
+        
+     
+    ElseIf Odgovor = vbNo Then
+   
+   '============================= Èe je odgovor NE
+       
+      
+      ' sivi overlay za cel zaslon
+  
+     With ActivePresentation.Slides(1).Shapes
+     '
+        
+      
+       Set ZakasnitevNE = .AddShape(msoShapeRectangle, 0, 0, longWidth - 20, longHeight)
+        ZakasnitevNE.Name = "Zakasnitev"
+        ZakasnitevNE.Fill.ForeColor.RGB = RGB(217, 217, 222)
+        ZakasnitevNE.Fill.Transparency = 0.7
+        ZakasnitevNE.Line.Visible = msoFalse
+       End With
+    
+      ' loading
+      With ActivePresentation.Slides(1).Shapes
+          Set NalagamT_NE = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.4, longHeight * 0.45, 500, 30)
+         
+             NalagamT_NE.TextFrame.TextRange.Text = "Obdelujem spremembo... "
+            NalagamT_NE.Name = "Nalagam"
+            NalagamT_NE.TextFrame.TextRange.Font.Size = 30
+            NalagamT_NE.TextFrame.TextRange.Font.Bold = True
+            NalagamT_NE.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 4)
+            NalagamT_NE.Fill.ForeColor.RGB = RGB(242, 242, 242)
+            
+            
+    End With
+      
+      ' ---------------- /////////////// vpisovanje
+      
+       Dim strSQLn As String
+    
+    'za pušèice
+    Dim cnn_pn As New ADODB.Connection
+    Dim rs_pn As New ADODB.Recordset
+    
+ 
+     rs_pn.CursorLocation = adUseClient
+     
+  
+    
+    'za pušèice odpiranje povezave
+    
+      If cnn_pn.State = adStateOpen Then
+      cnn_pn.Close
+      End If
+    'cnn_pn.ConnectionString = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DBQ=\\gxsigx-s4010\VIDAPA1$\data\Fermentacija\Gantt\practice\Stariplani\Opravila_Tabla.xlsx;ReadOnly=0;"
+    cnn_pn.ConnectionString = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DBQ=G:\BusUnits\FAU\Fermentacija\InfoTabla\Opravila_Tabla.xlsx;ReadOnly=0;"
+    'G:\BusUnits\FAU\Fermentacija\InfoTabla\Opravila_Tabla.xlsx
+    cnn_pn.Open
+    
+    
+    
+      
+       strSQLn = "UPDATE [Sheet1$] SET [status] = '' WHERE [pososda]='" & vse(0) & "' AND  [nacep]=#" & Format(vse(1), "yyyy-mm-dd ttttt") & "# AND [opravilo]='" & vse(2) & "'"
+      
+
+
+      
+  
+      If rs_pn.State = adStateOpen Then
+      rs_pn.Close
+      End If
+      rs_pn.LockType = adLockPessimistic
+        rs_pn.Open strSQLn, cnn_pn, adOpenDynamic, adLockPessimistic
+       ' število vrstic
+  
+      
+      If rs_pn.State = adStateOpen Then
+      rs_pn.Close
+      End If
+      
+      
+      
+          strSQL = "UPDATE [Sheet1$] SET [datum_potrditve] = #" & Format(Now(), "yyyy-mm-dd ttttt") & "# WHERE [pososda]='" & vse(0) & "' AND  [nacep]=#" & Format(vse(1), "yyyy-mm-dd ttttt") & "# AND [opravilo]='" & vse(2) & "'"
+
+      
+      If rs_p.State = adStateOpen Then
+      rs_pn.Close
+      End If
+      rs_pn.LockType = adLockPessimistic
+        rs_pn.Open strSQL, cnn_pn, adOpenDynamic, adLockPessimistic
+       ' število vrstic
+  
+      If rs_pn.State = adStateOpen Then
+      rs_pn.Close
+      End If
+      
+      
+      
+      
+      
+      
+        If cnn_pn.State = adStateOpen Then
+      cnn_pn.Close
+      End If
+  
+   
+   
+    'zapita loading
+   ZakasnitevNE.Delete
+    NalagamT_NE.Delete
+   
+   
+    
+    ' barvanje na rdeèo
+        If Len(ActivePresentation.Tags("LastSelected")) > 0 Then
+            With oSh.Parent.Shapes(ActivePresentation.Tags("LastSelected"))
+             .Fill.ForeColor.RGB = RGB(250, 20, 75)
+            End With
+        End If
+   
+    
+ 
+    ' za refreš
+   ' PredelavaRisiTablo
+    
+     End If
+    
+   
+    
+    
+End Sub
+
+
+
+Sub brisi()
+ 'pionter ki briše = goba
+ 
+
+ 
+ Dim PauseTimeE, StartE, FinishE, TotalTimeE, TrenutniCasE
+If (MsgBox("Klikni 'Yes', da se pisalo aktivira za 15 sekund", 4)) = vbYes Then
+    PauseTimeE = 15    ' Set duration.
+    StartE = Timer    ' Set start time.
+    
+    ' širina višina se doloèita
+         longHeight = ActivePresentation.PageSetup.SlideHeight
+      longWidth = ActivePresentation.PageSetup.SlideWidth
+    
+   'pionter
+    With ActivePresentation.SlideShowSettings.Run.View
+          
+            
+            .PointerType = ppSlideShowPointerEraser
+          
+         End With
+         
+      ' doda text
+         
+         With ActivePresentation.Slides(1).Shapes
+          Set cadovnicaE = .AddTextbox(msoTextOrientationHorizontal, longWidth - 60, longHeight / 2 + 60, 60, 30)
+         
+            cadovnicaE.TextFrame.TextRange.Text = 15
+            cadovnicaE.Name = "cadovnicaE"
+            cadovnicaE.TextFrame.TextRange.Font.Size = 16
+            cadovnicaE.TextFrame.TextRange.Font.Bold = True
+            cadovnicaE.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 4)
+         End With
+         
+         
+         
+    
+    ' tu se èas odšteva
+    Do While Timer < StartE + PauseTimeE
+    TrenutniCasE = Timer
+        If TrenutniCasE - StartE > 1 Then 'vpisuje èas
+        ActivePresentation.Slides(1).Shapes("cadovnicaE").TextFrame.TextRange.Text = Round(PauseTimeE - (TrenutniCasE - StartE), 0)
+        End If
+    
+        DoEvents    ' Yield to other processes.
+    Loop
+    FinishE = Timer    ' Set end time.
+    TotalTimeE = FinishE - StartE    ' Calculate total time.
+    
+ ' spremeni v pušèico
+ With ActivePresentation.SlideShowSettings.Run.View
+            '.PointerColor.RGB = RGB(255, 0, 0)
+            
+            .PointerType = ppSlideShowPointerAutoArrow
+          
+         End With
+ 'ppSlideShowPointerAutoArrow
+
+   'se zbriše
+   cadovnicaE.Delete
+   ' info o èasu ne potrebno zbrisano
+  'MsgBox "Èas je potekel, skupen èas " & TotalTimeE & " sekund"
+Else
+    End
+End If
+   ' If SlideShowWindows(1).View.PresentationElapsedTime > 2 Then
+   ' MsgBox "juhu"
+   '     'PredelavaRisiTablo
+   ' End If
+
+   
+End Sub
+Sub Obvestila()
+'pokaže obvestila v poverpintu na destni strani table
+
+Dim objFSO As Object
+Dim objFolder As Object
+Dim objFile As Object
+Dim Imena() As String
+
+'zmeri slide
+    longHeight = ActivePresentation.PageSetup.SlideHeight
+    longWidth = ActivePresentation.PageSetup.SlideWidth
+' velikost obvestila v pikslih
+    VisinaOkna = 480
+    SirinaOkna = 640
+    
+' števec
+imeDatoteke_plan = Mid(ActivePresentation.FullName, 1, InStrRev(ActivePresentation.FullName, "\"))
+
+steje = 0
+' doloèi objekte za odpiranje mape
+Set objFSO = CreateObject("Scripting.FileSystemObject")
+Set objFolder = objFSO.GetFolder(imeDatoteke_plan & "\INFO\")
+
+'pregleda vse datoteke v mapi
+For Each objFile In objFolder.Files
+' "filter" za powerpint file
+ If InStr(1, objFile.Name, ".ppt") > 0 Then
+' doloèa matriko in dodaje imena
+ReDim Preserve Imena(steje)
+Imena(steje) = objFile.Name
+steje = steje + 1
+
+
+End If
+Next objFile
+
+'x = UBound(Imena, 1) - LBound(Imena, 1)
+' zpusti sub èe ni v mapi nobenega obvestila
+' preverja èe je v arrayu nekja noter
+' z join se vse da skup
+' len pa preverji èe je dolgo
+If Len(Join(Imena)) > 0 Then
+
+Else
+    Exit Sub
+ 
+End If
+
+
+' generator nakljuènih števil
+MyValue = Int((steje * Rnd) + 1)
+
+
+
+
+
+'MsgBox "število filov " & steje
+
+
+' siva površina v ozadju
+
+  With ActivePresentation.Slides(1).Shapes
+     '
+        
+      ' Set okviraObvestila = .AddShape(msoShapeRectangle, longWidth * 0.6 - 20, longHeight * 0.3 - 20, SirinaOkna + 40, VisinaOkna + 40)
+       Set okviraObvestilaZ = .AddShape(msoShapeRectangle, longWidth * 0.6, 0, SirinaOkna, longHeight)
+        okviraObvestilaZ.Name = "okviraObvestilaZ"
+        okviraObvestilaZ.Fill.ForeColor.RGB = RGB(217, 217, 222)
+        okviraObvestilaZ.Fill.Transparency = 0.7
+        okviraObvestilaZ.Line.Visible = msoFalse
+       End With
+    
+    'aktualaen = 1
+    
+    Set myDocument = ActivePresentation.Slides(1).Shapes
+    
+    
+
+
+
+   'odpre obvestilo
+    
+     myDocument.AddOLEObject Left:=longWidth * 0.6, Top:=longHeight * 0.5, _
+  Width:=SirinaOkna, Height:=VisinaOkna, _
+  FileName:="G:\BusUnits\FAU\Fermentacija\InfoTabla\OBVESTILA\" & Imena(MyValue - 1), Link:=msoFalse
+
+' doda še informacijo o število obvetil v mapi
+
+       With ActivePresentation.Slides(1).Shapes
+          Set VseSkupaj = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.6 + SirinaOkna - 10, longHeight * 0.3 + VisinaOkna, 60, 30)
+         
+             VseSkupaj.TextFrame.TextRange.Text = MyValue & " / " & steje
+            VseSkupaj.Name = "VseSkupaj"
+            VseSkupaj.TextFrame.TextRange.Font.Size = 16
+            VseSkupaj.TextFrame.TextRange.Font.Bold = True
+            VseSkupaj.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 4)
+            VseSkupaj.Fill.ForeColor.RGB = RGB(217, 217, 222)
+ End With
+         
+     ' še "zašèitna površina" da se naložena powerpiont presentacija ne more klikninti in s tem aktivirati morebiten macro
+      With ActivePresentation.Slides(1).Shapes
+     '
+        
+      ' Set okviraObvestila = .AddShape(msoShapeRectangle, longWidth * 0.6 - 20, longHeight * 0.3 - 20, SirinaOkna + 40, VisinaOkna + 40)
+       Set okviraObvestila = .AddShape(msoShapeRectangle, longWidth * 0.6 - 20, 0, SirinaOkna + 40, longHeight)
+        okviraObvestila.Name = "okviraObvestila Spredaj"
+        okviraObvestila.Fill.ForeColor.RGB = RGB(217, 217, 222)
+        okviraObvestila.Fill.Transparency = 0.85
+        okviraObvestila.Line.Visible = msoFalse
+       End With
+    
+    
+   
+End Sub
+
+Sub Grafi()
+
+'to so kpi in grafi za rezultate
+
+'to so kpi in grafi za rezultate
+
+
+    
+    longHeight = ActivePresentation.PageSetup.SlideHeight
+    longWidth = ActivePresentation.PageSetup.SlideWidth
+    
+    ' loading
+   
+    
+
+       With ActivePresentation.Slides(1).Shapes
+          Set Nalagam_KPI = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.6, longHeight * 0.3, 500, 30)
+            Nalagam_KPI.TextFrame.TextRange.Text = "Nalagam indikatorje"
+            Nalagam_KPI.Name = "Nalagam"
+            Nalagam_KPI.TextFrame.TextRange.Font.Size = 10
+            Nalagam_KPI.TextFrame.TextRange.Font.Bold = True
+            Nalagam_KPI.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 4)
+            Nalagam_KPI.Fill.ForeColor.RGB = RGB(242, 242, 242)
+          End With
+    
+    
+    
+    
+
+    Dim cnn_KPI As New ADODB.Connection
+    Dim rs_KPI As New ADODB.Recordset
+    
+     
+    rs_KPI.CursorLocation = adUseClient
+     
+    ' --- preverjanje in odpiranje excel podatkov
+    'imeDatoteke_KPI = "G:\BusUnits\FAU\Fermentacija\InfoTabla\KPI\KK-2015.xlsx"
+    imeDatoteke_KPI = "G:\Projects\Biosinteza\FERMENTA\" & Year(Date) & "\Enkratni podatki\KK-" & Year(Date) & ".xlsx"
+    ' preveri èe obstaj datoteke
+    Nalagam_KPI.TextFrame.TextRange.Text = "preverija èe obstaj datoteka"
+    
+    If Len(Dir(imeDatoteke_KPI, vbDirectory)) = 0 Then
+        Nalagam_KPI.TextFrame.TextRange.Text = "Datoteka ne obstaj ali dostopa"
+        Naslov_KPI.Delete
+        PauseTimeE = 15    ' Set duration.
+        StartE = Timer    ' Set start time.
+    
+        Do While Timer < StartE + PauseTimeE
+            TrenutniCasE = Timer
+            If TrenutniCasE - StartE > 1 Then 'vpisuje èas
+                Nalagam_KPI.TextFrame.TextRange.Text = "Datoteka ne obstaj ali dostopa (" & Round(PauseTimeE - (TrenutniCasE - StartE), 0) & ")"
+            End If
+                DoEvents    ' Yield to other processes.
+        Loop
+    
+        Nalagam_KPI.Delete
+       
+        Exit Sub
+        Else
+    
+        If cnn_KPI.State = adStateOpen Then cnn_KPI.Close
+            Nalagam_KPI.TextFrame.TextRange.Text = "Postavlje povezave s cnn_KPI.ConnectionString"
+            'cnn_KPI.ConnectionString = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DBQ= G:\BusUnits\FAU\Fermentacija\InfoTabla\KPI\KK-2015.xlsx"
+            cnn_KPI.ConnectionString = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DBQ=" & imeDatoteke_KPI
+            cnn_KPI.Open
+            Nalagam_KPI.TextFrame.TextRange.Text = "cnn_KPI.Open uspel"
+    End If ' if za preverjenje imena datoteke
+    
+        i = 0
+   
+        Nalagam_KPI.TextFrame.TextRange.Text = "Vrstni red fermentorjev doloèen"
+      
+        Dim KPI_Podatki() As Variant
+        Dim GNT_Podatki() As Variant
+        Dim F1_Podatki() As Variant
+      
+        Nalagam_KPI.TextFrame.TextRange.Text = "Sestavljanje SQL stringa"
+      
+
+        strSQL_KPI = "SELECT  * FROM [F$] "
+        ' dodatni pogoji pa datum
+        'strSQL_plan = strSQL & " AND [precep]>#" & Format(prva, "yyyy-mm-dd ttttt") & "# AND [nacep] <#" & Format(zadnja, "yyyy-mm-dd ttttt") & "#"
+        'naèin formatiranje da ADODB razume datum #" & Format(vse(1), "yyyy-mm-dd ttttt") & "#
+      
+        Nalagam_KPI.TextFrame.TextRange.Text = "Odpiranje rs.Open: preverjanje, èe je odprto"
+        If rs_KPI.State = adStateOpen Then
+            rs_KPI.Close
+        End If
+        Nalagam_KPI.TextFrame.TextRange.Text = "Odpiranje rs.Open"
+        rs_KPI.Open strSQL_KPI, cnn_KPI, adOpenForwardOnly, adLockReadOnly
+        
+        Nalagam_KPI.TextFrame.TextRange.Text = "RecordSet za Plan, se je upešno odprl rs.open "
+        ' število vrstic
+        KPI_Podatki = rs_KPI.GetRows
+        
+        'End If
+
+
+                ' =================== Gentta
+
+        imeDatoteke_KPI = "G:\Projects\Biosinteza\FERMENTA\" & Year(Date) & "\Enkratni podatki\GNT-" & Year(Date) & ".xlsx"
+            'G:\Projects\Biosinteza\FERMENTA\2015\Enkratni podatki\KK-2015.xlsx
+           
+            ' preveri èe obstaj datoteke
+        Nalagam_KPI.TextFrame.TextRange.Text = "preverija èe obstaj datoteka"
+     
+        If Len(Dir(imeDatoteke_KPI, vbDirectory)) = 0 Then
+            Nalagam_KPI.TextFrame.TextRange.Text = "Datoteka ne obstaj ali dostopa"
+            Naslov_KPI.Delete
+            PauseTimeE = 15    ' Set duration.
+            StartE = Timer    ' Set start time.
+            Do While Timer < StartE + PauseTimeE
+                TrenutniCasE = Timer
+                If TrenutniCasE - StartE > 1 Then 'vpisuje èas
+                    Nalagam_KPI.TextFrame.TextRange.Text = "Datoteka ne obstaj ali dostopa (" & Round(PauseTimeE - (TrenutniCasE - StartE), 0) & ")"
+                End If
+                DoEvents    ' Yield to other processes.
+            Loop
+            Nalagam_KPI.Delete
+            Exit Sub
+            Else
+                If cnn_KPI.State = adStateOpen Then cnn_KPI.Close
+                    Nalagam_KPI.TextFrame.TextRange.Text = "Postavlje povezave s cnn_KPI.ConnectionString"
+                    cnn_KPI.ConnectionString = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DBQ=" & imeDatoteke_KPI
+                    cnn_KPI.Open
+                    Nalagam_KPI.TextFrame.TextRange.Text = "cnn_KPI.Open uspel"
+                End If ' if za preverjenje imena datoteke
+                i = 0
+                    ' Dim KPI_Podatki() As Variant
+                    'Dim GNT_Podatki() As Variant
+                Nalagam_KPI.TextFrame.TextRange.Text = "Sestavljanje SQL stringa"
+                strSQL_KPI = "SELECT  * FROM [F$] "
+                    ' dodatni pogoji pa datum
+                    'strSQL_plan = strSQL & " AND [precep]>#" & Format(prva, "yyyy-mm-dd ttttt") & "# AND [nacep] <#" & Format(zadnja, "yyyy-mm-dd ttttt") & "#"
+                    'naèin formatiranje da ADODB razume datum #" & Format(vse(1), "yyyy-mm-dd ttttt") & "#
+                Nalagam_KPI.TextFrame.TextRange.Text = "Odpiranje rs.Open: preverjanje, èe je odprto"
+                If rs_KPI.State = adStateOpen Then
+                    rs_KPI.Close
+                End If
+                Nalagam_KPI.TextFrame.TextRange.Text = "Odpiranje rs.Open"
+                rs_KPI.Open strSQL_KPI, cnn_KPI, adOpenForwardOnly, adLockReadOnly
+                Nalagam_KPI.TextFrame.TextRange.Text = "RecordSet za Plan, se je upešno odprl rs.open "
+                    ' število vrstic
+                GNT_Podatki = rs_KPI.GetRows
+                
+              
+                
+                    ' =================== F1
+
+        imeDatoteke_KPI = "G:\Projects\Biosinteza\FERMENTA\" & Year(Date) & "\Enkratni podatki\F-1 KK-" & Year(Date) & ".xlsx"
+            'G:\Projects\Biosinteza\FERMENTA\2015\Enkratni podatki\KK-2015.xlsx
+            
+            ' preveri èe obstaj datoteke
+        Nalagam_KPI.TextFrame.TextRange.Text = "preverija èe obstaj datoteka"
+     
+        If Len(Dir(imeDatoteke_KPI, vbDirectory)) = 0 Then
+            Nalagam_KPI.TextFrame.TextRange.Text = "Datoteka ne obstaj ali dostopa"
+            Naslov_KPI.Delete
+            PauseTimeE = 15    ' Set duration.
+            StartE = Timer    ' Set start time.
+            Do While Timer < StartE + PauseTimeE
+                TrenutniCasE = Timer
+                If TrenutniCasE - StartE > 1 Then 'vpisuje èas
+                    Nalagam_KPI.TextFrame.TextRange.Text = "Datoteka ne obstaj ali dostopa (" & Round(PauseTimeE - (TrenutniCasE - StartE), 0) & ")"
+                End If
+                DoEvents    ' Yield to other processes.
+            Loop
+            Nalagam_KPI.Delete
+            Exit Sub
+            Else
+                If cnn_KPI.State = adStateOpen Then cnn_KPI.Close
+                    Nalagam_KPI.TextFrame.TextRange.Text = "Postavlje povezave s cnn_KPI.ConnectionString"
+                    cnn_KPI.ConnectionString = "Driver={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};DBQ=" & imeDatoteke_KPI
+                    cnn_KPI.Open
+                    Nalagam_KPI.TextFrame.TextRange.Text = "cnn_KPI.Open uspel"
+                End If ' if za preverjenje imena datoteke
+                i = 0
+                    ' Dim KPI_Podatki() As Variant
+                    'Dim GNT_Podatki() As Variant
+                Nalagam_KPI.TextFrame.TextRange.Text = "Sestavljanje SQL stringa"
+                strSQL_KPI = "SELECT  * FROM [F-1$] "
+                    ' dodatni pogoji pa datum
+                    'strSQL_plan = strSQL & " AND [precep]>#" & Format(prva, "yyyy-mm-dd ttttt") & "# AND [nacep] <#" & Format(zadnja, "yyyy-mm-dd ttttt") & "#"
+                    'naèin formatiranje da ADODB razume datum #" & Format(vse(1), "yyyy-mm-dd ttttt") & "#
+                Nalagam_KPI.TextFrame.TextRange.Text = "Odpiranje rs.Open: preverjanje, èe je odprto"
+                If rs_KPI.State = adStateOpen Then
+                    rs_KPI.Close
+                End If
+                Nalagam_KPI.TextFrame.TextRange.Text = "Odpiranje rs.Open"
+                rs_KPI.Open strSQL_KPI, cnn_KPI, adOpenForwardOnly, adLockReadOnly
+                Nalagam_KPI.TextFrame.TextRange.Text = "RecordSet za Plan, se je upešno odprl rs.open "
+                    ' število vrstic
+                F1_Podatki = rs_KPI.GetRows
+                
+                ' ============== konec odpiranj in zapiranj vse je zdaj pomnilniku
+                ' zapiranje
+                If rs_KPI.State = adStateOpen Then
+                    rs_KPI.Close
+                End If
+                    'zapiranje
+                If cnn_KPI.State = adStateOpen Then cnn_KPI.Close
+                If rs_KPI.State = adStateOpen Then
+                    rs_KPI.Close
+                End If
+                    ' strSQL_KPI = "SELECT  * FROM [GNT$]"
+                    ' Nalagam_KPI.TextFrame.TextRange.Text = "Odpiranje rs.Open"
+                    'rs_KPI.Open strSQL_KPI, cnn_KPI, 1, 1
+                    'GNT_Podatki = rs_KPI.GetRows
+                    'If cnn_KPI.State = adStateOpen Then cnn_KPI.Close
+                    ' nariši grafe
+                Nalagam_KPI.Delete
+                    '5
+                    ' omoèje 6-10
+                    'msgBox UBound(KPI_Podatki, 2)
+                    'If UBound(KPI_Podatki, 2) > 20 Then
+                    'KPI_Podatki(5, i)
+                    
+                    
+                    ' ozadje
+    
+    
+        With ActivePresentation.Slides(1).Shapes
+            
+      ' Set okviraObvestila = .AddShape(msoShapeRectangle, longWidth * 0.6 - 20, longHeight * 0.3 - 20, SirinaOkna + 40, VisinaOkna + 40)
+            Set OzadjeKPI = .AddShape(msoShapeRectangle, longWidth * 0.6, longHeight * 0.1, 640, 430)
+                OzadjeKPI.Name = "okviraObvestilaZ"
+                OzadjeKPI.Fill.ForeColor.RGB = RGB(204, 255, 255)
+                OzadjeKPI.Fill.Transparency = 0.75
+                OzadjeKPI.Line.Visible = msoFalse
+            End With
+    
+    
+   
+    
+     '  naslovv Kazalniki proizvodnje in kakovosti
+
+
+        
+       With ActivePresentation.Slides(1).Shapes
+          Set Naslov_KPI = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.6, longHeight * 0.1, 640, 30)
+            Naslov_KPI.TextFrame.TextRange.Text = "Rezultati proizvodnje"
+            Naslov_KPI.Name = "Naslov Grafi"
+            Naslov_KPI.TextFrame.TextRange.Font.Size = 25
+            Naslov_KPI.TextFrame.TextRange.Font.Bold = True
+            Naslov_KPI.TextFrame.TextRange.Font.Color.RGB = RGB(0, 51, 102)
+            Naslov_KPI.Fill.ForeColor.RGB = RGB(245, 235, 215)
+        End With
+    
+    
+      '  naslovv KK
+
+
+        
+       With ActivePresentation.Slides(1).Shapes
+          Set Naslov_KK = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.6, longHeight * 0.15, 640, 30)
+            Naslov_KK.TextFrame.TextRange.Text = "KK 90m" & ChrW(179)
+            Naslov_KK.Name = "Naslov Klavulanska"
+            Naslov_KK.TextFrame.TextRange.Font.Size = 20
+            Naslov_KK.TextFrame.TextRange.Font.Bold = True
+            Naslov_KK.TextFrame.TextRange.Font.Color.RGB = RGB(0, 51, 102)
+            Naslov_KK.Fill.ForeColor.RGB = RGB(173, 255, 255)
+        End With
+    
+         '  naslovv KK F-1
+
+
+        
+       With ActivePresentation.Slides(1).Shapes
+          Set Naslov_KK = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.84, longHeight * 0.15, 100, 30)
+            Naslov_KK.TextFrame.TextRange.Text = "KK 30m" & ChrW(179)
+            Naslov_KK.Name = "Naslov Klavulanska"
+            Naslov_KK.TextFrame.TextRange.Font.Size = 20
+            Naslov_KK.TextFrame.TextRange.Font.Bold = True
+            Naslov_KK.TextFrame.TextRange.Font.Color.RGB = RGB(0, 51, 102)
+            Naslov_KK.Fill.ForeColor.RGB = RGB(173, 255, 255)
+        End With
+    
+        
+    
+      '  naslovv GNT
+
+
+        
+       With ActivePresentation.Slides(1).Shapes
+          Set Naslov_GNT = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.6, longHeight * 0.315, 640, 30)
+            Naslov_GNT.TextFrame.TextRange.Text = "GNT"
+            Naslov_GNT.Name = "Naslov Klavulanska"
+            Naslov_GNT.TextFrame.TextRange.Font.Size = 20
+            Naslov_GNT.TextFrame.TextRange.Font.Bold = True
+            Naslov_GNT.TextFrame.TextRange.Font.Color.RGB = RGB(0, 51, 102)
+            Naslov_GNT.Fill.ForeColor.RGB = RGB(247, 176, 147)
+        End With
+    
+                    
+                    
+                    
+                    
+                Dim zadnje As Boolean
+                zadnje = False
+                
+                    ' trideset skala faktor za višino skale vsebnosti
+                Dim trideset As Integer
+                trideset = 14
+                    ' skale kile
+                Dim ulomek As Double
+                ulomek = 0.17
+                    ' razpon skale
+                Dim Spodnja_meja As Integer
+                Spodnja_meja = 0
+                    'meja za OOE
+                Dim meja_ZAOOE_KK As Double
+               
+                
+                Dim meja_ZAOOS_KK As Integer
+              
+                
+                Dim Spodnja_meja_Kile As Integer
+                Spodnja_meja_Kile = 0
+                
+                Dim Target_vrednostKK As Integer
+                Dim TargetUCL_vrenostKK As Integer
+                Dim TargetLCL_vrenostKK As Integer
+             
+                
+                Dim Target_F1vrednostKK As Integer
+                Dim TargetUCL_F1vrenostKK As Integer
+                Dim TargetLCL_F1vrenostKK As Integer
+                
+                Dim Target_vrednostGNT As Integer
+                Dim TargetUCL_vrenostGNT As Integer
+                Dim TargetLCL_vrenostGNT As Integer
+                
+                
+                Dim meja_ZAOOE_GNT As Double
+               ' meja_ZAOOE_GNT = 1.05
+                
+                Dim meja_ZAOOS_GNT As Double
+                'meja_ZAOOS_GNT = 0.3
+            
+               ' iskenje podakov in csv-fineja
+               
+               
+               Dim MyData As String, strData() As String
+   
+   'G:\BusUnits\FAU\Fermentacija\InfoTabla
+   'Target_vrednostKKinGNT.csv
+    Dim imeProcesnih As String
+
+    imeProcesnih = "G:\BusUnits\FAU\Fermentacija\InfoTabla\Target_vrednostKKinGNT.csv"
+   
+    Open imeProcesnih For Binary As #1
+    MyData = Space$(LOF(1))
+    Get #1, , MyData
+    Close #1
+    strData() = Split(MyData, vbCrLf)
+    
+    Dim Procesni_Zbrani() As Variant
+                ' da razdeli podatke na osnovi tabov
+        For i = 0 To UBound(strData, 1)
+            If strData(i) = "" Then
+            
+            Else
+            
+                ReDim Preserve Procesni_Zbrani(i)
+                Procesni_Zbrani(i) = Split(strData(i), ";")
+            End If
+        Next i
+    
+    
+For i = 0 To UBound(Procesni_Zbrani, 1)
+      'za devedeset kubiène fermentorje
+        If Procesni_Zbrani(i)(0) = "Target_vrednostKK" Then
+        Target_vrednostKK = Procesni_Zbrani(i)(1)
+        End If
+        If Procesni_Zbrani(i)(0) = "TargetUCL_vrenostKK" Then
+        TargetUCL_vrenostKK = Procesni_Zbrani(i)(1)
+        End If
+        If Procesni_Zbrani(i)(0) = "TargetLCL_vrenostKK" Then
+        TargetLCL_vrenostKK = Procesni_Zbrani(i)(1)
+        End If
+        ' za mali fermentor
+        If Procesni_Zbrani(i)(0) = "Target_F1vrednostKK" Then
+        Target_F1vrednostKK = Procesni_Zbrani(i)(1)
+        End If
+        If Procesni_Zbrani(i)(0) = "TargetUCL_F1vrenostKK" Then
+        TargetUCL_F1vrenostKK = Procesni_Zbrani(i)(1)
+        End If
+        If Procesni_Zbrani(i)(0) = "TargetLCL_F1vrenostKK" Then
+        TargetLCL_F1vrenostKK = Procesni_Zbrani(i)(1)
+        End If
+        
+        ' za gento
+        If Procesni_Zbrani(i)(0) = "Target_vrednostGNT" Then
+        Target_vrednostGNT = Procesni_Zbrani(i)(1)
+        End If
+        If Procesni_Zbrani(i)(0) = "TargetUCL_vrenostGNT" Then
+        TargetUCL_vrenostGNT = Procesni_Zbrani(i)(1)
+        End If
+        If Procesni_Zbrani(i)(0) = "TargetLCL_vrenostGNT" Then
+        TargetLCL_vrenostGNT = Procesni_Zbrani(i)(1)
+        End If
+    ' zdaj še OOS in OOE-je
+        If Procesni_Zbrani(i)(0) = "meja_ZAOOE_KK" Then
+        meja_ZAOOE_KK = CDbl(Procesni_Zbrani(i)(1))
+        End If
+        If Procesni_Zbrani(i)(0) = "meja_ZAOOS_KK" Then
+        meja_ZAOOS_KK = CDbl(Procesni_Zbrani(i)(1))
+        End If
+        If Procesni_Zbrani(i)(0) = "meja_ZAOOE_GNT" Then
+        meja_ZAOOE_GNT = CDbl(Procesni_Zbrani(i)(1))
+        End If
+        If Procesni_Zbrani(i)(0) = "meja_ZAOOS_GNT" Then
+        meja_ZAOOS_GNT = CDbl(Procesni_Zbrani(i)(1))
+        End If
+Next i
+               
+               
+               
+               
+                
+                
+                
+                Dim hi As Integer
+                hi = 0
+                    ' poišèe zadnjo vpisano vsebnost
+                Do
+                    If IsNumeric(KPI_Podatki(7, UBound(KPI_Podatki, 2) - hi)) = True And IsNumeric(KPI_Podatki(7, UBound(KPI_Podatki, 2) - 1 - hi)) = True Then
+                        zadnje = True
+                    End If
+                    hi = hi + 1
+                Loop Until zadnje = True
+ 
+                hi = hi - 1
+  
+               For i = 0 To 40
+                    
+                
+                    Vsebno = UBound(KPI_Podatki, 2) - i - hi
+                            'prevereja in zakljuèi for èe zmanka podakov
+                    If Vsebno < 0 Then
+                        Exit For
+                    End If
+                
+               
+                    
+                        ' MsgBox UBound(KPI_Podatki, 2) - (20 - i)
+                        ' podatki za graf vsebnosti
+                    With ActivePresentation.Slides(1).Shapes
+                        If KPI_Podatki(7, Vsebno) > 1 And IsNumeric(KPI_Podatki(7, Vsebno)) = True Then
+                            'Set vsebnost = .AddShape(msoShapeRectangle, longWidth * 0.71 - 5 * i, longHeight * 0.2 + 100 + (10 - (KPI_Podatki(7, Vsebno) - 6) * trideset), 5, (KPI_Podatki(7, Vsebno) - 6) * trideset)
+                            Set vsebnost = .AddShape(msoShapeRectangle, longWidth * 0.71 - 5 * i, longHeight * 0.2 + 100 + (10 - CDbl((KPI_Podatki(7, Vsebno)) - Spodnja_meja) * trideset), 5, CDbl((KPI_Podatki(7, Vsebno)) - Spodnja_meja) * trideset)
+                                vsebnost.Fill.ForeColor.RGB = RGB(0 + i, 51 + i, 100 + 2 * i)
+                                If KPI_Podatki(7, Vsebno) < meja_ZAOOS_KK Then
+                                    
+                                    vsebnost.Fill.ForeColor.RGB = RGB(255, 0, 0)
+                                ElseIf KPI_Podatki(7, Vsebno) < meja_ZAOOE_KK Then
+                                    'rumeno
+                                    vsebnost.Fill.ForeColor.RGB = RGB(255, 192, 0)
+                                End If
+                            Else
+                                Set vsebnost = .AddShape(msoShapeRectangle, longWidth * 0.71 - 5 * i, longHeight * 0.2 + 108, 5, 2)
+                                    vsebnost.Fill.ForeColor.RGB = RGB(255, 0, 0)
+                        End If
+                        vsebnost.Name = "vsebnost " & i
+                        vsebnost.Line.Visible = msoFalse
+                    End With
+       
+                        ' kile --------------------**************************
+                    With ActivePresentation.Slides(1).Shapes
+                        If KPI_Podatki(9, Vsebno) > Spodnja_meja_Kile And IsNumeric(KPI_Podatki(9, Vsebno)) = True Then
+                            Set Kile = .AddShape(msoShapeRectangle, longWidth * 0.83 - 5 * i, longHeight * 0.2 - 710 + (820 - (KPI_Podatki(9, Vsebno) - Spodnja_meja_Kile) * ulomek), 5, (KPI_Podatki(9, Vsebno) - Spodnja_meja_Kile) * ulomek)
+                                Kile.Fill.ForeColor.RGB = RGB(0 + i, 102 + i, 100 + 2 * i)
+                                If KPI_Podatki(9, Vsebno) < TargetLCL_vrenostKK Then
+                                    Kile.Fill.ForeColor.RGB = RGB(255, 0, 0)
+                                    
+                                ElseIf KPI_Podatki(9, Vsebno) < Target_vrednostKK Then
+                                    Kile.Fill.ForeColor.RGB = RGB(255, 192, 0)
+                                    
+                                End If
+                            Else
+                                Set Kile = .AddShape(msoShapeRectangle, longWidth * 0.83 - 5 * i, longHeight * 0.2 - 710 + (820 - 2.8 * 1) + 0.8, 5, 2)
+                                    Kile.Fill.ForeColor.RGB = RGB(255, 0, 0)
+                        End If
+                            Kile.Name = "Kile " & i
+                            Kile.Line.Visible = msoFalse
+                    End With
+                Next i
+                Erase KPI_Podatki
+                    ' Kazalniki proizvodnje in kakovosti
+                    ' dodajenje linije 6,26
+                    
+                    ' èrata za OOE
+                With ActivePresentation.Slides(1).Shapes
+                                                        'longHeight * 0.2 + 100 - ((CDbl(meja_ZAOOE_KK) - Spodnja_meja) * trideset)
+                                                        'longHeight * 0.2 + 100 + (10 - (CDbl(meja_ZAOOE_KK)) - Spodnja_meja) * trideset)
+                    Set OOE = .AddLine(longWidth * 0.6, longHeight * 0.2 + 100 + ((10 - (CDbl(meja_ZAOOE_KK) - Spodnja_meja) * trideset)), longWidth * 0.71 + 5, longHeight * 0.2 + 100 + ((10 - (CDbl(meja_ZAOOE_KK) - Spodnja_meja) * trideset)))
+                        OOE.Line.ForeColor.RGB = RGB(255, 0, 0)
+                        OOE.Line.DashStyle = msoLineDash
+                        OOE.Line.Weight = 2
+                            ' vertikalne.Line.Transparency = 0.7
+                        OOE.Name = "OOE"
+                        'opis OOS
+                    Set OOE_text = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.6 + 5, longHeight * 0.2 + 90 - ((CDbl(meja_ZAOOE_KK) - Spodnja_meja) * trideset), 100, 30)
+                        OOE_text.TextFrame.TextRange.Text = "OOE"
+                        OOE_text.Name = "OOE oznaka"
+                        OOE_text.TextFrame.TextRange.Font.Size = 15
+                        OOE_text.TextFrame.TextRange.Font.Bold = True
+                        OOE_text.TextFrame.TextRange.Font.Color.RGB = RGB(255, 0, 0)
+                        OOE_text.TextFrame.TextRange.Font.Shadow = True
+                        'OOE_text.Fill.ForeColor.RGB = RGB(245, 235, 215)
+                End With
+                
+                
+                    ' èrata za OOS
+                With ActivePresentation.Slides(1).Shapes
+                    Set OOS = .AddLine(longWidth * 0.6, longHeight * 0.2 + 100 + (10 - (meja_ZAOOS_KK - Spodnja_meja) * trideset), longWidth * 0.71 + 5, longHeight * 0.2 + 100 + (10 - (meja_ZAOOS_KK - Spodnja_meja) * trideset))
+                        OOS.Line.ForeColor.RGB = RGB(255, 0, 0)
+                        'OOS.Line.DashStyle = msoLineDash
+                        OOS.Line.Weight = 2
+                            ' vertikalne.Line.Transparency = 0.7
+                        OOS.Name = "OOE"
+                        'opis OOS
+                    Set OOS_text = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.6 + 5, longHeight * 0.2 + 90 - ((meja_ZAOOS_KK - Spodnja_meja) * trideset), 100, 30)
+                        OOS_text.TextFrame.TextRange.Text = "OOS"
+                        OOS_text.Name = "OOS oznaka"
+                        OOS_text.TextFrame.TextRange.Font.Size = 15
+                        OOS_text.TextFrame.TextRange.Font.Bold = True
+                        OOS_text.TextFrame.TextRange.Font.Color.RGB = RGB(255, 0, 0)
+                        OOS_text.TextFrame.TextRange.Font.Shadow = True
+                                ' Skale_KPI.Fill.ForeColor.RGB = RGB(245, 235, 215)
+                End With
+                        
+                    'End If
+                    ' kile skala in ostalo
+                'Dim skaliKILE As Variant
+                'skaliKILE = Array(650, 670, 700, 740, 770, 800)
+                'For p = 0 To 5
+                    'trideset
+                '   With ActivePresentation.Slides(1).Shapes
+                '       Set SkaleV_KPI = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.83, longHeight * 0.2 - 710 + (820 - (skaliKILE(p) - 650) * 1) - 15, 100, 30)
+                '           SkaleV_KPI.TextFrame.TextRange.Text = skaliKILE(p) & " kg"
+                '           SkaleV_KPI.Name = "Skale višja" & skaliKILE(p)
+                '           SkaleV_KPI.TextFrame.TextRange.Font.Size = 15
+                '           SkaleV_KPI.TextFrame.TextRange.Font.Bold = True
+                '           SkaleV_KPI.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 0)
+                '               ' Skale_KPI.Fill.ForeColor.RGB = RGB(245, 235, 215)
+                '   End With
+                'Next p
+                    
+                With ActivePresentation.Slides(1).Shapes
+                        ' dodajenje linije kile 730
+                    Set Target = .AddLine(longWidth * 0.72, longHeight * 0.2 - 710 + (820 - (Target_vrednostKK - Spodnja_meja_Kile) * ulomek), longWidth * 0.83 + 5, longHeight * 0.2 - 710 + (820 - (Target_vrednostKK - Spodnja_meja_Kile) * ulomek))
+                        Target.Line.ForeColor.RGB = RGB(255, 192, 0)
+                        Target.Line.Weight = 1.5
+                            ' OOS.Line.DashStyle = msoLineDash
+                            ' vertikalne.Line.Transparency = 0.7
+                        Target.Name = "TArget"
+                            ' dodajenje linije kile 757
+                    Set TargetUCL = .AddLine(longWidth * 0.72, longHeight * 0.2 - 710 + (820 - (TargetUCL_vrenostKK - Spodnja_meja_Kile) * ulomek), longWidth * 0.83 + 5, longHeight * 0.2 - 710 + (820 - (TargetUCL_vrenostKK - Spodnja_meja_Kile) * ulomek))
+                        TargetUCL.Line.ForeColor.RGB = RGB(0, 204, 0)
+                        TargetUCL.Line.Weight = 1.5
+                        TargetUCL.Line.DashStyle = msoLineDash
+                            ' vertikalne.Line.Transparency = 0.7
+                        TargetUCL.Name = "TargetUCL"
+                            ' dodajenje linije kile 703
+                    Set TargetLCL = .AddLine(longWidth * 0.72, longHeight * 0.2 - 710 + (820 - (TargetLCL_vrenostKK - Spodnja_meja_Kile) * ulomek), longWidth * 0.83 + 5, longHeight * 0.2 - 710 + (820 - (TargetLCL_vrenostKK - Spodnja_meja_Kile) * ulomek))
+                        TargetLCL.Line.ForeColor.RGB = RGB(204, 0, 0)
+                        TargetLCL.Line.Weight = 1.5
+                        TargetLCL.Line.DashStyle = msoLineDash
+                            ' vertikalne.Line.Transparency = 0.7
+                        TargetLCL.Name = "TargetLCL"
+                End With
+                    '/////////////////////////////////////////////////////////////////////////
+                    ' ======================= F-1 podaki risanje ////////////////////////////
+                    '////////////////////////////////////////////////////////////////////////
+                    
+                    hi = 0
+                    zadnje = False
+                    ulomek = ulomek + 0.4
+                    ' poišèe zadnjo vpisano vsebnost
+                Do
+                    If IsNumeric(F1_Podatki(7, UBound(F1_Podatki, 2) - hi)) = True And IsNumeric(F1_Podatki(7, UBound(F1_Podatki, 2) - 1 - hi)) = True Then
+                        zadnje = True
+                    End If
+                    hi = hi + 1
+                Loop Until zadnje = True
+ 
+                hi = hi - 1
+  
+                For i = 0 To 9
+                    Vsebno = UBound(F1_Podatki, 2) - i - hi
+                    If Vsebno < 0 Then
+                        Exit For
+                    End If
+                        ' MsgBox UBound(F1_Podatki, 2) - (20 - i)
+                        ' podatki za graf vsebnosti
+                    With ActivePresentation.Slides(1).Shapes
+                        If F1_Podatki(7, Vsebno) > 1 And IsNumeric(F1_Podatki(7, Vsebno)) = True Then
+                            'Set vsebnost = .AddShape(msoShapeRectangle, longWidth * 0.71 - 5 * i, longHeight * 0.2 + 100 + (10 - (F1_Podatki(7, Vsebno) - 6) * trideset), 5, (F1_Podatki(7, Vsebno) - 6) * trideset)
+                            Set vsebnost = .AddShape(msoShapeRectangle, longWidth * 0.87 - 5 * i, longHeight * 0.2 + 100 + (10 - (F1_Podatki(7, Vsebno) - Spodnja_meja) * trideset), 5, (F1_Podatki(7, Vsebno) - Spodnja_meja) * trideset)
+                                vsebnost.Fill.ForeColor.RGB = RGB(0 + i, 51 + i, 100 + 2 * i)
+                                If F1_Podatki(7, Vsebno) < meja_ZAOOS_KK Then
+                                    
+                                    vsebnost.Fill.ForeColor.RGB = RGB(255, 0, 0)
+                                ElseIf F1_Podatki(7, Vsebno) < meja_ZAOOE_KK Then
+                                    'rumeno
+                                    vsebnost.Fill.ForeColor.RGB = RGB(255, 192, 0)
+                                End If
+                            Else
+                                Set vsebnost = .AddShape(msoShapeRectangle, longWidth * 0.87 - 5 * i, longHeight * 0.2 + 108, 5, 2)
+                                    vsebnost.Fill.ForeColor.RGB = RGB(255, 0, 0)
+                        End If
+                        vsebnost.Name = "vsebnost " & i
+                        vsebnost.Line.Visible = msoFalse
+                    End With
+       
+                        ' kile --------------------**************************
+                    With ActivePresentation.Slides(1).Shapes
+                        If F1_Podatki(9, Vsebno) > Spodnja_meja_Kile And IsNumeric(F1_Podatki(9, Vsebno)) = True Then
+                            Set Kile = .AddShape(msoShapeRectangle, longWidth * 0.91 - 5 * i, longHeight * 0.2 - 710 + (820 - (F1_Podatki(9, Vsebno) - Spodnja_meja_Kile) * ulomek), 5, (F1_Podatki(9, Vsebno) - Spodnja_meja_Kile) * ulomek)
+                                Kile.Fill.ForeColor.RGB = RGB(0 + i, 102 + i, 100 + 2 * i)
+                                If F1_Podatki(9, Vsebno) < TargetLCL_F1vrenostKK Then
+                                    Kile.Fill.ForeColor.RGB = RGB(255, 0, 0)
+                                    
+                                ElseIf F1_Podatki(9, Vsebno) < Target_F1vrednostKK Then
+                                    Kile.Fill.ForeColor.RGB = RGB(255, 192, 0)
+                                    
+                                End If
+                            Else
+                                Set Kile = .AddShape(msoShapeRectangle, longWidth * 0.91 - 5 * i, longHeight * 0.2 - 710 + (820 - 2.8 * 1) + 0.8, 5, 2)
+                                    Kile.Fill.ForeColor.RGB = RGB(255, 0, 0)
+                        End If
+                            Kile.Name = "Kile " & i
+                            Kile.Line.Visible = msoFalse
+                    End With
+                Next i
+                Erase KPI_Podatki
+                    ' Kazalniki proizvodnje in kakovosti
+                    ' dodajenje linije 6,26
+                    
+                    ' èrata za OOE
+                With ActivePresentation.Slides(1).Shapes
+                    Set OOE = .AddLine(longWidth * 0.87 - 5 * i, longHeight * 0.2 + 100 + ((10 - (CDbl(meja_ZAOOE_KK) - Spodnja_meja) * trideset)), longWidth * 0.87 + 5, longHeight * 0.2 + 100 + ((10 - (CDbl(meja_ZAOOE_KK) - Spodnja_meja) * trideset)))
+                        OOE.Line.ForeColor.RGB = RGB(255, 0, 0)
+                        OOE.Line.DashStyle = msoLineDash
+                        OOE.Line.Weight = 2
+                            ' vertikalne.Line.Transparency = 0.7
+                        OOE.Name = "OOE"
+                        'opis OOS
+                    Set OOE_text = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.87 - 5 * i, longHeight * 0.2 + 90 - ((meja_ZAOOE_KK - Spodnja_meja) * trideset), 100, 30)
+                        OOE_text.TextFrame.TextRange.Text = "OOE"
+                        OOE_text.Name = "OOE oznaka"
+                        OOE_text.TextFrame.TextRange.Font.Size = 15
+                        OOE_text.TextFrame.TextRange.Font.Bold = True
+                        OOE_text.TextFrame.TextRange.Font.Color.RGB = RGB(255, 0, 0)
+                        OOE_text.TextFrame.TextRange.Font.Shadow = True
+                        'OOE_text.Fill.ForeColor.RGB = RGB(245, 235, 215)
+                End With
+                
+                
+                    ' èrata za OOS
+                With ActivePresentation.Slides(1).Shapes
+                    Set OOS = .AddLine(longWidth * 0.87 - 5 * i, longHeight * 0.2 + 100 + (10 - (meja_ZAOOS_KK - Spodnja_meja) * trideset), longWidth * 0.87 + 5, longHeight * 0.2 + 100 + (10 - (meja_ZAOOS_KK - Spodnja_meja) * trideset))
+                        OOS.Line.ForeColor.RGB = RGB(255, 0, 0)
+                        'OOS.Line.DashStyle = msoLineDash
+                        OOS.Line.Weight = 2
+                            ' vertikalne.Line.Transparency = 0.7
+                        OOS.Name = "OOE"
+                        'opis OOS
+                    Set OOS_text = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.87 - 5 * i, longHeight * 0.2 + 90 - ((meja_ZAOOS_KK - Spodnja_meja) * trideset), 100, 30)
+                        OOS_text.TextFrame.TextRange.Text = "OOS"
+                        OOS_text.Name = "OOS oznaka"
+                        OOS_text.TextFrame.TextRange.Font.Size = 15
+                        OOS_text.TextFrame.TextRange.Font.Bold = True
+                        OOS_text.TextFrame.TextRange.Font.Color.RGB = RGB(255, 0, 0)
+                        OOS_text.TextFrame.TextRange.Font.Shadow = True
+                                ' Skale_KPI.Fill.ForeColor.RGB = RGB(245, 235, 215)
+                End With
+                        
+                    'End If
+                    ' kile skala in ostalo
+                'Dim skaliKILE As Variant
+                'skaliKILE = Array(650, 670, 700, 740, 770, 800)
+                'For p = 0 To 5
+                    'trideset
+                '   With ActivePresentation.Slides(1).Shapes
+                '       Set SkaleV_KPI = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.83, longHeight * 0.2 - 710 + (820 - (skaliKILE(p) - 650) * 1) - 15, 100, 30)
+                '           SkaleV_KPI.TextFrame.TextRange.Text = skaliKILE(p) & " kg"
+                '           SkaleV_KPI.Name = "Skale višja" & skaliKILE(p)
+                '           SkaleV_KPI.TextFrame.TextRange.Font.Size = 15
+                '           SkaleV_KPI.TextFrame.TextRange.Font.Bold = True
+                '           SkaleV_KPI.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 0)
+                '               ' Skale_KPI.Fill.ForeColor.RGB = RGB(245, 235, 215)
+                '   End With
+                'Next p
+                    
+                With ActivePresentation.Slides(1).Shapes
+                        ' dodajenje linije kile 730
+                    Set Target = .AddLine(longWidth * 0.91 - 5 * i, longHeight * 0.2 - 710 + (820 - (Target_F1vrednostKK - Spodnja_meja_Kile) * ulomek), longWidth * 0.91 + 5, longHeight * 0.2 - 710 + (820 - (Target_F1vrednostKK - Spodnja_meja_Kile) * ulomek))
+                        Target.Line.ForeColor.RGB = RGB(255, 192, 0)
+                        Target.Line.Weight = 1.5
+                            ' OOS.Line.DashStyle = msoLineDash
+                            ' vertikalne.Line.Transparency = 0.7
+                        Target.Name = "TArget"
+                            ' dodajenje linije kile 757
+                    Set TargetUCL = .AddLine(longWidth * 0.91 - 5 * i, longHeight * 0.2 - 710 + (820 - (TargetUCL_F1vrenostKK - Spodnja_meja_Kile) * ulomek), longWidth * 0.91 + 5, longHeight * 0.2 - 710 + (820 - (TargetUCL_F1vrenostKK - Spodnja_meja_Kile) * ulomek))
+                        TargetUCL.Line.ForeColor.RGB = RGB(0, 204, 0)
+                        TargetUCL.Line.Weight = 1.5
+                        TargetUCL.Line.DashStyle = msoLineDash
+                            ' vertikalne.Line.Transparency = 0.7
+                        TargetUCL.Name = "TargetUCL"
+                            ' dodajenje linije kile 703
+                    Set TargetLCL = .AddLine(longWidth * 0.91 - 5 * i, longHeight * 0.2 - 710 + (820 - (TargetLCL_F1vrenostKK - Spodnja_meja_Kile) * ulomek), longWidth * 0.91 + 5, longHeight * 0.2 - 710 + (820 - (TargetLCL_F1vrenostKK - Spodnja_meja_Kile) * ulomek))
+                        TargetLCL.Line.ForeColor.RGB = RGB(204, 0, 0)
+                        TargetLCL.Line.Weight = 1.5
+                        TargetLCL.Line.DashStyle = msoLineDash
+                            ' vertikalne.Line.Transparency = 0.7
+                        TargetLCL.Name = "TargetLCL"
+                End With
+                
+                
+                
+                    '======================== GENTA
+                zadnje = False
+                hi = 0
+                Do
+                    If IsNumeric(GNT_Podatki(5, UBound(GNT_Podatki, 2) - hi)) = True And IsNumeric(GNT_Podatki(5, UBound(GNT_Podatki, 2) - 1 - hi)) = True Then
+                        zadnje = True
+                    End If
+                    hi = hi + 1
+                Loop Until zadnje = True
+                
+ 
+                hi = hi - 1
+                
+         
+                
+                
+                    
+  
+                Dim faktorvis As Integer
+                    faktorvis = 5.5
+                    'spodnja meja kile
+                Dim Spodnj_GNT_meja As Integer
+                Spodnj_GNT_meja = 0
+                    'faktor za višino grafa kil gente
+                Dim visoko As Integer
+                visoko = 4
+  
+                For i = 0 To 9
+                    Vsebno = UBound(GNT_Podatki, 2) - i - hi
+                    If Vsebno < 0 Then
+                        Exit For
+                    End If
+ 
+                    
+                    
+                        ' MsgBox UBound(KPI_Podatki, 2) - (20 - i) GNT
+                        'genta vsebnost
+                    With ActivePresentation.Slides(1).Shapes
+                        If GNT_Podatki(5, Vsebno) > Spodnj_GNT_meja And IsNumeric(GNT_Podatki(5, Vsebno)) = True Then
+                            Set vsebnostGNT = .AddShape(msoShapeRectangle, longWidth * 0.63 - 5 * i, longHeight * 0.2 + 300 + (2 - (GNT_Podatki(5, Vsebno) - Spodnja_meja) * trideset * faktorvis), 5, (GNT_Podatki(5, Vsebno) - Spodnja_meja) * trideset * faktorvis)
+                                vsebnostGNT.Fill.ForeColor.RGB = RGB(99 + 5 * i, 67 + 4 * i, 41 + 6 * i)
+                                If GNT_Podatki(10, Vsebno) < meja_ZAOOS_GNT Then
+                                    
+                                    vsebnostGNT.Fill.ForeColor.RGB = RGB(255, 0, 0)
+                                ElseIf GNT_Podatki(10, Vsebno) < meja_ZAOOE_GNT Then
+                                    
+                                    vsebnostGNT.Fill.ForeColor.RGB = RGB(255, 192, 0)
+                                End If
+                            Else
+                                Set vsebnostGNT = .AddShape(msoShapeRectangle, longWidth * 0.63 - 5 * i, longHeight * 0.2 + 300, 5, 2)
+                                    vsebnostGNT.Fill.ForeColor.RGB = RGB(255, 0, 0)
+                        End If
+                        vsebnostGNT.Name = "vsebnost GNT " & i
+                        vsebnostGNT.Line.Visible = msoFalse
+                    End With
+                        ' kile GNT--------------------**************************
+                    With ActivePresentation.Slides(1).Shapes
+                        If GNT_Podatki(10, Vsebno) > Spodnj_GNT_meja And IsNumeric(GNT_Podatki(10, Vsebno)) = True Then
+                            Set KileGNT = .AddShape(msoShapeRectangle, longWidth * 0.67 - 5 * i, longHeight * 0.2 + 262 + (40 - (GNT_Podatki(10, Vsebno) - Spodnj_GNT_meja) * visoko), 5, (GNT_Podatki(10, Vsebno) - Spodnj_GNT_meja) * visoko)
+                                KileGNT.Fill.ForeColor.RGB = RGB(146 + i, 50 + 2 * i, 34 + 5 * i)
+                                If GNT_Podatki(10, Vsebno) < TargetLCL_vrenostGNT Then
+                                    KileGNT.Fill.ForeColor.RGB = RGB(255, 0, 0)
+                                    
+                                ElseIf GNT_Podatki(10, Vsebno) < Target_vrednostGNT Then
+                                    KileGNT.Fill.ForeColor.RGB = RGB(255, 192, 0)
+                                    
+                                End If
+                            Else
+                                Set KileGNT = .AddShape(msoShapeRectangle, longWidth * 0.67 - 5 * i, longHeight * 0.2 + 262 + (40 - 2.8 * 1) + 0.8, 5, 2)
+                                    KileGNT.Fill.ForeColor.RGB = RGB(255, 0, 0)
+                        End If
+                        KileGNT.Name = "Kile " & i
+                        KileGNT.Line.Visible = msoFalse
+                    End With
+                Next i
+                Erase GNT_Podatki
+                    
+                        ' èrata za OOS
+                With ActivePresentation.Slides(1).Shapes
+                    Set OOS_GNT = .AddLine(longWidth * 0.63 - 5 * i, longHeight * 0.2 + 300 + (2 - (0.3 - Spodnja_meja) * trideset * faktorvis), longWidth * 0.63 + 5, longHeight * 0.2 + 300 + (2 - (0.3 - Spodnja_meja) * trideset * faktorvis))
+                        OOS_GNT.Line.ForeColor.RGB = RGB(255, 0, 0)
+                        'OOS.Line.DashStyle = msoLineDash
+                        OOS_GNT.Line.Weight = 2
+                            ' vertikalne.Line.Transparency = 0.7
+                        OOS_GNT.Name = "OOE"
+                        'opis OOS
+                    Set OOS_GNT_text = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.6 + 5, longHeight * 0.2 + 280 + (2 - (0.3 - Spodnja_meja) * trideset * faktorvis), 100, 30)
+                        OOS_GNT_text.TextFrame.TextRange.Text = "OOS"
+                        OOS_GNT_text.Name = "OOS oznaka"
+                        OOS_GNT_text.TextFrame.TextRange.Font.Size = 15
+                        OOS_GNT_text.TextFrame.TextRange.Font.Bold = True
+                        OOS_GNT_text.TextFrame.TextRange.Font.Color.RGB = RGB(255, 0, 0)
+                        OOS_GNT_text.TextFrame.TextRange.Font.Shadow = True
+                                ' Skale_KPI.Fill.ForeColor.RGB = RGB(245, 235, 215)
+                
+                End With
+                        
+                                ' èrata za OOE
+                With ActivePresentation.Slides(1).Shapes
+                    Set OOE_GNT = .AddLine(longWidth * 0.63 - 5 * i, longHeight * 0.2 + 300 + (2 - (1.05 - Spodnja_meja) * trideset * faktorvis), longWidth * 0.63 + 5, longHeight * 0.2 + 300 + (2 - (1.05 - Spodnja_meja) * trideset * faktorvis))
+                        OOE_GNT.Line.ForeColor.RGB = RGB(255, 0, 0)
+                        OOE_GNT.Line.DashStyle = msoLineDash
+                        OOE_GNT.Line.Weight = 2
+                            ' vertikalne.Line.Transparency = 0.7
+                        OOE_GNT.Name = "OOE"
+                        'opis OOS
+                    Set OOE_GNT_text = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.6 + 5, longHeight * 0.2 + 280 + (2 - (1.05 - Spodnja_meja) * trideset * faktorvis), 100, 30)
+                        OOE_GNT_text.TextFrame.TextRange.Text = "OOE"
+                        OOE_GNT_text.Name = "OOS oznaka"
+                        OOE_GNT_text.TextFrame.TextRange.Font.Size = 15
+                        OOE_GNT_text.TextFrame.TextRange.Font.Bold = True
+                        OOE_GNT_text.TextFrame.TextRange.Font.Color.RGB = RGB(255, 0, 0)
+                        OOE_GNT_text.TextFrame.TextRange.Font.Shadow = True
+                                ' Skale_KPI.Fill.ForeColor.RGB = RGB(245, 235, 215)
+                
+                End With
+
+
+
+
+                
+                With ActivePresentation.Slides(1).Shapes
+                    ' dodajenje linije kile Target
+                    Set TargetGNT = .AddLine(longWidth * 0.645, longHeight * 0.2 + 262 + (40 - (Target_vrednostGNT - Spodnj_GNT_meja) * visoko), longWidth * 0.67 + 5, longHeight * 0.2 + 262 + (40 - (Target_vrednostGNT - Spodnj_GNT_meja) * visoko))
+                        TargetGNT.Line.ForeColor.RGB = RGB(255, 192, 0)
+                        TargetGNT.Line.Weight = 1.5
+                            '.Line.DashStyle = msoLineDash
+                            ' .Line.Transparency = 0.7
+                        TargetGNT.Name = "TArget"
+                    ' dodajenje linije kile UCL
+                    Set TargetGNT_U = .AddLine(longWidth * 0.645, longHeight * 0.2 + 262 + (40 - (TargetUCL_vrenostGNT - Spodnj_GNT_meja) * visoko), longWidth * 0.67 + 5, longHeight * 0.2 + 262 + (40 - (TargetUCL_vrenostGNT - Spodnj_GNT_meja) * visoko))
+                        TargetGNT_U.Line.ForeColor.RGB = RGB(0, 204, 0)
+                        TargetGNT_U.Line.Weight = 1.5
+                        TargetGNT_U.Line.DashStyle = msoLineDash
+                            ' .Line.Transparency = 0.7
+                        TargetGNT_U.Name = "GNT UCLTarget"
+                    ' dodajenje linije kile LCL
+                    Set TargetGNT_L = .AddLine(longWidth * 0.645, longHeight * 0.2 + 262 + (40 - (TargetLCL_vrenostGNT - Spodnj_GNT_meja) * visoko), longWidth * 0.67 + 5, longHeight * 0.2 + 262 + (40 - (TargetLCL_vrenostGNT - Spodnj_GNT_meja) * visoko))
+                        TargetGNT_L.Line.ForeColor.RGB = RGB(204, 0, 0)
+                        TargetGNT_L.Line.Weight = 1.5
+                        TargetGNT_L.Line.DashStyle = msoLineDash
+                            ' .Line.Transparency = 0.7
+                        TargetGNT_L.Name = "GNT LCLTarget"
+                End With
+                    ' kile skala in ostalo
+                'Dim skaliKILE_GNT As Variant
+                'skaliKILE_GNT = Array(25, 30, 33, 36)
+                'For p = 0 To 3
+                    'trideset
+                '   With ActivePresentation.Slides(1).Shapes
+                '       Set SkaleV_GNT = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.67, longHeight * 0.2 + 262 + (40 - (skaliKILE_GNT(p) - Spodnj_GNT_meja) * 12) - 15, 100, 30)
+                '           SkaleV_GNT.TextFrame.TextRange.Text = skaliKILE_GNT(p) & " kg"
+                '           SkaleV_GNT.Name = "Skale višja" & skaliKILE_GNT(p)
+                '           SkaleV_GNT.TextFrame.TextRange.Font.Size = 15
+                '           SkaleV_GNT.TextFrame.TextRange.Font.Bold = True
+                '           SkaleV_GNT.TextFrame.TextRange.Font.Color.RGB = RGB(0, 0, 0)
+                '               ' Skale_KPI.Fill.ForeColor.RGB = RGB(245, 235, 215)
+                '   End With
+                'Next p
+                    ' skale
+                    'obrobne  skele KK
+                    'Dim skali As Variant
+                    'skali = Array(6, 7, 8, 9, 10)
+                    '    For p = 0 To 4
+                    '    'trideset
+                '     With ActivePresentation.Slides(1).Shapes
+                '         Set SkaleV_KPI = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.72, longHeight * 0.2 + 100 - ((skali(p) - 6) * trideset), 100, 30)
+                '       SkaleV_KPI.TextFrame.TextRange.Text = skali(p) & " g/kg"
+                '            SkaleV_KPI.Name = "Skale višja" & skali(p)
+                '            SkaleV_KPI.TextFrame.TextRange.Font.Size = 15
+                '            SkaleV_KPI.TextFrame.TextRange.Font.Bold = True
+                '            SkaleV_KPI.TextFrame.TextRange.Font.Color.RGB = RGB(0, 51, 102)
+                '           ' Skale_KPI.Fill.ForeColor.RGB = RGB(245, 235, 215)
+                '
+            
+                '    End With
+                ' Next p
+
+                '  'GNT skala
+                '  Dim skaliGNT As Variant
+                'skaliGNT = Array(0.81, 1, 1.2, 1.5, 1.75)
+                '    For p = 0 To 4
+                '    'trideset
+                '     With ActivePresentation.Slides(1).Shapes
+                '         Set SkaleV_GNT = .AddTextbox(msoTextOrientationHorizontal, longWidth * 0.63, longHeight * 0.2 + 300 + (2 - (skaliGNT(p) - 0.8) * trideset * faktorvis) - 15, 100, 30)
+                '           SkaleV_GNT.TextFrame.TextRange.Text = skaliGNT(p) & " g/kg"
+                '            SkaleV_GNT.Name = "Skale višja" & skaliGNT(p)
+                '            SkaleV_GNT.TextFrame.TextRange.Font.Size = 15
+                '            SkaleV_GNT.TextFrame.TextRange.Font.Bold = True
+                '            SkaleV_GNT.TextFrame.TextRange.Font.Color.RGB = RGB(0, 51, 102)
+                '          ' Skale_KPI.Fill.ForeColor.RGB = RGB(245, 235, 215)
+                '        End With
+                    ' Next p
+                'zapiranje
+        'End If
+                If cnn_KPI.State = adStateOpen Then cnn_KPI.Close
+  
+                If rs_KPI.State = adStateOpen Then
+                    rs_KPI.Close
+                End If
+
+
+End Sub
+
+
+
+
+
+
+
+Public Sub OnSlideShowPageChange(ByVal Wn As SlideShowWindow)
+' auto update presentacije
+   If Wn.View.CurrentShowPosition = 1 Then
+       'Perform Updates for slide #3
+       PredelavaRisiTablo
+   End If
+End Sub
+
+
+
+
+
+
+
+
++----------+--------------------+---------------------------------------------+
+|Type      |Keyword             |Description                                  |
++----------+--------------------+---------------------------------------------+
+|Suspicious|Open                |May open a file                              |
+|Suspicious|Binary              |May read or write a binary file (if combined |
+|          |                    |with Open)                                   |
+|Suspicious|Run                 |May run an executable file or a system       |
+|          |                    |command                                      |
+|Suspicious|Create              |May execute file or a system command through |
+|          |                    |WMI                                          |
+|Suspicious|CreateObject        |May create an OLE object                     |
+|Suspicious|ChrW                |May attempt to obfuscate specific strings    |
+|          |                    |(use option --deobf to deobfuscate)          |
+|Suspicious|Hex Strings         |Hex-encoded strings were detected, may be    |
+|          |                    |used to obfuscate strings (option --decode to|
+|          |                    |see all)                                     |
+|Suspicious|Base64 Strings      |Base64-encoded strings were detected, may be |
+|          |                    |used to obfuscate strings (option --decode to|
+|          |                    |see all)                                     |
+|Suspicious|VBA Stomping        |VBA Stomping was detected: the VBA source    |
+|          |                    |code and P-code are different, this may have |
+|          |                    |been used to hide malicious code             |
++----------+--------------------+---------------------------------------------+
+VBA Stomping detection is experimental: please report any false positive/negative at https://github.com/decalage2/oletools/issues
+
