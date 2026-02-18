@@ -95,6 +95,7 @@ plantpulse.pro/
 | [Design Guidelines](docs/design-guidelines.md) | Visual design system, interaction patterns, accessibility |
 | [Implementation Plan](docs/implementation-plan.md) | Phased build sequence (Phase 0-13) |
 | [Gaps & Open Questions](docs/gaps-and-open-questions.md) | Specification gaps, decisions made, remaining open items |
+| [Code of Conduct](CODE_OF_CONDUCT.md) | Community standards, enterprise governance, GxP-aligned conduct principles |
 
 ## Background
 

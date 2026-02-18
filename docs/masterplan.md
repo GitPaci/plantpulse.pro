@@ -199,3 +199,9 @@ Based on GxP cloud guidance: secure records, audit trails, IAM, retention, chang
 - **Electronic Records**
   - Immutable, time-stamped audit trail
   - Dual approval options for critical overrides
+
+- **Governance & Conduct**
+  - [Code of Conduct](../CODE_OF_CONDUCT.md) defines enforceable standards for all participants
+  - ALCOA+ data integrity principles (Attributable, Legible, Contemporaneous, Original, Accurate, Complete, Consistent, Enduring, Available)
+  - Override governance with mandatory justification and audit capture
+  - Training and attestation requirements for enterprise roles
