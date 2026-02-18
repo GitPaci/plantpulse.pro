@@ -13,7 +13,7 @@ import type {
 // ─── Default machines (from VBA imena array) ───────────────────────────
 
 export const DEFAULT_MACHINES: Machine[] = [
-  // Inoculum vessels
+  // Inoculum vessels — "B" prefix from Slovenian "Buča" (flask), lab inoculum flasks
   { id: 'BKK', name: 'BKK', group: 'inoculum', displayOrder: 0 },
   { id: 'BGNT', name: 'BGNT', group: 'inoculum', displayOrder: 0.5 },
   // GNT line — propagators
