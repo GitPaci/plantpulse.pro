@@ -1,4 +1,4 @@
-# PlantPulse Enterprise Code of Conduct
+# PlantPulse Code of Conduct
 
 **Clarity. Accountability. Calm Operations.**
 
