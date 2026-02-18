@@ -124,7 +124,8 @@ function drawCalendarColumns(
   viewStart: Date,
   numDays: number,
   width: number,
-  totalHeight: number
+  totalHeight: number,
+  todayHighlight: boolean = true
 ) {
   const ppd = getPPD(width, LEFT_MARGIN, numDays);
   const today = startOfDay(new Date());
@@ -143,7 +144,7 @@ function drawCalendarColumns(
     }
 
     // Today highlight
-    if (date.getTime() === today.getTime()) {
+    if (todayHighlight && date.getTime() === today.getTime()) {
       ctx.fillStyle = COL_TODAY;
       ctx.fillRect(x, TOP_MARGIN, ppd, totalHeight - TOP_MARGIN);
     }
@@ -426,9 +427,19 @@ function roundRect(
 
 interface WallboardCanvasProps {
   filteredGroupIds?: string[];
+  customMachineGroups?: MachineDisplayGroup[];
+  showTodayHighlight?: boolean;
+  showNowLine?: boolean;
+  showShiftBand?: boolean;
 }
 
-export default function WallboardCanvas({ filteredGroupIds }: WallboardCanvasProps) {
+export default function WallboardCanvas({
+  filteredGroupIds,
+  customMachineGroups,
+  showTodayHighlight = true,
+  showNowLine: showNowLineProp = true,
+  showShiftBand: showShiftBandProp = true,
+}: WallboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState({ width: 0, height: 0 });
@@ -462,9 +473,10 @@ export default function WallboardCanvas({ filteredGroupIds }: WallboardCanvasPro
   }, []);
 
   // Build layout data
+  const baseGroups = customMachineGroups ?? machineGroups;
   const groups = filteredGroupIds
-    ? machineGroups.filter((g) => filteredGroupIds.includes(g.id))
-    : machineGroups;
+    ? baseGroups.filter((g) => filteredGroupIds.includes(g.id))
+    : baseGroups;
   const rows = buildRowLayout(machines, groups);
 
   // Build batch chain series number map
@@ -510,13 +522,17 @@ export default function WallboardCanvas({ filteredGroupIds }: WallboardCanvasPro
 
     // Draw layers (back to front)
     drawRowBackgrounds(ctx, rows, dims.width);
-    drawCalendarColumns(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight);
+    drawCalendarColumns(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, showTodayHighlight);
     drawBatchBars(ctx, visibleStages, batchChainMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width);
-    drawNowLine(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight);
+    if (showNowLineProp) {
+      drawNowLine(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight);
+    }
     drawMachineLabels(ctx, rows);
-    drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width);
+    if (showShiftBandProp) {
+      drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width);
+    }
     drawDateHeader(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width);
-  }, [dims, rows, visibleStages, batchChainMap, viewConfig, totalHeight]);
+  }, [dims, rows, visibleStages, batchChainMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp]);
 
   // Redraw on any change
   useEffect(() => {

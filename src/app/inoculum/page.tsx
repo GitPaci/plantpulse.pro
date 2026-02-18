@@ -9,6 +9,7 @@ import { useState, useMemo, useEffect } from 'react';
 import Navigation from '@/components/ui/Navigation';
 import WallboardCanvas from '@/components/timeline/WallboardCanvas';
 import { usePlantPulseStore } from '@/lib/store';
+import { INOCULUM_GROUP } from '@/lib/demo-data';
 import {
   startOfMonth,
   endOfMonth,
@@ -26,7 +27,8 @@ interface FilterOption {
 }
 
 const FILTER_OPTIONS: FilterOption[] = [
-  { id: 'all', label: 'All Equipment', groups: ['propagator', 'pre_fermenter', 'fermenter'] },
+  { id: 'inoculum', label: 'Inoculum', groups: ['inoculum'] },
+  { id: 'all', label: 'All Equipment', groups: ['inoculum', 'propagator', 'pre_fermenter', 'fermenter'] },
   { id: 'pr', label: 'Propagators (PR)', groups: ['propagator'] },
   { id: 'pf', label: 'Pre-fermenters (PF)', groups: ['pre_fermenter'] },
   { id: 'f', label: 'Fermenters (F)', groups: ['fermenter'] },
@@ -54,15 +56,21 @@ export default function SchedulePage() {
     });
   }, [currentMonth, setViewConfig]);
 
+  // Schedule view includes Inoculum group (not in default store groups)
+  const scheduleMachineGroups = useMemo(
+    () => [INOCULUM_GROUP, ...machineGroups],
+    [machineGroups]
+  );
+
   // Build filtered group IDs based on active machine group filter
   const filteredGroupIds = useMemo(() => {
     const filterOption = FILTER_OPTIONS.find((f) => f.id === activeFilter);
-    if (!filterOption) return machineGroups.map((g) => g.id);
+    if (!filterOption) return scheduleMachineGroups.map((g) => g.id);
 
     const allowedGroups = new Set(filterOption.groups);
 
     // Find which display groups contain machines matching the filter
-    return machineGroups
+    return scheduleMachineGroups
       .filter((dg) => {
         const groupMachines = machines.filter(
           (m) => dg.machineIds.includes(m.id) && allowedGroups.has(m.group)
@@ -70,7 +78,7 @@ export default function SchedulePage() {
         return groupMachines.length > 0;
       })
       .map((g) => g.id);
-  }, [activeFilter, machines, machineGroups]);
+  }, [activeFilter, machines, scheduleMachineGroups]);
 
   // Build dynamic filtered machine groups (only include matching machines)
   const filteredMachineGroups = useMemo(() => {
@@ -80,7 +88,7 @@ export default function SchedulePage() {
     }
 
     const allowedGroups = new Set(filterOption.groups);
-    return machineGroups
+    return scheduleMachineGroups
       .map((dg) => ({
         ...dg,
         machineIds: dg.machineIds.filter((id) => {
@@ -89,7 +97,7 @@ export default function SchedulePage() {
         }),
       }))
       .filter((dg) => dg.machineIds.length > 0);
-  }, [activeFilter, machines, machineGroups]);
+  }, [activeFilter, machines, scheduleMachineGroups]);
 
   // Count stages per group for the current month
   const stages = usePlantPulseStore((s) => s.stages);
@@ -141,11 +149,15 @@ export default function SchedulePage() {
       {/* Timeline canvas — month scope with filtered groups */}
       <div className="flex-1 min-h-0">
         <WallboardCanvas
+          customMachineGroups={scheduleMachineGroups}
           filteredGroupIds={
             filteredMachineGroups
               ? filteredMachineGroups.map((g) => g.id)
               : undefined
           }
+          showTodayHighlight={false}
+          showNowLine={false}
+          showShiftBand={false}
         />
       </div>
     </div>
