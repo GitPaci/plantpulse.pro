@@ -28,6 +28,7 @@ interface PlantPulseState {
 
   // Actions
   setViewConfig: (config: Partial<ViewConfig>) => void;
+  resetViewToToday: () => void;
   loadDemoData: () => void;
   setStages: (stages: Stage[]) => void;
   setBatchChains: (chains: BatchChain[]) => void;
@@ -47,6 +48,14 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   setViewConfig: (config) =>
     set((state) => ({
       viewConfig: { ...state.viewConfig, ...config },
+    })),
+
+  resetViewToToday: () =>
+    set((state) => ({
+      viewConfig: {
+        ...state.viewConfig,
+        viewStart: subDays(startOfDay(new Date()), 4),
+      },
     })),
 
   loadDemoData: () => {

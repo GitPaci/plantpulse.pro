@@ -9,13 +9,20 @@ import WallboardCanvas from '@/components/timeline/WallboardCanvas';
 import { usePlantPulseStore } from '@/lib/store';
 import { currentShiftTeam } from '@/lib/shift-rotation';
 import { SHIFT_TEAM_COLORS } from '@/lib/colors';
-import { subDays, addDays, startOfDay } from 'date-fns';
+import { useEffect } from 'react';
+import { addDays } from 'date-fns';
 
 const TEAM_NAMES = ['Blue', 'Green', 'Red', 'Yellow'];
 
 export default function WallboardPage() {
   const viewConfig = usePlantPulseStore((s) => s.viewConfig);
   const setViewConfig = usePlantPulseStore((s) => s.setViewConfig);
+  const resetViewToToday = usePlantPulseStore((s) => s.resetViewToToday);
+
+  // Reset timeline to today on every mount (direct nav, reload, returning from another page)
+  useEffect(() => {
+    resetViewToToday();
+  }, [resetViewToToday]);
 
   const teamIdx = currentShiftTeam(new Date());
   const teamColor = SHIFT_TEAM_COLORS[teamIdx];
@@ -28,9 +35,7 @@ export default function WallboardPage() {
   }
 
   function resetView() {
-    setViewConfig({
-      viewStart: subDays(startOfDay(new Date()), 4),
-    });
+    resetViewToToday();
   }
 
   return (

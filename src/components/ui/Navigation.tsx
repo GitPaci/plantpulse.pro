@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { usePlantPulseStore } from '@/lib/store';
 
 const NAV_LINKS = [
   { href: '/wallboard', label: 'Wallboard' },
@@ -11,6 +12,7 @@ const NAV_LINKS = [
 
 export default function Navigation() {
   const pathname = usePathname();
+  const resetViewToToday = usePlantPulseStore((s) => s.resetViewToToday);
 
   return (
     <nav className="nav-bar">
@@ -22,6 +24,7 @@ export default function Navigation() {
           key={link.href}
           href={link.href}
           className={pathname === link.href ? 'active' : ''}
+          onClick={link.href === '/wallboard' ? () => resetViewToToday() : undefined}
         >
           {link.label}
         </Link>
