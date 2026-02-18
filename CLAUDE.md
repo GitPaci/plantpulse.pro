@@ -336,7 +336,7 @@ plantpulse.pro/
 │   │   ├── page.tsx             # Landing / session start
 │   │   ├── wallboard/           # Manufacturing Wallboard (Operator lens)
 │   │   ├── planner/             # Planner View (modern UrediPlan)
-│   │   ├── inoculum/            # Inoculum Month View
+│   │   ├── inoculum/            # Schedule View
 │   │   └── admin/               # Admin Settings (Enterprise)
 │   ├── components/
 │   │   ├── timeline/            # Core timeline engine (Phase 2)

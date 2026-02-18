@@ -4,7 +4,7 @@
 
 - Manufacturing Wallboard
 - Planner View
-- Inoculum Month
+- Schedule
 - Drafts & Approvals
 - Commit Log (Planner only)
 - Audit Trail
@@ -19,7 +19,7 @@
 |------|---------|
 | **Manufacturing Wallboard** | Execute and monitor operations at a glance. |
 | **Planner View** | Edit drafts: drag/move/stretch, chain editor, bulk shift, conflict handling. |
-| **Inoculum Month** | Monthly cadence with weekend/staffing structure. |
+| **Schedule** | Monthly cadence with weekend/staffing structure. |
 | **Drafts & Approvals** | Draft lifecycle: propose/reject/approve/commit. |
 | **Commit Log** | Planner-only: list of all commits and criticality. |
 | **Audit Trail** | Business audit of all meaningful actions. |

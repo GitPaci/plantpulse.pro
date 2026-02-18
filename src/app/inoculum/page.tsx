@@ -1,7 +1,7 @@
 'use client';
 
-// Inoculum Schedule — Month view with equipment group filters
-// Shows inoculation (start) schedules for selected equipment groups
+// Schedule — Month view with equipment group filters
+// Shows schedules for selected equipment groups
 // User can filter: All | Propagators (PRs) | Pre-fermenters (PFs) | Fermenters (Fs)
 // User can pick month (prev/next navigation)
 
@@ -32,7 +32,7 @@ const FILTER_OPTIONS: FilterOption[] = [
   { id: 'f', label: 'Fermenters (F)', groups: ['fermenter'] },
 ];
 
-export default function InoculumPage() {
+export default function SchedulePage() {
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
   const [activeFilter, setActiveFilter] = useState('all');
 

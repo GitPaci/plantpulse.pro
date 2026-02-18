@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 const NAV_LINKS = [
   { href: '/wallboard', label: 'Wallboard' },
   { href: '/planner', label: 'Planner' },
-  { href: '/inoculum', label: 'Inoculum' },
+  { href: '/inoculum', label: 'Schedule' },
 ];
 
 export default function Navigation() {

@@ -20,7 +20,7 @@ Production scheduling for multistep batch chain processes — fermentation, biop
 |------|-------------|--------------|
 | **Manufacturing Wallboard** | Operators | Now-centered timeline with batch bars, checkpoint tasks, maintenance markers, and shift ownership band. One-click task confirmation. |
 | **Planner View** | Schedulers & Planners | Interactive draft editor: drag/move/stretch bars, chain editor, bulk shift, new batch chain wizard with auto-scheduling and conflict detection. |
-| **Inoculum Month** | Inoculum Operators | Full-month view with weekend highlighting and staffing window enforcement. |
+| **Schedule** | Operators | Full-month view with weekend highlighting and staffing window enforcement. |
 | **Drafts & Approvals** | Schedulers & Planners | Governed workflow: Draft, Propose, Review diff, Approve/Commit or Reject. |
 | **Commit Log** | Planners only | Immutable record of all committed plan changes with criticality flags. |
 | **Audit Trail** | Compliance | Append-only, time-stamped, attributable business audit entries. |
