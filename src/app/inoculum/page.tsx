@@ -2,10 +2,10 @@
 
 // Schedule — Month view with equipment group filters
 // Shows schedules for selected equipment groups
-// User can filter: All | Propagators (PRs) | Pre-fermenters (PFs) | Fermenters (Fs)
+// Multi-select toggle: user can combine PR, PF, F, Inoculum filters
 // User can pick month (prev/next navigation)
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Navigation from '@/components/ui/Navigation';
 import WallboardCanvas from '@/components/timeline/WallboardCanvas';
 import { usePlantPulseStore } from '@/lib/store';
@@ -26,9 +26,9 @@ interface FilterOption {
   groups: MachineGroup[];
 }
 
+// Button order: Inoculum, Propagators, Pre-fermenters, Fermenters, All Equipment
 const FILTER_OPTIONS: FilterOption[] = [
   { id: 'inoculum', label: 'Inoculum', groups: ['inoculum'] },
-  { id: 'all', label: 'All Equipment', groups: ['inoculum', 'propagator', 'pre_fermenter', 'fermenter'] },
   { id: 'pr', label: 'Propagators (PR)', groups: ['propagator'] },
   { id: 'pf', label: 'Pre-fermenters (PF)', groups: ['pre_fermenter'] },
   { id: 'f', label: 'Fermenters (F)', groups: ['fermenter'] },
@@ -36,7 +36,8 @@ const FILTER_OPTIONS: FilterOption[] = [
 
 export default function SchedulePage() {
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
-  const [activeFilter, setActiveFilter] = useState('all');
+  // Multi-select: set of active filter IDs. Empty set = show all.
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
 
   const machines = usePlantPulseStore((s) => s.machines);
   const machineGroups = usePlantPulseStore((s) => s.machineGroups);
@@ -62,42 +63,55 @@ export default function SchedulePage() {
     [machineGroups]
   );
 
-  // Build filtered group IDs based on active machine group filter
-  const filteredGroupIds = useMemo(() => {
-    const filterOption = FILTER_OPTIONS.find((f) => f.id === activeFilter);
-    if (!filterOption) return scheduleMachineGroups.map((g) => g.id);
+  // No specific filters selected = show all equipment
+  const isAllActive = activeFilters.size === 0;
 
-    const allowedGroups = new Set(filterOption.groups);
-
-    // Find which display groups contain machines matching the filter
-    return scheduleMachineGroups
-      .filter((dg) => {
-        const groupMachines = machines.filter(
-          (m) => dg.machineIds.includes(m.id) && allowedGroups.has(m.group)
-        );
-        return groupMachines.length > 0;
-      })
-      .map((g) => g.id);
-  }, [activeFilter, machines, scheduleMachineGroups]);
-
-  // Build dynamic filtered machine groups (only include matching machines)
-  const filteredMachineGroups = useMemo(() => {
-    const filterOption = FILTER_OPTIONS.find((f) => f.id === activeFilter);
-    if (!filterOption || activeFilter === 'all') {
-      return undefined; // show all
+  // Toggle handler: multi-select for group buttons, reset for "All Equipment"
+  const handleFilterClick = useCallback((id: string) => {
+    if (id === 'all') {
+      // "All Equipment" clears all selections → show everything
+      setActiveFilters(new Set());
+      return;
     }
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
 
-    const allowedGroups = new Set(filterOption.groups);
+  // Build the set of allowed MachineGroup values from active filters
+  const allowedMachineGroups = useMemo(() => {
+    if (isAllActive) return null; // null = show all
+    const groups = new Set<MachineGroup>();
+    for (const filterId of activeFilters) {
+      const opt = FILTER_OPTIONS.find((f) => f.id === filterId);
+      if (opt) {
+        for (const g of opt.groups) {
+          groups.add(g);
+        }
+      }
+    }
+    return groups;
+  }, [activeFilters, isAllActive]);
+
+  // Build filtered machine groups: only include machines matching active filters
+  const filteredMachineGroups = useMemo(() => {
+    if (!allowedMachineGroups) return undefined; // show all
     return scheduleMachineGroups
       .map((dg) => ({
         ...dg,
         machineIds: dg.machineIds.filter((id) => {
           const m = machines.find((mx) => mx.id === id);
-          return m && allowedGroups.has(m.group);
+          return m && allowedMachineGroups.has(m.group);
         }),
       }))
       .filter((dg) => dg.machineIds.length > 0);
-  }, [activeFilter, machines, scheduleMachineGroups]);
+  }, [allowedMachineGroups, machines, scheduleMachineGroups]);
 
   // Count stages per group for the current month
   const stages = usePlantPulseStore((s) => s.stages);
@@ -126,17 +140,23 @@ export default function SchedulePage() {
         {/* Separator */}
         <div className="w-px h-6 bg-[var(--pp-border)]" />
 
-        {/* Equipment group filters */}
+        {/* Equipment group filters — multi-select toggles + All Equipment reset */}
         <div className="filter-chips">
           {FILTER_OPTIONS.map((opt) => (
             <button
               key={opt.id}
-              className={`filter-chip ${activeFilter === opt.id ? 'active' : ''}`}
-              onClick={() => setActiveFilter(opt.id)}
+              className={`filter-chip ${activeFilters.has(opt.id) ? 'active' : ''}`}
+              onClick={() => handleFilterClick(opt.id)}
             >
               {opt.label}
             </button>
           ))}
+          <button
+            className={`filter-chip ${isAllActive ? 'active' : ''}`}
+            onClick={() => handleFilterClick('all')}
+          >
+            All Equipment
+          </button>
         </div>
 
         <div className="flex-1" />
@@ -149,12 +169,7 @@ export default function SchedulePage() {
       {/* Timeline canvas — month scope with filtered groups */}
       <div className="flex-1 min-h-0">
         <WallboardCanvas
-          customMachineGroups={scheduleMachineGroups}
-          filteredGroupIds={
-            filteredMachineGroups
-              ? filteredMachineGroups.map((g) => g.id)
-              : undefined
-          }
+          customMachineGroups={filteredMachineGroups ?? scheduleMachineGroups}
           showTodayHighlight={false}
           showNowLine={false}
           showShiftBand={false}
