@@ -106,6 +106,103 @@ export default function SchedulePage() {
     (s) => s.startDatetime >= currentMonth && s.startDatetime <= monthEnd
   ).length;
 
+  const handleExportPdf = () => {
+    const scheduleCanvas = document.getElementById('schedule-export-canvas') as HTMLCanvasElement | null;
+    if (!scheduleCanvas) return;
+
+    const imageDataUrl = scheduleCanvas.toDataURL('image/png');
+    const printDate = format(new Date(), 'yyyy-MM-dd HH:mm');
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>PlantPulse Schedule Export</title>
+          <style>
+            @page {
+              size: A4 landscape;
+              margin: 10mm;
+            }
+
+            html,
+            body {
+              margin: 0;
+              width: 100%;
+              height: 100%;
+              font-family: Arial, sans-serif;
+              color: #0f172a;
+            }
+
+            .page {
+              box-sizing: border-box;
+              width: 277mm;
+              height: 190mm;
+              overflow: hidden;
+              display: flex;
+              flex-direction: column;
+              gap: 5mm;
+            }
+
+            .schedule-area {
+              flex: 1 1 auto;
+              min-height: 0;
+              border: 1px solid #dbe2ea;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              overflow: hidden;
+            }
+
+            .schedule-image {
+              width: 100%;
+              height: 100%;
+              object-fit: contain;
+              object-position: center center;
+            }
+
+            .footer {
+              flex: 0 0 auto;
+              border-top: 1px solid #dbe2ea;
+              padding-top: 3mm;
+              font-size: 10px;
+              line-height: 1.3;
+              color: #475569;
+            }
+
+            .footer strong {
+              color: #334155;
+              font-weight: 600;
+            }
+          </style>
+        </head>
+        <body>
+          <main class="page">
+            <section class="schedule-area">
+              <img class="schedule-image" src="${imageDataUrl}" alt="Schedule export" />
+            </section>
+            <footer class="footer">
+              <div>Printed by PlantPulse — valid only on the print date</div>
+              <div>Print date: ${printDate} (local time)</div>
+              <div>Signature: __________________________</div>
+              <div><strong>Disclaimer:</strong> Consult the applicable internal procedure for correct use.</div>
+            </footer>
+          </main>
+          <script>
+            window.addEventListener('load', () => {
+              window.focus();
+              window.print();
+            });
+          </script>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+  };
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       <Navigation />
@@ -141,6 +238,16 @@ export default function SchedulePage() {
 
         <div className="flex-1" />
 
+        <button
+          type="button"
+          onClick={handleExportPdf}
+          className="inline-flex items-center gap-1 rounded border border-[var(--pp-border)] px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+          aria-label="Export schedule to PDF"
+        >
+          <span aria-hidden="true">🖨️</span>
+          Export PDF
+        </button>
+
         <span className="text-xs text-[var(--pp-muted)]">
           {monthStageCount} stages this month
         </span>
@@ -149,6 +256,7 @@ export default function SchedulePage() {
       {/* Timeline canvas — month scope with filtered groups */}
       <div className="flex-1 min-h-0">
         <WallboardCanvas
+          canvasId="schedule-export-canvas"
           customMachineGroups={scheduleMachineGroups}
           filteredGroupIds={
             filteredMachineGroups
