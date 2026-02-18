@@ -5,7 +5,7 @@
 // User can filter: All | Propagators (PRs) | Pre-fermenters (PFs) | Fermenters (Fs)
 // User can pick month (prev/next navigation)
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Navigation from '@/components/ui/Navigation';
 import WallboardCanvas from '@/components/timeline/WallboardCanvas';
 import { usePlantPulseStore } from '@/lib/store';
@@ -37,6 +37,7 @@ const FILTER_OPTIONS: FilterOption[] = [
 export default function SchedulePage() {
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
   const [activeFilter, setActiveFilter] = useState('all');
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   const machines = usePlantPulseStore((s) => s.machines);
   const machineGroups = usePlantPulseStore((s) => s.machineGroups);
@@ -106,6 +107,15 @@ export default function SchedulePage() {
     (s) => s.startDatetime >= currentMonth && s.startDatetime <= monthEnd
   ).length;
 
+  const handleExportPdf = useCallback(async () => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    const canvas = container.querySelector('canvas');
+    if (!canvas) return;
+    const { exportSchedulePdf } = await import('@/lib/schedule-pdf-export');
+    exportSchedulePdf(canvas);
+  }, []);
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       <Navigation />
@@ -141,13 +151,37 @@ export default function SchedulePage() {
 
         <div className="flex-1" />
 
+        <button
+          onClick={handleExportPdf}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[var(--pp-pharma)] border border-[var(--pp-border)] rounded-md hover:bg-[#e2e8f0] transition-colors"
+          title="Export schedule as PDF"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="12" y1="18" x2="12" y2="12" />
+            <polyline points="9 15 12 18 15 15" />
+          </svg>
+          Export PDF
+        </button>
+
         <span className="text-xs text-[var(--pp-muted)]">
           {monthStageCount} stages this month
         </span>
       </div>
 
       {/* Timeline canvas — month scope with filtered groups */}
-      <div className="flex-1 min-h-0">
+      <div ref={canvasContainerRef} className="flex-1 min-h-0">
         <WallboardCanvas
           customMachineGroups={scheduleMachineGroups}
           filteredGroupIds={
