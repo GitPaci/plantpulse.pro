@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --pp-pharma: #1a365d;
+  --pp-surface: #f8fafc;
+  --pp-border: #e2e8f0;
+  --pp-muted: #64748b;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--pp-surface);
+  color: #1e293b;
+}
+
+/* Wallboard fullscreen mode */
+.wallboard-container {
+  position: fixed;
+  inset: 0;
+  top: 48px; /* below nav */
+  overflow: hidden;
+  background: #ffffff;
+}
+
+/* Navigation bar */
+.nav-bar {
+  height: 48px;
+  background: var(--pp-pharma);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 24px;
+  font-size: 14px;
+  z-index: 50;
+}
+
+.nav-bar a {
+  color: rgba(255, 255, 255, 0.75);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.15s;
+}
+
+.nav-bar a:hover,
+.nav-bar a.active {
+  color: #ffffff;
+}
+
+.nav-bar .brand {
+  font-weight: 700;
+  font-size: 15px;
+  color: #ffffff;
+  letter-spacing: -0.3px;
+  margin-right: 8px;
+}
+
+/* Month picker controls */
+.month-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.month-picker button {
+  background: none;
+  border: 1px solid var(--pp-border);
+  border-radius: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--pp-pharma);
+  transition: background 0.15s;
+}
+
+.month-picker button:hover {
+  background: #e2e8f0;
+}
+
+.month-picker .month-label {
+  font-size: 16px;
+  font-weight: 600;
+  min-width: 160px;
+  text-align: center;
+  color: var(--pp-pharma);
+}
+
+/* Equipment filter chips */
+.filter-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  padding: 4px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--pp-border);
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--pp-muted);
+}
+
+.filter-chip:hover {
+  border-color: var(--pp-pharma);
+  color: var(--pp-pharma);
+}
+
+.filter-chip.active {
+  background: var(--pp-pharma);
+  border-color: var(--pp-pharma);
+  color: #ffffff;
+}

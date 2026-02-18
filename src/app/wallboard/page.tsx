@@ -1,0 +1,97 @@
+'use client';
+
+// Wallboard — Read-only operator view
+// Full-screen Canvas timeline with shift bands, batch bars, now-line
+// Ported from VBA: InfoTabla20180201 (PowerPoint wallboard)
+
+import Navigation from '@/components/ui/Navigation';
+import WallboardCanvas from '@/components/timeline/WallboardCanvas';
+import { usePlantPulseStore } from '@/lib/store';
+import { currentShiftTeam } from '@/lib/shift-rotation';
+import { SHIFT_TEAM_COLORS } from '@/lib/colors';
+import { subDays, addDays, startOfDay } from 'date-fns';
+
+const TEAM_NAMES = ['Blue', 'Green', 'Red', 'Yellow'];
+
+export default function WallboardPage() {
+  const viewConfig = usePlantPulseStore((s) => s.viewConfig);
+  const setViewConfig = usePlantPulseStore((s) => s.setViewConfig);
+
+  const teamIdx = currentShiftTeam(new Date());
+  const teamColor = SHIFT_TEAM_COLORS[teamIdx];
+  const teamName = TEAM_NAMES[teamIdx];
+
+  function shiftView(days: number) {
+    setViewConfig({
+      viewStart: addDays(viewConfig.viewStart, days),
+    });
+  }
+
+  function resetView() {
+    setViewConfig({
+      viewStart: subDays(startOfDay(new Date()), 4),
+    });
+  }
+
+  return (
+    <div className="h-screen flex flex-col overflow-hidden">
+      <Navigation />
+
+      {/* Toolbar */}
+      <div className="h-10 bg-white border-b border-[var(--pp-border)] flex items-center px-4 gap-4 text-sm shrink-0">
+        <button
+          onClick={() => shiftView(-7)}
+          className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
+        >
+          &laquo; 7d
+        </button>
+        <button
+          onClick={() => shiftView(-1)}
+          className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
+        >
+          &lsaquo; 1d
+        </button>
+        <button
+          onClick={resetView}
+          className="px-3 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50 font-medium"
+        >
+          Today
+        </button>
+        <button
+          onClick={() => shiftView(1)}
+          className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
+        >
+          1d &rsaquo;
+        </button>
+        <button
+          onClick={() => shiftView(7)}
+          className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
+        >
+          7d &raquo;
+        </button>
+
+        <div className="flex-1" />
+
+        {/* Current shift indicator */}
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-[var(--pp-muted)]">Shift:</span>
+          <span
+            className="px-2 py-0.5 rounded font-bold"
+            style={{
+              backgroundColor: teamColor + '20',
+              color: teamIdx === 3 ? '#997700' : teamColor,
+              border: `1px solid ${teamColor}40`,
+            }}
+          >
+            {teamName}
+          </span>
+        </div>
+      </div>
+
+      {/* Canvas fills remaining space */}
+      <div className="flex-1 min-h-0">
+        <WallboardCanvas />
+      </div>
+    </div>
+  );
+}

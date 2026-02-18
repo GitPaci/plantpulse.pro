@@ -82,8 +82,13 @@ Core views (lenses)
 	◦	filterable business audit entries
 	•	Admin Settings
 Core data model (conceptual)
-	•	Machine
-	◦	name, group, holds, display_order
+	•	Product Line (user-configurable)
+	◦	id, name, stage_defaults (ordered seed train template with default durations), display_order
+	◦	Users can add/rename/remove product lines to match their facility
+	◦	GNT and KK are legacy defaults used in demo data, not hardcoded
+	•	Machine (user-configurable)
+	◦	name, group, product_line (optional), holds, display_order
+	◦	Users can add/rename/remove machines and assign them to product lines
 	•	Batch
 	◦	batch_chain_id, batch_name, batch_color (deterministic), product_line, status, name_locked
 	◦	ERP fields (Enterprise): erp_system, erp_batch_number, erp_material_code, erp_status, last_sync
