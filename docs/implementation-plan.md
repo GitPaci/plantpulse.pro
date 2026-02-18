@@ -168,10 +168,10 @@ Phases 8-12 are Enterprise-only.
 - Backup integration guidance
 - Patch/release process + validation pack
 
-### Phase 13 — Shutdown modeling + Inoculum Month (Enterprise features)
+### Phase 13 — Shutdown modeling + Schedule View (Enterprise features)
 
 - Shutdown blocks: full-width "PLANT SHUTDOWN" across all machines
 - Planning rule: no chains crossing shutdown unless override
 - Rotation reset anchor at shutdown
-- Inoculum Month View: full month, bkk machines grouped
+- Schedule View: full month, bkk machines grouped
 - Staffing windows: warnings (Free) / hard enforcement (Enterprise)

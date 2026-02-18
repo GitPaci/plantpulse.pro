@@ -15,9 +15,9 @@ const VIEWS = [
   },
   {
     href: '/inoculum',
-    title: 'Inoculum Schedule',
-    description: 'Month view of inoculation schedules — filter by equipment group (PRs, PFs, Fs) or view all.',
-    icon: 'I',
+    title: 'Schedule',
+    description: 'Month view of schedules — filter by equipment group (PRs, PFs, Fs) or view all.',
+    icon: 'S',
   },
 ];
 

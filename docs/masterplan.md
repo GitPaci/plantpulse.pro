@@ -68,7 +68,7 @@ Excel + PowerPoint macros are spatial and fast, but fragile:
 | Role | Description |
 |------|-------------|
 | **Manufacturing Operator** | Uses the manufacturing wallboard. Confirms tasks + maintenance acknowledgements. Never sees planning tools. |
-| **Inoculum Operator** | Uses monthly inoculum view with weekends/staffing constraints. |
+| **Operator** | Uses monthly schedule view with weekends/staffing constraints. |
 | **Scheduler** | Creates schedules from scratch or extends existing as draft. Cannot commit. |
 | **Planner** | Reviews diffs, impacts, and commits the active plan. Planner-only access to commit log. |
 | **Supervisor** | Oversight; may be optional co-approver depending on configuration. |
@@ -96,7 +96,7 @@ Multi-role users are allowed:
   - Chain editor, bulk shift, add new chain wizard
   - Conflict detection + overrides (if enabled)
 
-- **Inoculum Month View**
+- **Schedule View**
   - Whole month, weekends highlighted, staffing windows enforced
 
 - **Drafts & Approvals**
