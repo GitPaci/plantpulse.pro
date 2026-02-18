@@ -4,7 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'PlantPulse Scheduler',
   description:
-    'Manufacturing wallboard + planning for pharmaceutical fermentation operations',
+    'Manufacturing wallboard and planning for multistep batch chain processes — fermentation, bioprocessing, and more.',
 };
 
 export default function RootLayout({
