@@ -323,10 +323,8 @@ All personnel have a duty to report:
 
 ### How to Report
 
-- **Security vulnerabilities:** Report privately via email (see [SECURITY.md](SECURITY.md)
-  when available, or contact the project maintainers directly)
-- **Code of Conduct violations:** Contact the project maintainers at the
-  repository's designated contact channels
+- **Security vulnerabilities:** Report privately via [hello@plantpulse.pro](mailto:hello@plantpulse.pro) — see [SECURITY.md](SECURITY.md) for full details
+- **Code of Conduct violations:** Contact the project maintainers at [hello@plantpulse.pro](mailto:hello@plantpulse.pro)
 - **Enterprise customers:** Use the escalation path defined in your service agreement
 
 ### Investigation and Protection

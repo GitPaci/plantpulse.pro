@@ -96,6 +96,11 @@ plantpulse.pro/
 | [Implementation Plan](docs/implementation-plan.md) | Phased build sequence (Phase 0-13) |
 | [Gaps & Open Questions](docs/gaps-and-open-questions.md) | Specification gaps, decisions made, remaining open items |
 | [Code of Conduct](CODE_OF_CONDUCT.md) | Community standards, enterprise governance, GxP-aligned conduct principles |
+| [Security Policy](SECURITY.md) | Vulnerability reporting and security practices |
+
+## Security
+
+If you discover a security vulnerability, please report it responsibly via [hello@plantpulse.pro](mailto:hello@plantpulse.pro). **Do not open a public issue.** See [SECURITY.md](SECURITY.md) for full details.
 
 ## Background
 
