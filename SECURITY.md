@@ -12,7 +12,7 @@ If you discover a security vulnerability in PlantPulse Scheduler, please report 
 
 ### How to Report
 
-1. **Email:** Send a detailed report to the repository maintainers via the email listed on the [GitPaci GitHub profile](https://github.com/GitPaci).
+1. **Email:** Send a detailed report to [hello@plantpulse.pro](mailto:hello@plantpulse.pro).
 2. **GitHub Private Vulnerability Reporting:** If enabled, use GitHub's [private vulnerability reporting](https://github.com/GitPaci/plantpulse.pro/security/advisories/new) feature to submit your report directly.
 
 ### What to Include
