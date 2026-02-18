@@ -395,7 +395,7 @@ export default function SchedulePage() {
       </div>
 
       {/* Timeline canvas — month scope with filtered groups */}
-      <div ref={canvasContainerRef} className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0">
         <WallboardCanvas
           canvasId="schedule-export-canvas"
           // Schedule filtering must use the same machine set for rows + events.
