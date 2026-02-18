@@ -431,6 +431,7 @@ interface WallboardCanvasProps {
   showTodayHighlight?: boolean;
   showNowLine?: boolean;
   showShiftBand?: boolean;
+  canvasId?: string;
 }
 
 export default function WallboardCanvas({
@@ -439,6 +440,7 @@ export default function WallboardCanvas({
   showTodayHighlight = true,
   showNowLine: showNowLineProp = true,
   showShiftBand: showShiftBandProp = true,
+  canvasId,
 }: WallboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -552,7 +554,7 @@ export default function WallboardCanvas({
       ref={containerRef}
       style={{ width: '100%', height: '100%', overflow: 'auto' }}
     >
-      <canvas ref={canvasRef} />
+      <canvas ref={canvasRef} id={canvasId} />
     </div>
   );
 }
