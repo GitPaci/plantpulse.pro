@@ -13,6 +13,9 @@ import type {
 // ─── Default machines (from VBA imena array) ───────────────────────────
 
 export const DEFAULT_MACHINES: Machine[] = [
+  // Inoculum vessels
+  { id: 'BKK', name: 'BKK', group: 'inoculum', displayOrder: 0 },
+  { id: 'BGNT', name: 'BGNT', group: 'inoculum', displayOrder: 0.5 },
   // GNT line — propagators
   { id: 'PR-1', name: 'PR-1', group: 'propagator', productLine: 'GNT', displayOrder: 1 },
   { id: 'PR-2', name: 'PR-2', group: 'propagator', productLine: 'GNT', displayOrder: 2 },
@@ -47,6 +50,14 @@ export const DEFAULT_MACHINES: Machine[] = [
 ];
 
 // ─── Display groups (separated by sentinel in VBA) ─────────────────────
+
+// Inoculum group — used only by Schedule view, not in the default display groups
+// to avoid impacting Wallboard and Planner views
+export const INOCULUM_GROUP: MachineDisplayGroup = {
+  id: 'Inoculum',
+  name: 'Inoculum',
+  machineIds: ['BKK', 'BGNT'],
+};
 
 export const DEFAULT_GROUPS: MachineDisplayGroup[] = [
   {
