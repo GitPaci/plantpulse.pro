@@ -91,6 +91,20 @@ Phases 8-12 are Enterprise-only.
   - Long-press: comment / not possible
 - `components/wallboard/MaintenanceMarker.tsx` — Maintenance task display
 
+### Phase 5b — Schedule View page (implemented)
+
+- `app/inoculum/page.tsx` — Monthly schedule view:
+  - Full-month timeline (auto-adjusts days per month)
+  - Month navigation (prev/next)
+  - Equipment group filter toolbar with multi-select toggle buttons
+  - Button order (left → right): Inoculum, Propagators (PR), Pre-fermenters (PF), Fermenters (F), All Equipment
+  - Multi-select: multiple groups can be active simultaneously (e.g. PR + PF)
+  - "All Equipment" acts as reset (clears all selections, shows everything)
+  - Empty selection defaults to showing all equipment
+  - Filtering affects visible equipment rows and events; hidden equipment does not render
+  - Includes Inoculum group (BKK, BGNT) not shown in other views
+  - Reuses `WallboardCanvas` with `customMachineGroups` for filtered display
+
 ### Phase 6 — Planner View page
 
 - `app/planner/page.tsx` — Interactive schedule editor:
@@ -168,10 +182,12 @@ Phases 8-12 are Enterprise-only.
 - Backup integration guidance
 - Patch/release process + validation pack
 
-### Phase 13 — Shutdown modeling + Schedule View (Enterprise features)
+### Phase 13 — Shutdown modeling (Enterprise features)
 
 - Shutdown blocks: full-width "PLANT SHUTDOWN" across all machines
 - Planning rule: no chains crossing shutdown unless override
 - Rotation reset anchor at shutdown
-- Schedule View: full month, bkk machines grouped
 - Staffing windows: warnings (Free) / hard enforcement (Enterprise)
+
+> **Note:** Schedule View (full month + equipment group filters) was implemented
+> as part of the Free MVP. See Phase 5 notes.

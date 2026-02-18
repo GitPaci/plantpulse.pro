@@ -98,6 +98,12 @@ Multi-role users are allowed:
 
 - **Schedule View**
   - Whole month, weekends highlighted, staffing windows enforced
+  - Equipment group filter toolbar with multi-select toggle buttons
+  - Button order (left → right): Inoculum, Propagators (PR), Pre-fermenters (PF), Fermenters (F), All Equipment
+  - Multiple groups can be active simultaneously (e.g. PR + PF shows both)
+  - "All Equipment" acts as reset: clears all selections, shows everything
+  - If no specific group is selected, defaults to showing all equipment
+  - Filtering affects visible equipment rows and their events; hidden equipment does not render
 
 - **Drafts & Approvals**
   - Propose, review, approve/commit, reject with comments
