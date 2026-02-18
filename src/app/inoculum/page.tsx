@@ -398,12 +398,10 @@ export default function SchedulePage() {
       <div className="flex-1 min-h-0">
         <WallboardCanvas
           canvasId="schedule-export-canvas"
-          customMachineGroups={scheduleMachineGroups}
-          filteredGroupIds={
-            filteredMachineGroups
-              ? filteredMachineGroups.map((g) => g.id)
-              : undefined
-          }
+          // Schedule filtering must use the same machine set for rows + events.
+          // Pass fully filtered groups directly so the canvas row layout and
+          // stage filtering both derive from the same visible machine IDs.
+          customMachineGroups={filteredMachineGroups ?? scheduleMachineGroups}
           showTodayHighlight={false}
           showNowLine={false}
           showShiftBand={false}
