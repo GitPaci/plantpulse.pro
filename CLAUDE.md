@@ -17,6 +17,7 @@ shift ownership, maintenance coordination, and GxP-ready audit integrity.
 | `docs/app-flow-pages-and-roles.md` | Site map, role permissions, primary user journeys |
 | `docs/design-guidelines.md` | Visual language, color system, interaction design, accessibility |
 | `docs/implementation-plan.md` | Phased build sequence (Phase 0–12) |
+| `CODE_OF_CONDUCT.md` | Community standards, enterprise governance, GxP-aligned conduct principles |
 
 ### Legacy VBA source files (reference, do not modify)
 
