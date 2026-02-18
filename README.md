@@ -114,4 +114,6 @@ The VBA code, Slovenian-language comments, and all extracted business rules are 
 
 ## License
 
-Proprietary. All rights reserved.
+Copyright 2026 plantpulse.pro. All rights reserved.
+
+Proprietary.
