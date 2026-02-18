@@ -31,7 +31,7 @@ export default function HomePage() {
             PlantPulse Scheduler
           </h1>
           <p className="text-white/70 text-lg">
-            Manufacturing wallboard + planning for pharmaceutical fermentation
+            Planning for multistep batch chain processes (e.g., fermentation)
           </p>
         </div>
       </header>

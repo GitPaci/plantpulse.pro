@@ -1,12 +1,12 @@
 # PlantPulse Scheduler
 
-Manufacturing wallboard and planning web app for pharmaceutical fermentation operations.
+Manufacturing wallboard and planning web app for multistep batch chain processes (e.g., fermentation, bioprocessing, chemical synthesis).
 
-PlantPulse preserves the spatial-time visualization operators already rely on (the factory wallboard) while adding governed scheduling, shift ownership, maintenance coordination, and compliance-ready audit integrity.
+PlantPulse preserves the spatial-time visualization operators already rely on (the factory wallboard) while adding governed scheduling, shift ownership, maintenance coordination, and compliance-ready audit integrity. While pharmaceutical fermentation is the original use case, PlantPulse supports any multistep batch chain process where stages flow through a sequence of vessels or equipment.
 
 ## The Problem
 
-Production scheduling in pharma fermentation often lives inside Excel spreadsheets and PowerPoint macros. These tools are spatial and fast, but fragile:
+Production scheduling for multistep batch chain processes — fermentation, bioprocessing, and similar operations — often lives inside Excel spreadsheets and PowerPoint macros. These tools are spatial and fast, but fragile:
 
 - Hard-coded file paths and monolithic VBA logic
 - No governed change workflow (anyone can edit, no approval trail)
@@ -104,7 +104,7 @@ If you discover a security vulnerability, please report it responsibly via [hell
 
 ## Background
 
-This project modernizes a legacy VBA system that has been running pharmaceutical fermentation scheduling at a production facility in Slovenia. The original system consisted of:
+This project modernizes a legacy VBA system originally built for pharmaceutical fermentation scheduling at a production facility in Slovenia. The architecture generalizes to any multistep batch chain process. The original system consisted of:
 
 - **FormaZaPlan.xls** -- Interactive Excel planner with Gantt chart UserForm, batch editing, chain creation, and export
 - **InfoTabla.ppt** -- PowerPoint-based operator wallboard rendering a 25-day timeline at 1920x1080 with shift bands and task markers

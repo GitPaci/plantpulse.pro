@@ -16,7 +16,7 @@ for Enterprise sales.
 1. User visits plantpulse.pro
 2. Sees a landing page explaining what PlantPulse does
 3. Clicks "Try it" -> enters the app with **randomly generated demo data**
-   (realistic 2-week fermentation schedule across GNT + KK lines)
+   (realistic 2-week batch chain schedule across GNT + KK lines)
 4. User can explore the Wallboard and Planner views, edit bars, try the tools
 5. User can **export to Excel** to save their work
 6. **Nothing is persisted** between sessions -- next visit generates fresh random data
