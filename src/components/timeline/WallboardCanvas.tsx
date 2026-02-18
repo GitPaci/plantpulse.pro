@@ -322,14 +322,34 @@ function drawBatchBars(
     ctx.lineWidth = 0.5;
     ctx.strokeRect(pos.left, barY, pos.width, BAR_HEIGHT);
 
-    // Series number label (only if bar wide enough)
+    // Start hour label at left edge (black, all stages)
+    if (pos.width > 25) {
+      const startHour = String(stage.startDatetime.getHours());
+      ctx.font = '8px sans-serif';
+      ctx.fillStyle = '#000000';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(startHour, pos.left + 2, barY + BAR_HEIGHT / 2);
+    }
+
+    // End hour label at right edge (black, fermenter stages only)
+    if (stage.stageType === 'fermentation' && pos.width > 40) {
+      const endHour = String(stage.endDatetime.getHours());
+      ctx.font = '8px sans-serif';
+      ctx.fillStyle = '#000000';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(endHour, pos.left + pos.width - 2, barY + BAR_HEIGHT / 2);
+    }
+
+    // Series number label — centered in bar
     if (pos.width > 20) {
       const label = String(seriesNum);
       ctx.font = '9px sans-serif';
       const textW = ctx.measureText(label).width;
       const labelW = textW + 8;
       const labelH = 13;
-      const labelX = pos.left + 3;
+      const labelX = pos.left + (pos.width - labelW) / 2;
       const labelY = barY + (BAR_HEIGHT - labelH) / 2;
 
       // Label background
