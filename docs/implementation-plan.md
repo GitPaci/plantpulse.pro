@@ -114,6 +114,12 @@ Phases 8-12 are Enterprise-only.
     - Enterprise fields (logo, watermark, electronic signatures, document control) visible but disabled
     - Filename: `PlantPulse_{Month}_{Year}.pdf`
     - Zero network calls, works offline, no cookies, no telemetry
+  - **Responsive toolbar** (implemented):
+    - Desktop (>= 768px): horizontal toolbar layout unchanged
+    - Mobile (< 768px): toolbar collapses into a "☰ Controls" hamburger button
+    - Tapping opens a dropdown panel with three sections: month navigation, equipment filter grid (2-col), export/print actions
+    - Panel closes on: outside click, action tap, or Escape key
+    - All touch targets >= 44px; proper ARIA attributes for accessibility
 
 ### Phase 6 — Planner View page
 

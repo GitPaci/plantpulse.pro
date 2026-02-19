@@ -144,6 +144,44 @@ A4 landscape document suitable for printing and posting on a manufacturing wall.
 
 ---
 
+## Schedule Toolbar — Responsive / Mobile
+
+On narrow viewports (< 768px), the Schedule toolbar collapses all controls behind
+a single hamburger button to prevent horizontal overflow and ensure every control
+is reachable on small screens.
+
+**Breakpoint:** 768px (`md` in Tailwind). Desktop layout is unchanged above this width.
+
+**Mobile toolbar bar:**
+- Shows: "☰ Controls" toggle button, current month label, stage count badge
+- Tapping "☰ Controls" opens/closes the dropdown panel below
+
+**Mobile dropdown panel (three sections):**
+
+| Section | Contents | Layout |
+|---------|----------|--------|
+| **Month** | Prev / Next buttons + centered month label | Single row, flex |
+| **Equipment Filters** | Inoculum, Propagators (PR), Pre-fermenters (PF), Fermenters (F), All Equipment | 2-column grid, "All Equipment" spans full width |
+| **Actions** | Export PDF, Print Settings | Full-width stacked buttons |
+
+**Close behavior:**
+- Tap outside the panel (backdrop click)
+- Tap any action (month nav, filter, export, print settings)
+- Press Escape key (returns focus to toggle button)
+
+**Touch targets:** All interactive elements in the panel have a minimum height of 44px
+(Apple HIG / WCAG 2.5.5 recommendation).
+
+**Accessibility:**
+- Toggle button: `aria-label="Toggle schedule controls"`, `aria-expanded`, `aria-controls`
+- Panel: `role="region"`, `aria-label="Schedule controls"`
+- Keyboard: Escape closes panel and returns focus to toggle
+
+**Implementation:** Inline in `app/inoculum/page.tsx`. Desktop toolbar uses `hidden md:flex`;
+mobile toolbar uses `flex md:hidden`. Panel is conditionally rendered when open.
+
+---
+
 ## Design Snapshot
 
 **Core rule:** Operator = calm instrument panel. Planner = controlled editor.

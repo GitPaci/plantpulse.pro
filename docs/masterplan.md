@@ -118,6 +118,7 @@ Multi-role users are allowed:
     - Footer includes: app version, export timestamp with timezone + UTC offset, prepared-by, signature line, disclaimer, page numbers
     - Print Settings modal with localStorage persistence (gear icon next to Export PDF button)
     - Enterprise-locked fields visible but disabled (logo, watermark, electronic signatures, document control, etc.)
+  - **Responsive toolbar**: on mobile (< 768px), toolbar controls collapse into a "☰ Controls" hamburger menu with month navigation, equipment filter grid, and export/print actions in a dropdown panel
 
 - **Drafts & Approvals**
   - Propose, review, approve/commit, reject with comments
