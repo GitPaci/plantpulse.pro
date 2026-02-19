@@ -37,6 +37,16 @@ PlantPulse Scheduler is a browser-based manufacturing planning tool. Key securit
 - **Excel import/export** parses user-provided `.xlsx` files. Input validation is applied to prevent malformed data from affecting application state.
 - **No authentication** is required for the Free Edition. Enterprise editions will include role-based access control and audit logging.
 
+## Privacy Architecture (Free Edition)
+
+The Free Edition is built as a pure static site (`output: 'export'` in Next.js) with the following verifiable guarantees:
+
+- **No server roundtrips** — No `fetch()` calls, no API routes, no database connections. All data is in-memory only.
+- **No cookies** — No `document.cookie` usage, no session cookies, no tracking cookies.
+- **No telemetry** — No analytics SDKs (Google Analytics, PostHog, etc.), no tracking scripts, no `navigator.sendBeacon()`.
+- **No external network requests** — System fonts only, no CDN dependencies, no remote asset loading.
+- **No persistence** — Data lives in Zustand in-memory store and resets on page reload. Excel import/export is the only data pathway.
+
 ## Best Practices for Users
 
 - Keep your browser up to date.

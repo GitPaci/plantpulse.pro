@@ -293,9 +293,16 @@ interface ShiftRotation {
 
 ### Free Edition MVP (browser-only, no server required)
 
+**Privacy architecture:** The Free Edition is a pure static site (`output: 'export'`).
+It makes four verifiable guarantees: browser-only (no server process), zero server
+roundtrips (no fetch/API/DB), no cookies, and no telemetry. All data lives in-memory
+via Zustand and resets on reload. Excel import/export is the only data pathway.
+Any new feature must preserve these guarantees — do not add analytics, tracking,
+external network calls, cookies, or server-side API routes to the Free Edition.
+
 | Layer | Technology | Rationale |
 |-------|-----------|-----------|
-| Framework | **Next.js 15 + TypeScript** | App Router, static export possible for Free edition |
+| Framework | **Next.js 15 + TypeScript** | App Router, static export for Free edition |
 | Timeline rendering | **HTML Canvas** (with SVG overlay for interactive elements) | Performance for 30+ rows × 25+ days of bars; VBA pixel math maps directly |
 | State management | **Zustand** | Lightweight, replaces BigReadArray as the in-memory store |
 | Excel I/O | **SheetJS (xlsx)** | Read/write .xlsx for import/export, matches ADODB pattern |
