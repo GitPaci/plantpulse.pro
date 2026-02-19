@@ -40,6 +40,21 @@ No account needed. No data stored on our servers. Your browser, your data.
 Interested in the full Enterprise version with multi-user, approvals, audit trail,
 and ERP integration? **Join the waitlist** on the landing page.
 
+## Privacy
+
+The Free Edition makes four verifiable guarantees:
+
+| Guarantee | What it means |
+|-----------|---------------|
+| **Browser-only** | The app builds to pure static HTML/JS/CSS (`output: 'export'`). No Node.js server, no SSR, no server components. Deploy to any static host. |
+| **Zero server roundtrips** | No `fetch()` calls, no API routes, no database connections. All data lives in-memory via Zustand and resets on page reload. |
+| **No cookies** | No `document.cookie`, no session cookies, no auth tokens, no tracking cookies. |
+| **No telemetry** | No analytics SDKs, no tracking scripts, no `navigator.sendBeacon()`, no external network requests of any kind. |
+
+**All data stays in your browser. Nothing is sent to any server.**
+
+Import from Excel, work in-memory, export back to Excel. That's the entire data lifecycle.
+
 ## Editions
 
 | | Free (plantpulse.pro) | Enterprise Cloud | Enterprise On-Prem |
@@ -53,7 +68,7 @@ and ERP integration? **Join the waitlist** on the landing page.
 | SSO / MFA / RBAC | No | Yes | Yes |
 | ERP integration | No | SAP S/4HANA, ECC | SAP S/4HANA, ECC |
 | GxP audit trail | Excel audit sheet | Immutable store | Immutable store |
-| Deployment | Vercel (free) | Single-tenant cloud | Self-hosted / private cloud |
+| Deployment | Static hosting (any CDN) | Single-tenant cloud | Self-hosted / private cloud |
 
 ## Tech Stack
 

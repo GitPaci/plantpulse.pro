@@ -44,6 +44,14 @@ Excel + PowerPoint macros are spatial and fast, but fragile:
 - No multi-user concurrency
 - No SSO
 
+**Privacy guarantees (Free Edition):**
+
+- Browser-only: static HTML/JS/CSS, no server process, deployable to any CDN
+- Zero server roundtrips: no fetch calls, no API routes, no database connections
+- No cookies: no session cookies, no tracking cookies, no auth tokens
+- No telemetry: no analytics, no tracking scripts, no external network requests
+- All data lives in-memory and resets on page reload; Excel import/export is the only persistence
+
 ### Enterprise Cloud (Single-tenant per customer)
 
 - Cloud-hosted, single-tenant deployment per customer

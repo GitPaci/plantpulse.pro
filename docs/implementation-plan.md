@@ -126,22 +126,22 @@ Phases 8-12 are Enterprise-only.
   - Changes apply to current session (export to save)
 - Conflict indicators: overlap, hold risk, shutdown crossing
 
-### Phase 7 — Landing page + waitlist + deploy
+### Phase 7 — Landing page + deploy
 
 - `app/page.tsx` — Landing page:
   - Hero: tagline + wallboard screenshot/animation
   - Problem/solution (legacy VBA -> modern browser)
   - Feature highlights (wallboard, planner, Excel I/O)
   - "Try it now" CTA -> opens app with demo data
-  - Enterprise waitlist signup form
-- `app/api/waitlist/route.ts` — Waitlist API:
-  - POST: email + optional company + optional notes
-  - Store in Vercel KV or Postgres
-  - Confirmation email via Resend
-- Analytics integration (PostHog or Plausible):
-  - Session events, feature usage, export/import tracking
-  - No PII in analytics; email only in explicit waitlist
-- Deploy to Vercel on plantpulse.pro
+  - Privacy footer: browser-only, zero server roundtrips, no cookies, no telemetry
+  - Enterprise waitlist: external link (e.g. mailto or hosted form on a separate domain)
+- **No API routes** — the Free Edition is a pure static export with no server component
+- **No analytics** — no tracking scripts, no telemetry, no external network requests
+- Deploy as static site to any CDN (Vercel, Netlify, GitHub Pages, S3, etc.)
+
+> **Privacy constraint:** Any feature that requires server roundtrips, cookies,
+> analytics, or external network calls belongs in the Enterprise Edition only.
+> The Free Edition must remain verifiably browser-only.
 
 ---
 
