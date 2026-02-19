@@ -17,7 +17,7 @@
 
 | Page | Purpose |
 |------|---------|
-| **Manufacturing Wallboard** | Execute and monitor operations at a glance. |
+| **Manufacturing Wallboard** | Execute and monitor operations at a glance. Fullscreen button (top-right, before Shift indicator) enters browser fullscreen with black background and TV-safe margins; exit via hover-reveal button or Escape. |
 | **Planner View** | Edit drafts: drag/move/stretch, chain editor, bulk shift, conflict handling. |
 | **Schedule** | Monthly cadence with weekend/staffing structure. Equipment group filtering via multi-select toggle buttons (Inoculum → PR → PF → F → All Equipment). Multiple groups can be active simultaneously; "All Equipment" resets to show everything. Export PDF button generates A4 landscape PDF with configurable header/footer; gear icon opens Print Settings (persisted in localStorage). On mobile (< 768px), all toolbar controls collapse into a "☰ Controls" hamburger menu with sectioned dropdown panel. |
 | **Drafts & Approvals** | Draft lifecycle: propose/reject/approve/commit. |

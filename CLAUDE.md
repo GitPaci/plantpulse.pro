@@ -205,6 +205,14 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Implementation: inline in `app/inoculum/page.tsx`; CSS in `globals.css` (`.schedule-mobile-*` classes)
 - Uses Tailwind responsive utilities: desktop = `hidden md:flex`, mobile = `flex md:hidden`
 
+#### 13. Wallboard fullscreen mode
+- Browser Fullscreen API: enter via toolbar button (positioned immediately before the Shift indicator), exit via hover-reveal button or Escape
+- In fullscreen: navigation bar and toolbar hidden; canvas fills entire viewport
+- Black background with TV-safe margin (EBU R95): 2.5% top/bottom, 3.5% left/right padding
+- Exit overlay: top-right, semi-transparent button with backdrop blur, opacity 0 by default, fades in on hover or `:focus-within`
+- State syncs with `fullscreenchange` event (handles browser Escape, OS-level fullscreen exit)
+- Implementation: `app/wallboard/page.tsx` (logic) + `globals.css` (`.wallboard-fullscreen-*` classes)
+
 ---
 
 ## Target Data Model (Modern)

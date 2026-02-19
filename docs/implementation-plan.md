@@ -84,6 +84,14 @@ Phases 8-12 are Enterprise-only.
   - Default window: 4 days back + today + 2-3 weeks forward
   - Stage bars + checkpoint tasks + maintenance markers
   - Now-centered timeline
+  - **Fullscreen mode** (implemented):
+    - Enter via toolbar button (positioned immediately before the Shift indicator, top-right)
+    - Uses browser Fullscreen API (`requestFullscreen` / `exitFullscreen`)
+    - In fullscreen: navigation bar and toolbar are hidden; canvas fills the entire screen
+    - TV-safe margin (EBU R95): 2.5% top/bottom, 3.5% sides — black background
+    - Exit via hover-reveal button (top-right corner, fades in on mouse movement) or browser Escape key
+    - State syncs with browser fullscreen change events (e.g. user presses Escape)
+    - CSS: `.wallboard-fullscreen`, `.wallboard-fullscreen-overlay`, `.wallboard-fullscreen-exit-btn` in `globals.css`
 - `components/wallboard/TaskArrow.tsx` — Task markers:
   - Planned: red indicator, clickable
   - Done: green + checkmark
