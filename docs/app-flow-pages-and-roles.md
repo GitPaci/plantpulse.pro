@@ -19,7 +19,7 @@
 |------|---------|
 | **Manufacturing Wallboard** | Execute and monitor operations at a glance. |
 | **Planner View** | Edit drafts: drag/move/stretch, chain editor, bulk shift, conflict handling. |
-| **Schedule** | Monthly cadence with weekend/staffing structure. Equipment group filtering via multi-select toggle buttons (Inoculum → PR → PF → F → All Equipment). Multiple groups can be active simultaneously; "All Equipment" resets to show everything. |
+| **Schedule** | Monthly cadence with weekend/staffing structure. Equipment group filtering via multi-select toggle buttons (Inoculum → PR → PF → F → All Equipment). Multiple groups can be active simultaneously; "All Equipment" resets to show everything. Export PDF button generates A4 landscape PDF with configurable header/footer; gear icon opens Print Settings (persisted in localStorage). |
 | **Drafts & Approvals** | Draft lifecycle: propose/reject/approve/commit. |
 | **Commit Log** | Planner-only: list of all commits and criticality. |
 | **Audit Trail** | Business audit of all meaningful actions. |
