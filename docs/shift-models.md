@@ -451,7 +451,7 @@ Or equivalently: Blue → Red → Green → Yellow → Red → Blue → Yellow �
 - Source: `src/lib/shift-rotation.ts`
 - Algorithm: `currentShiftTeam(now, anchorDate)` computes `floor(hoursSinceAnchor / 12)` and indexes into the 8-step cycle array with modular arithmetic
 - Anchor date is facility-configurable (default: `2026-01-01T06:00:00`)
-- `shiftBands(viewStart, numberOfDays, anchorDate)` returns the team assignment for every 12-hour block in a date range
+- `shiftBands(viewStart, numberOfDays, anchorDate)` returns the team assignment for every 12-hour block in a date range, aligned to shift boundaries (06:00 / 18:00)
 
 ---
 
