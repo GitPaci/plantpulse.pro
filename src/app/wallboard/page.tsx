@@ -9,7 +9,7 @@ import WallboardCanvas from '@/components/timeline/WallboardCanvas';
 import { usePlantPulseStore } from '@/lib/store';
 import { currentShiftTeam } from '@/lib/shift-rotation';
 import { SHIFT_TEAM_COLORS } from '@/lib/colors';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { addDays } from 'date-fns';
 
 const TEAM_NAMES = ['Blue', 'Green', 'Red', 'Yellow'];
@@ -24,9 +24,26 @@ export default function WallboardPage() {
     resetViewToToday();
   }, [resetViewToToday]);
 
-  const teamIdx = currentShiftTeam(new Date());
+  const [now, setNow] = useState(() => new Date());
+
+  // Keep badge in sync with real time (and any shift boundary crossing) without refresh.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const teamIdx = useMemo(() => currentShiftTeam(now), [now]);
   const teamColor = SHIFT_TEAM_COLORS[teamIdx];
   const teamName = TEAM_NAMES[teamIdx];
+
+  const hasActiveShift =
+    Number.isInteger(teamIdx) &&
+    teamIdx >= 0 &&
+    teamIdx < TEAM_NAMES.length &&
+    Boolean(teamColor);
 
   function shiftView(days: number) {
     setViewConfig({
@@ -83,12 +100,13 @@ export default function WallboardPage() {
           <span
             className="px-2 py-0.5 rounded font-bold"
             style={{
-              backgroundColor: teamColor + '20',
-              color: teamIdx === 3 ? '#997700' : teamColor,
-              border: `1px solid ${teamColor}40`,
+              backgroundColor: hasActiveShift ? `${teamColor}20` : '#F3F4F6',
+              color: hasActiveShift ? (teamIdx === 3 ? '#997700' : teamColor) : '#6B7280',
+              border: hasActiveShift ? `1px solid ${teamColor}40` : '1px solid #D1D5DB',
+              boxShadow: hasActiveShift ? `0 0 0 1px ${teamColor}22` : 'none',
             }}
           >
-            {teamName}
+            {hasActiveShift ? teamName : '—'}
           </span>
         </div>
       </div>
