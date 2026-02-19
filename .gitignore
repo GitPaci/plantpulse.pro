@@ -41,3 +41,6 @@ next-env.d.ts
 
 # Vercel
 .vercel
+
+# Next.js telemetry config
+cache/
