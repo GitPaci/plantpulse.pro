@@ -5,7 +5,7 @@
 // Multi-select toggle: user can combine PR, PF, F, Inoculum filters
 // User can pick month (prev/next navigation)
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import Navigation from '@/components/ui/Navigation';
 import WallboardCanvas from '@/components/timeline/WallboardCanvas';
 import { usePlantPulseStore } from '@/lib/store';
@@ -42,6 +42,9 @@ export default function SchedulePage() {
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
   const [showPrintSettings, setShowPrintSettings] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const mobileToggleRef = useRef<HTMLButtonElement>(null);
 
   const machines = usePlantPulseStore((s) => s.machines);
   const machineGroups = usePlantPulseStore((s) => s.machineGroups);
@@ -124,6 +127,36 @@ export default function SchedulePage() {
     (s) => s.startDatetime >= currentMonth && s.startDatetime <= monthEnd
   ).length;
 
+  // Close mobile menu on outside click or Escape
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        mobileMenuRef.current &&
+        !mobileMenuRef.current.contains(e.target as Node) &&
+        mobileToggleRef.current &&
+        !mobileToggleRef.current.contains(e.target as Node)
+      ) {
+        setMobileMenuOpen(false);
+      }
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setMobileMenuOpen(false);
+        mobileToggleRef.current?.focus();
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [mobileMenuOpen]);
+
+  // Helper: close mobile menu after an action
+  const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
+
   const handleExportPdf = async () => {
     setIsExporting(true);
     try {
@@ -141,81 +174,200 @@ export default function SchedulePage() {
       <Navigation />
 
       {/* Month picker + filters toolbar */}
-      <div className="bg-white border-b border-[var(--pp-border)] px-4 py-2.5 flex items-center gap-6 shrink-0">
-        {/* Month navigation */}
-        <div className="month-picker">
-          <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
-            &lsaquo; Prev
-          </button>
-          <div className="month-label">{format(currentMonth, 'MMMM yyyy')}</div>
-          <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
-            Next &rsaquo;
-          </button>
-        </div>
-
-        {/* Separator */}
-        <div className="w-px h-6 bg-[var(--pp-border)]" />
-
-        {/* Equipment group filters — multi-select toggles + All Equipment reset */}
-        <div className="filter-chips">
-          {FILTER_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              className={`filter-chip ${activeFilters.has(opt.id) ? 'active' : ''}`}
-              onClick={() => handleFilterClick(opt.id)}
-            >
-              {opt.label}
+      <div className="schedule-toolbar bg-white border-b border-[var(--pp-border)] px-4 py-2.5 shrink-0 relative">
+        {/* Desktop toolbar (>= 768px) */}
+        <div className="schedule-toolbar-desktop hidden md:flex items-center gap-6">
+          {/* Month navigation */}
+          <div className="month-picker">
+            <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
+              &lsaquo; Prev
             </button>
-          ))}
+            <div className="month-label">{format(currentMonth, 'MMMM yyyy')}</div>
+            <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
+              Next &rsaquo;
+            </button>
+          </div>
+
+          {/* Separator */}
+          <div className="w-px h-6 bg-[var(--pp-border)]" />
+
+          {/* Equipment group filters — multi-select toggles + All Equipment reset */}
+          <div className="filter-chips">
+            {FILTER_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                className={`filter-chip ${activeFilters.has(opt.id) ? 'active' : ''}`}
+                onClick={() => handleFilterClick(opt.id)}
+              >
+                {opt.label}
+              </button>
+            ))}
+            <button
+              className={`filter-chip ${isAllActive ? 'active' : ''}`}
+              onClick={() => handleFilterClick('all')}
+            >
+              All Equipment
+            </button>
+          </div>
+
+          <div className="flex-1" />
+
           <button
-            className={`filter-chip ${isAllActive ? 'active' : ''}`}
-            onClick={() => handleFilterClick('all')}
+            type="button"
+            onClick={handleExportPdf}
+            disabled={isExporting}
+            className="inline-flex items-center gap-1.5 rounded border border-[var(--pp-border)] px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Export schedule to PDF"
           >
-            All Equipment
+            {isExporting ? (
+              <>
+                <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Generating&hellip;
+              </>
+            ) : (
+              <>
+                <span aria-hidden="true">&#x2B07;</span>
+                Export PDF
+              </>
+            )}
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowPrintSettings(true)}
+            className="inline-flex items-center justify-center rounded border border-[var(--pp-border)] p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+            aria-label="Print settings"
+            title="Print settings"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+
+          <span className="text-xs text-[var(--pp-muted)]">
+            {monthStageCount} stages this month
+          </span>
         </div>
 
-        <div className="flex-1" />
+        {/* Mobile toolbar (< 768px): hamburger toggle + month label */}
+        <div className="schedule-toolbar-mobile flex md:hidden items-center gap-3">
+          <button
+            ref={mobileToggleRef}
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded border border-[var(--pp-border)] px-3 py-1.5 text-sm font-medium text-[var(--pp-pharma)] hover:bg-slate-50"
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-label="Toggle schedule controls"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="schedule-mobile-panel"
+          >
+            <span aria-hidden="true" className="text-base leading-none">&#9776;</span>
+            Controls
+          </button>
+          <span className="text-sm font-semibold text-[var(--pp-pharma)]">
+            {format(currentMonth, 'MMMM yyyy')}
+          </span>
+          <span className="ml-auto text-xs text-[var(--pp-muted)]">
+            {monthStageCount} stages
+          </span>
+        </div>
 
-        <button
-          type="button"
-          onClick={handleExportPdf}
-          disabled={isExporting}
-          className="inline-flex items-center gap-1.5 rounded border border-[var(--pp-border)] px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="Export schedule to PDF"
-        >
-          {isExporting ? (
-            <>
-              <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Generating&hellip;
-            </>
-          ) : (
-            <>
-              <span aria-hidden="true">&#x2B07;</span>
-              Export PDF
-            </>
-          )}
-        </button>
+        {/* Mobile dropdown panel */}
+        {mobileMenuOpen && (
+          <div
+            id="schedule-mobile-panel"
+            ref={mobileMenuRef}
+            className="schedule-mobile-panel md:hidden"
+            role="region"
+            aria-label="Schedule controls"
+          >
+            {/* Section A: Month navigation */}
+            <div className="schedule-mobile-section">
+              <div className="text-xs font-medium text-[var(--pp-muted)] uppercase tracking-wide mb-2">Month</div>
+              <div className="flex items-center gap-3">
+                <button
+                  className="schedule-mobile-btn flex-1"
+                  onClick={() => { setCurrentMonth(subMonths(currentMonth, 1)); closeMobileMenu(); }}
+                >
+                  &lsaquo; Prev
+                </button>
+                <span className="text-sm font-semibold text-[var(--pp-pharma)] text-center min-w-[120px]">
+                  {format(currentMonth, 'MMMM yyyy')}
+                </span>
+                <button
+                  className="schedule-mobile-btn flex-1"
+                  onClick={() => { setCurrentMonth(addMonths(currentMonth, 1)); closeMobileMenu(); }}
+                >
+                  Next &rsaquo;
+                </button>
+              </div>
+            </div>
 
-        <button
-          type="button"
-          onClick={() => setShowPrintSettings(true)}
-          className="inline-flex items-center justify-center rounded border border-[var(--pp-border)] p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-          aria-label="Print settings"
-          title="Print settings"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-        </button>
+            {/* Section B: Equipment filters */}
+            <div className="schedule-mobile-section">
+              <div className="text-xs font-medium text-[var(--pp-muted)] uppercase tracking-wide mb-2">Equipment Filters</div>
+              <div className="grid grid-cols-2 gap-2">
+                {FILTER_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    className={`schedule-mobile-filter ${activeFilters.has(opt.id) ? 'active' : ''}`}
+                    onClick={() => { handleFilterClick(opt.id); closeMobileMenu(); }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+                <button
+                  className={`schedule-mobile-filter col-span-2 ${isAllActive ? 'active' : ''}`}
+                  onClick={() => { handleFilterClick('all'); closeMobileMenu(); }}
+                >
+                  All Equipment
+                </button>
+              </div>
+            </div>
 
-        <span className="text-xs text-[var(--pp-muted)]">
-          {monthStageCount} stages this month
-        </span>
+            {/* Section C: Export/Print actions */}
+            <div className="schedule-mobile-section border-b-0 pb-0">
+              <div className="text-xs font-medium text-[var(--pp-muted)] uppercase tracking-wide mb-2">Actions</div>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => { handleExportPdf(); closeMobileMenu(); }}
+                  disabled={isExporting}
+                  className="schedule-mobile-action"
+                >
+                  {isExporting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Generating&hellip;
+                    </>
+                  ) : (
+                    <>
+                      <span aria-hidden="true">&#x2B07;</span>
+                      Export PDF
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowPrintSettings(true); closeMobileMenu(); }}
+                  className="schedule-mobile-action"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                  </svg>
+                  Print Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Timeline canvas — month scope with filtered groups */}

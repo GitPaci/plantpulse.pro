@@ -120,3 +120,92 @@ body {
   border-color: var(--pp-pharma);
   color: #ffffff;
 }
+
+/* Schedule mobile controls panel */
+.schedule-mobile-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-bottom: 1px solid var(--pp-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 40;
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+  max-height: calc(100vh - 140px);
+}
+
+.schedule-mobile-section {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--pp-border);
+}
+
+.schedule-mobile-btn {
+  background: none;
+  border: 1px solid var(--pp-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--pp-pharma);
+  text-align: center;
+  min-height: 44px;
+  transition: background 0.15s;
+}
+
+.schedule-mobile-btn:hover {
+  background: #e2e8f0;
+}
+
+.schedule-mobile-filter {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid var(--pp-border);
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--pp-muted);
+  min-height: 44px;
+  text-align: center;
+}
+
+.schedule-mobile-filter:hover {
+  border-color: var(--pp-pharma);
+  color: var(--pp-pharma);
+}
+
+.schedule-mobile-filter.active {
+  background: var(--pp-pharma);
+  border-color: var(--pp-pharma);
+  color: #ffffff;
+}
+
+.schedule-mobile-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  border: 1px solid var(--pp-border);
+  background: #ffffff;
+  cursor: pointer;
+  color: #475569;
+  min-height: 44px;
+  transition: background 0.15s;
+}
+
+.schedule-mobile-action:hover {
+  background: #f1f5f9;
+}
+
+.schedule-mobile-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
