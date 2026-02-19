@@ -38,6 +38,7 @@ export default function WallboardPage() {
   const teamIdx = useMemo(() => currentShiftTeam(now), [now]);
   const teamColor = SHIFT_TEAM_COLORS[teamIdx];
   const teamName = TEAM_NAMES[teamIdx];
+  const shiftLabel = now.getHours() >= 6 && now.getHours() < 18 ? 'Day' : 'Night';
 
   const hasActiveShift =
     Number.isInteger(teamIdx) &&
@@ -106,7 +107,7 @@ export default function WallboardPage() {
               boxShadow: hasActiveShift ? `0 0 0 1px ${teamColor}22` : 'none',
             }}
           >
-            {hasActiveShift ? teamName : '—'}
+            {hasActiveShift ? `${teamName} · ${shiftLabel}` : '—'}
           </span>
         </div>
       </div>
