@@ -27,7 +27,8 @@ export function currentShiftTeam(
 }
 
 /**
- * Get the shift team for every 12-hour block in a date range.
+ * Get the shift team for every 12-hour block in a date range,
+ * aligned to shift boundaries (06:00 / 18:00).
  * Returns array of { start, teamIndex } objects.
  */
 export function shiftBands(
@@ -36,14 +37,19 @@ export function shiftBands(
   anchorDate: Date = DEFAULT_ANCHOR
 ): { start: Date; teamIndex: number }[] {
   const bands: { start: Date; teamIndex: number }[] = [];
-  const totalHours = numberOfDays * 24;
+  const viewEnd = new Date(viewStart.getTime() + numberOfDays * 24 * 3600000);
 
-  for (let h = 0; h < totalHours; h += 12) {
-    const bandStart = new Date(viewStart.getTime() + h * 3600000);
+  // Snap to the shift boundary (06:00 or 18:00) at or before viewStart
+  const hoursSinceAnchor = differenceInHours(viewStart, anchorDate);
+  const alignedShiftOffset = Math.floor(hoursSinceAnchor / 12) * 12;
+  let cursor = new Date(anchorDate.getTime() + alignedShiftOffset * 3600000);
+
+  while (cursor < viewEnd) {
     bands.push({
-      start: bandStart,
-      teamIndex: currentShiftTeam(bandStart, anchorDate),
+      start: new Date(cursor.getTime()),
+      teamIndex: currentShiftTeam(cursor, anchorDate),
     });
+    cursor = new Date(cursor.getTime() + 12 * 3600000);
   }
 
   return bands;
