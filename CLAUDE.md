@@ -143,7 +143,7 @@ When adding a new series, the system checks:
 - 8-step cycle array: `[0, 2, 1, 3, 2, 0, 3, 1]`
 - Team colors: Blue (0,102,255), Green (0,204,0), Red (255,0,0), Yellow (255,253,0)
 - Current shift determined by `Hour(Now)`: 18-23→shift 2, 0-5→shift 4, else→shift 0
-- Shift band at top of wallboard canvas shows team color + "D"/"N" label per 12h block
+- Shift band at top of wallboard canvas shows team color per 12h block, segmented at 06:00 and 18:00
 - Full shift model reference: `docs/shift-models.md`
 
 #### 7. Calendar / holidays
