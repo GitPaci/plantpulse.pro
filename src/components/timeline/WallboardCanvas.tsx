@@ -14,7 +14,6 @@ import {
   addDays,
   startOfDay,
   format,
-  differenceInHours,
   getDate,
   getMonth,
 } from 'date-fns';
@@ -23,7 +22,7 @@ import type { Machine, Stage, MachineDisplayGroup } from '@/lib/types';
 // ─── Layout constants ───────────────────────────────────────────────────
 
 const LEFT_MARGIN = 72;
-const SHIFT_BAND_H = 16;
+const SHIFT_BAND_H = 10;
 const DATE_HEADER_H = 32;
 const TOP_MARGIN = SHIFT_BAND_H + DATE_HEADER_H + 4;
 const ROW_HEIGHT = 26;
@@ -173,7 +172,7 @@ function drawShiftBand(
   ctx.fillRect(0, 0, width, SHIFT_BAND_H);
 
   for (const band of bands) {
-    const hoursOffset = differenceInHours(band.start, viewStart);
+    const hoursOffset = (band.start.getTime() - viewStart.getTime()) / 3600000;
     const x = LEFT_MARGIN + hoursOffset * pph;
     const w = 12 * pph;
 
@@ -186,18 +185,6 @@ function drawShiftBand(
     ctx.globalAlpha = 0.7;
     ctx.fillRect(clampedX, 1, clampedW, SHIFT_BAND_H - 2);
     ctx.globalAlpha = 1.0;
-
-    // Day/Night label — "D" for 06:00–18:00, "N" for 18:00–06:00
-    if (clampedW > 14) {
-      const hour = band.start.getHours();
-      const isDay = hour >= 6 && hour < 18;
-      const label = isDay ? 'D' : 'N';
-      ctx.font = 'bold 9px sans-serif';
-      ctx.fillStyle = '#FFFFFF';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, clampedX + clampedW / 2, SHIFT_BAND_H / 2);
-    }
   }
 }
 
