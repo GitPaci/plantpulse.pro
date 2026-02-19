@@ -110,6 +110,7 @@ plantpulse.pro/
 | [App Flow & Roles](docs/app-flow-pages-and-roles.md) | Site map, role-based access, primary user journeys |
 | [Design Guidelines](docs/design-guidelines.md) | Visual design system, interaction patterns, accessibility |
 | [Implementation Plan](docs/implementation-plan.md) | Phased build sequence (Phase 0-13) |
+| [Shift Models Reference](docs/shift-models.md) | Shift pattern definitions, glossary, and PlantPulse rotation logic |
 | [Gaps & Open Questions](docs/gaps-and-open-questions.md) | Specification gaps, decisions made, remaining open items |
 | [Code of Conduct](CODE_OF_CONDUCT.md) | Community standards, enterprise governance, GxP-aligned conduct principles |
 | [Security Policy](SECURITY.md) | Vulnerability reporting and security practices |
