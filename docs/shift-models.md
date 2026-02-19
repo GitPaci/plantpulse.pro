@@ -406,26 +406,30 @@ Shift pattern names vary by region, industry, and employer. Two facilities may u
 [0, 2, 1, 3, 2, 0, 3, 1]
 ```
 
-**Human-readable rotation:**
+**Human-readable rotation** (starting from a day-shift anchor at 06:00):
 
 ```
-Block 1: Blue
-Block 2: Red
-Block 3: Green
-Block 4: Yellow
-Block 5: Red
-Block 6: Blue
-Block 7: Yellow
-Block 8: Green
+Block 1 (Day   06:00–18:00): Blue
+Block 2 (Night 18:00–06:00): Red
+Block 3 (Day   06:00–18:00): Green
+Block 4 (Night 18:00–06:00): Yellow
+Block 5 (Day   06:00–18:00): Red
+Block 6 (Night 18:00–06:00): Blue
+Block 7 (Day   06:00–18:00): Yellow
+Block 8 (Night 18:00–06:00): Green
 → repeat
 ```
 
 Or equivalently: Blue → Red → Green → Yellow → Red → Blue → Yellow → Green → repeat.
 
+**Shift boundaries:**
+- Day shift: 06:00–18:00
+- Night shift: 18:00–06:00
+
 **Typical structure:**
 - 4 teams, each identified by a color (Blue, Green, Red, Yellow)
-- 12-hour shifts (e.g., 06:00–18:00 day, 18:00–06:00 night)
-- 8-step repeating cycle anchored to a configurable reference date/time
+- 12-hour shifts: day (06:00–18:00) and night (18:00–06:00)
+- 8-step repeating cycle anchored to a configurable reference date/time (default anchor: 06:00)
 - Each team appears exactly twice per cycle (2 × 12h = 24 working hours per 4-day cycle)
 
 **Cycle length:** 8 shifts = 4 days (96 hours).

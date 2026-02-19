@@ -139,10 +139,12 @@ When adding a new series, the system checks:
 - Future batches on wallboard: rendered in grey with transparency
 
 #### 6. Shift rotation (wallboard)
-- 4 teams, 12-hour shifts
+- 4 teams, 12-hour shifts: day 06:00–18:00, night 18:00–06:00
 - 8-step cycle array: `[0, 2, 1, 3, 2, 0, 3, 1]`
 - Team colors: Blue (0,102,255), Green (0,204,0), Red (255,0,0), Yellow (255,253,0)
 - Current shift determined by `Hour(Now)`: 18-23→shift 2, 0-5→shift 4, else→shift 0
+- Shift band at top of wallboard canvas shows team color + "D"/"N" label per 12h block
+- Full shift model reference: `docs/shift-models.md`
 
 #### 7. Calendar / holidays
 - Weekend detection: `Weekday() = 7` (Saturday) or `= 1` (Sunday) → red styling
