@@ -63,6 +63,22 @@ export default function HomePage() {
           <p className="mt-1">Free Edition — Demo Data</p>
         </div>
       </main>
+
+      {/* Privacy footer */}
+      <footer className="border-t border-[var(--pp-border)] bg-white py-6 px-8">
+        <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-[var(--pp-muted)]">
+          <span>Browser-only</span>
+          <span aria-hidden="true" className="text-[var(--pp-border)]">&middot;</span>
+          <span>Zero server roundtrips</span>
+          <span aria-hidden="true" className="text-[var(--pp-border)]">&middot;</span>
+          <span>No cookies</span>
+          <span aria-hidden="true" className="text-[var(--pp-border)]">&middot;</span>
+          <span>No telemetry</span>
+        </div>
+        <p className="max-w-4xl mx-auto mt-2 text-center text-xs text-[var(--pp-muted)]/60">
+          All data stays in your browser. Nothing is sent to any server.
+        </p>
+      </footer>
     </div>
   );
 }
