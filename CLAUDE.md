@@ -193,6 +193,15 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Filename: `PlantPulse_{Month}_{Year}.pdf`
 - Implementation: `utils/exportSchedulePdf.ts` (logic) + `settings/PrintSettings.tsx` (UI)
 
+#### 12. Schedule toolbar — responsive / mobile
+- Desktop (>= 768px): horizontal toolbar layout (month nav, filter chips, export/print, stage count) — unchanged
+- Mobile (< 768px): toolbar collapses into a "☰ Controls" hamburger button + month label + stage count
+- Tapping opens a dropdown panel with three sections: month navigation, equipment filter grid (2-col), export/print actions (full-width buttons)
+- Panel closes on: outside click (backdrop), action tap, or Escape key (returns focus to toggle)
+- All touch targets >= 44px; ARIA: `aria-expanded`, `aria-controls`, `role="region"`
+- Implementation: inline in `app/inoculum/page.tsx`; CSS in `globals.css` (`.schedule-mobile-*` classes)
+- Uses Tailwind responsive utilities: desktop = `hidden md:flex`, mobile = `flex md:hidden`
+
 ---
 
 ## Target Data Model (Modern)
