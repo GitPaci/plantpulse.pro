@@ -210,17 +210,17 @@ body {
   cursor: not-allowed;
 }
 
-/* Schedule fullscreen mode */
-.schedule-fullscreen {
+/* Wallboard fullscreen mode (browser Fullscreen API) */
+.wallboard-fullscreen {
   background: #000000;
 }
 
-.schedule-fullscreen > .flex-1 {
-  /* TV-safe margin: 3.5% on sides, 5% top/bottom (EBU R95 safe area) */
+.wallboard-fullscreen > .flex-1 {
+  /* TV-safe margin: 3.5% on sides, 2.5% top/bottom (EBU R95 safe area) */
   padding: 2.5% 3.5%;
 }
 
-.schedule-fullscreen-overlay {
+.wallboard-fullscreen-overlay {
   position: absolute;
   top: 12px;
   right: 12px;
@@ -229,12 +229,12 @@ body {
   transition: opacity 0.2s ease;
 }
 
-.schedule-fullscreen:hover .schedule-fullscreen-overlay,
-.schedule-fullscreen-overlay:focus-within {
+.wallboard-fullscreen:hover .wallboard-fullscreen-overlay,
+.wallboard-fullscreen-overlay:focus-within {
   opacity: 1;
 }
 
-.schedule-fullscreen-exit-btn {
+.wallboard-fullscreen-exit-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -249,7 +249,7 @@ body {
   transition: background 0.15s, border-color 0.15s;
 }
 
-.schedule-fullscreen-exit-btn:hover {
+.wallboard-fullscreen-exit-btn:hover {
   background: rgba(0, 0, 0, 0.8);
   border-color: rgba(255, 255, 255, 0.4);
 }
