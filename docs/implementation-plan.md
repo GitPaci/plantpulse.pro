@@ -104,6 +104,16 @@ Phases 8-12 are Enterprise-only.
   - Filtering affects visible equipment rows and events; hidden equipment does not render
   - Includes Inoculum group (BKK, BGNT) not shown in other views
   - Reuses `WallboardCanvas` with `customMachineGroups` for filtered display
+  - **PDF export** (implemented):
+    - "Export PDF" button + gear icon for Print Settings in toolbar
+    - Client-side only: `html2canvas` captures schedule canvas at 2× scale, `jsPDF` generates A4 landscape PDF
+    - `utils/exportSchedulePdf.ts` — all export logic, settings I/O, timestamp helper
+    - `settings/PrintSettings.tsx` — modal for configurable header/footer with localStorage persistence
+    - Header: optional facility title + month/year + separator
+    - Footer: version, timestamp with TZ + UTC offset, prepared-by, signature line, disclaimer, page numbers
+    - Enterprise fields (logo, watermark, electronic signatures, document control) visible but disabled
+    - Filename: `PlantPulse_{Month}_{Year}.pdf`
+    - Zero network calls, works offline, no cookies, no telemetry
 
 ### Phase 6 — Planner View page
 

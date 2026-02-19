@@ -40,6 +40,7 @@ Excel + PowerPoint macros are spatial and fast, but fragile:
   - Maintenance Excel
 - Operate in-memory (BigReadArray-style)
 - Export back to Excel (including an audit sheet)
+- Export Schedule to PDF (A4 landscape, client-side only, configurable header/footer)
 - No persistent database
 - No multi-user concurrency
 - No SSO
@@ -112,6 +113,11 @@ Multi-role users are allowed:
   - "All Equipment" acts as reset: clears all selections, shows everything
   - If no specific group is selected, defaults to showing all equipment
   - Filtering affects visible equipment rows and their events; hidden equipment does not render
+  - **Export PDF**: client-side A4 landscape PDF generation (html2canvas + jsPDF, zero network calls)
+    - Configurable header (facility title, month/year) and compliance-inspired footer
+    - Footer includes: app version, export timestamp with timezone + UTC offset, prepared-by, signature line, disclaimer, page numbers
+    - Print Settings modal with localStorage persistence (gear icon next to Export PDF button)
+    - Enterprise-locked fields visible but disabled (logo, watermark, electronic signatures, document control, etc.)
 
 - **Drafts & Approvals**
   - Propose, review, approve/commit, reject with comments

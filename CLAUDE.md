@@ -179,6 +179,20 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Headers: ["pososda", "nacep", "precep", "serija"]
 - Data starts at row A2
 
+#### 11. PDF export (modern, Schedule view only)
+- Client-side only: `html2canvas` captures the schedule `<canvas>` at 2× scale, `jsPDF` generates A4 landscape PDF
+- Zero network calls, works offline, no cookies, no telemetry
+- Configurable via Print Settings modal (persisted in `localStorage` key: `plantpulse.schedulePrintSettings.v1`)
+- Header: optional facility title (Helvetica bold 11pt) + month/year (always) + separator line
+- Footer (3-column, 7–8pt grey):
+  - Left: app version, export timestamp with TZ abbreviation + UTC offset (e.g. `2026-02-19 14:32 CET (UTC+01:00)`), prepared-by placeholder, signature line
+  - Center: disclaimer text (editable, default: `UNCONTROLLED COPY: Valid only at time of printing.`)
+  - Right: page numbers (`Page x of y`, future-proof loop via `getNumberOfPages()`)
+- All footer elements are individually toggleable (showVersion, showTimestamp, showPreparedBy, showSignature, showPageNumbers)
+- Enterprise-locked fields (visible but disabled): company logo, custom color theme, custom footer presets, watermark overlay, multi-page export, auto user ID from SSO, electronic signatures, document control number
+- Filename: `PlantPulse_{Month}_{Year}.pdf`
+- Implementation: `utils/exportSchedulePdf.ts` (logic) + `settings/PrintSettings.tsx` (UI)
+
 ---
 
 ## Target Data Model (Modern)
@@ -306,6 +320,7 @@ external network calls, cookies, or server-side API routes to the Free Edition.
 | Timeline rendering | **HTML Canvas** (with SVG overlay for interactive elements) | Performance for 30+ rows × 25+ days of bars; VBA pixel math maps directly |
 | State management | **Zustand** | Lightweight, replaces BigReadArray as the in-memory store |
 | Excel I/O | **SheetJS (xlsx)** | Read/write .xlsx for import/export, matches ADODB pattern |
+| PDF export | **html2canvas + jsPDF** | Client-side A4 landscape PDF generation from canvas capture (Schedule view) |
 | Date handling | **date-fns** | Lightweight, tree-shakeable, handles DateDiff/DateAdd equivalents |
 | Styling | **Tailwind CSS** | Utility-first, matches design-guidelines typography/color system |
 | Testing | **Vitest + Testing Library** | Fast, TypeScript-native |
@@ -343,7 +358,7 @@ plantpulse.pro/
 │   │   ├── page.tsx             # Landing / session start
 │   │   ├── wallboard/           # Manufacturing Wallboard (Operator lens)
 │   │   ├── planner/             # Planner View (modern UrediPlan)
-│   │   ├── inoculum/            # Schedule View
+│   │   ├── inoculum/            # Schedule View (+ PDF export)
 │   │   └── admin/               # Admin Settings (Enterprise)
 │   ├── components/
 │   │   ├── timeline/            # Core timeline engine (Phase 2)
@@ -363,6 +378,10 @@ plantpulse.pro/
 │   │   │   ├── TaskArrow.tsx
 │   │   │   └── MaintenanceMarker.tsx
 │   │   └── ui/                  # Shared UI primitives
+│   ├── utils/
+│   │   └── exportSchedulePdf.ts # PDF export logic, settings I/O, timestamp helper
+│   ├── settings/
+│   │   └── PrintSettings.tsx    # Print Settings modal (localStorage-persisted)
 │   ├── lib/
 │   │   ├── store.ts             # Zustand store (BigReadArray replacement)
 │   │   ├── excel-io.ts          # SheetJS import/export

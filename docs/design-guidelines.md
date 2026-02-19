@@ -116,6 +116,34 @@ From the GxP guidance: focus on audit trails, IAM, retention, and change control
 
 ---
 
+## PDF Export Design (Schedule View)
+
+The Schedule view includes a client-side PDF export that produces a professional
+A4 landscape document suitable for printing and posting on a manufacturing wall.
+
+**Layout rules:**
+- A4 landscape (297 × 210 mm), 8 mm margins
+- Header: optional facility title (Helvetica bold 11pt, dark grey, centered) + month/year (Helvetica normal 9pt, medium grey) + thin separator
+- Schedule image: captured at 2× resolution, aspect-ratio preserved, centered in available content area
+- Footer: visually secondary (7–8pt grey), 3-column layout with separator line above
+  - Left: traceability (version, timestamp with timezone + UTC offset, prepared-by, signature line)
+  - Center: disclaimer (bold, editable via Print Settings)
+  - Right: page numbers (`Page x of y`)
+
+**Print Settings modal:**
+- Accessible via gear icon next to Export PDF button
+- Free fields: facility title, disclaimer text, 5 boolean toggles for footer elements
+- Enterprise fields: visible but disabled with "Enterprise" badge + tooltip
+- Settings persist in `localStorage` (key: `plantpulse.schedulePrintSettings.v1`)
+
+**Button states:**
+- Default: "Export PDF" with down-arrow icon
+- Exporting: "Generating..." (disabled, with spinner animation)
+
+**Privacy:** Zero network calls during export. Works fully offline.
+
+---
+
 ## Design Snapshot
 
 **Core rule:** Operator = calm instrument panel. Planner = controlled editor.

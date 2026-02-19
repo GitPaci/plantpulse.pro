@@ -20,7 +20,7 @@ Production scheduling for multistep batch chain processes — fermentation, biop
 |------|-------------|--------------|
 | **Manufacturing Wallboard** | Operators | Now-centered timeline with batch bars, checkpoint tasks, maintenance markers, and shift ownership band. One-click task confirmation. |
 | **Planner View** | Schedulers & Planners | Interactive draft editor: drag/move/stretch bars, chain editor, bulk shift, new batch chain wizard with auto-scheduling and conflict detection. |
-| **Schedule** | Operators | Full-month view with weekend highlighting and staffing window enforcement. |
+| **Schedule** | Operators | Full-month view with weekend highlighting and staffing window enforcement. Export PDF generates a print-ready A4 landscape PDF with configurable header/footer (Print Settings via gear icon). |
 | **Drafts & Approvals** | Schedulers & Planners | Governed workflow: Draft, Propose, Review diff, Approve/Commit or Reject. |
 | **Commit Log** | Planners only | Immutable record of all committed plan changes with criticality flags. |
 | **Audit Trail** | Compliance | Append-only, time-stamped, attributable business audit entries. |
@@ -32,7 +32,7 @@ Visit **plantpulse.pro** to try PlantPulse instantly:
 1. Open the app -- a realistic demo schedule is generated automatically
 2. Explore the **Wallboard** (operator view) and **Planner** (scheduling view)
 3. Edit the schedule: drag, stretch, add new batch chains, bulk shift
-4. **Export to Excel** to save your work
+4. **Export to Excel** to save your work, or **Export to PDF** from the Schedule view
 5. Next visit: fresh demo data, or **import your Excel** to pick up where you left off
 
 No account needed. No data stored on our servers. Your browser, your data.
@@ -61,6 +61,7 @@ Import from Excel, work in-memory, export back to Excel. That's the entire data 
 |---|---|---|---|
 | Demo data on every visit | Yes | N/A | N/A |
 | Import/export Excel | Yes | Yes | Yes |
+| Export Schedule to PDF | Yes (client-side) | Yes (+ branding, e-signatures) | Yes (+ branding, e-signatures) |
 | In-memory (no persistence) | Yes | Persistent DB | Persistent DB |
 | Planner + Wallboard | Yes | Yes | Yes |
 | Drafts & approvals workflow | No | Yes | Yes |
