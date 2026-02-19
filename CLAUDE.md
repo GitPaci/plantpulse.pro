@@ -655,6 +655,7 @@ function backCalculateChain(
 | širina | width | Pixel width |
 | začetek | start/beginning | Start position |
 | brisi | delete/clear | Clear/remove elements |
+| buča | baffled Erlenmeyer flask | Inoculum-scale cultivation vessel; prefix B- in nomenclature (BKK for KK line, BGNT for GNT line) |
 | shrani | save | Save changes |
 | zapri | close | Close form |
 | preveri | check/validate | Validation |
