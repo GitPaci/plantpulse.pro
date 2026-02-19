@@ -60,6 +60,35 @@ Feels like a calm pharma control room: steady, readable, and accountable -- with
 
 ---
 
+## Wallboard Fullscreen Mode
+
+The Manufacturing Wallboard supports browser-native fullscreen for dedicated display
+screens (e.g. factory floor TVs, control room monitors).
+
+**Enter fullscreen:**
+- Toolbar button (expand icon, positioned immediately before the Shift indicator)
+- Uses browser Fullscreen API (`Element.requestFullscreen()`)
+
+**Fullscreen appearance:**
+- Black background fills the entire screen
+- Navigation bar and toolbar are hidden
+- Canvas occupies the full viewport with TV-safe margins (EBU R95):
+  - 2.5% top/bottom, 3.5% left/right padding
+- Shift band, now-line, and batch bars remain fully visible
+
+**Exit fullscreen:**
+- Hover-reveal button: top-right corner, semi-transparent with backdrop blur, fades in on mouse movement (opacity 0 → 1 on hover), uses compress/shrink icon
+- Browser Escape key or native fullscreen exit controls
+- Fullscreen state syncs with `fullscreenchange` event
+
+**Accessibility:**
+- Enter button: `aria-label="Enter Fullscreen"`, `title="Enter Fullscreen"`
+- Exit button: `aria-label="Exit Fullscreen"`, `title="Exit Fullscreen"`, reachable via keyboard (`:focus-within` makes overlay visible)
+
+**Implementation:** `app/wallboard/page.tsx` (logic) + `globals.css` (`.wallboard-fullscreen-*` classes)
+
+---
+
 ## Shutdown Block Design
 
 - Full-width across all machines
