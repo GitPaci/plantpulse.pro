@@ -253,3 +253,63 @@ body {
   background: rgba(0, 0, 0, 0.8);
   border-color: rgba(255, 255, 255, 0.4);
 }
+
+/* Fullscreen night toggle overlay — top-left (mirrors exit overlay top-right) */
+.wallboard-fullscreen-night-overlay {
+  left: 12px;
+  right: auto;
+}
+
+/* ─── Wallboard Night View mode ───────────────────────────────────────── */
+/* Only affects the Wallboard page. Does NOT affect PDF export, Schedule,
+   or Planner pages. Canvas colors are handled in WallboardCanvas via theme. */
+
+.wallboard-night {
+  background: #0c1021;
+}
+
+/* Toolbar in night mode (non-fullscreen) */
+.wallboard-night > div:nth-child(2) {
+  background: #111827 !important;
+  border-bottom-color: #1e293b !important;
+  color: #c8d6e5;
+}
+
+.wallboard-night > div:nth-child(2) button {
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+.wallboard-night > div:nth-child(2) button:hover {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+
+/* Keep night toggle button styling distinct */
+.wallboard-night > div:nth-child(2) .wallboard-night-toggle {
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
+}
+
+.wallboard-night > div:nth-child(2) .wallboard-night-toggle:hover {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+}
+
+/* Shift indicator in night mode */
+.wallboard-night > div:nth-child(2) .text-\[var\(--pp-muted\)\] {
+  color: #64748b;
+}
+
+/* Print/PDF: always use light theme regardless of night mode */
+@media print {
+  .wallboard-night {
+    background: #ffffff;
+  }
+  .wallboard-night > div:nth-child(2) {
+    background: #ffffff !important;
+    border-bottom-color: var(--pp-border) !important;
+    color: inherit;
+  }
+}
