@@ -31,25 +31,76 @@ const BAR_Y_PAD = (ROW_HEIGHT - BAR_HEIGHT) / 2;
 const SEPARATOR_HEIGHT = 12;
 const BORDER_WIDTH = 3;
 
-// ─── Colors ─────────────────────────────────────────────────────────────
+// ─── Color themes ───────────────────────────────────────────────────────
 
-const COL_ROW_EVEN = '#EBF4FB';
-const COL_ROW_ODD = '#FFFFFF';
-const COL_WEEKEND = 'rgba(255, 220, 220, 0.25)';
-const COL_HOLIDAY = 'rgba(255, 180, 180, 0.30)';
-const COL_TODAY = 'rgba(255, 255, 200, 0.20)';
-const COL_GRID = 'rgba(185, 200, 215, 0.50)';
-const COL_NOW = 'rgba(160, 0, 0, 0.65)';
-const COL_BAR_FILL = '#E2E2E2';
-const COL_BAR_FUTURE = '#EFEFEF';
-const COL_LABEL_BG = '#EAEAEA';
-const COL_LABEL_BORDER = '#D0D0D0';
-const COL_LABEL_TEXT = '#0088BB';
-const COL_MACHINE_TEXT = '#1a365d';
-const COL_DATE_TEXT = '#334155';
-const COL_DATE_WEEKEND = '#DC2626';
-const COL_SEPARATOR = '#F1F5F9';
-const COL_HEADER_BG = '#FFFFFF';
+interface CanvasTheme {
+  background: string;
+  rowEven: string;
+  rowOdd: string;
+  weekend: string;
+  holiday: string;
+  today: string;
+  grid: string;
+  now: string;
+  barFill: string;
+  barFuture: string;
+  labelBg: string;
+  labelBorder: string;
+  labelText: string;
+  machineText: string;
+  dateText: string;
+  dateWeekend: string;
+  separator: string;
+  headerBg: string;
+  barBorder: string;
+  barHourText: string;
+}
+
+const DAY_THEME: CanvasTheme = {
+  background: '#FFFFFF',
+  rowEven: '#EBF4FB',
+  rowOdd: '#FFFFFF',
+  weekend: 'rgba(255, 220, 220, 0.25)',
+  holiday: 'rgba(255, 180, 180, 0.30)',
+  today: 'rgba(255, 255, 200, 0.20)',
+  grid: 'rgba(185, 200, 215, 0.50)',
+  now: 'rgba(160, 0, 0, 0.65)',
+  barFill: '#E2E2E2',
+  barFuture: '#EFEFEF',
+  labelBg: '#EAEAEA',
+  labelBorder: '#D0D0D0',
+  labelText: '#0088BB',
+  machineText: '#1a365d',
+  dateText: '#334155',
+  dateWeekend: '#DC2626',
+  separator: '#F1F5F9',
+  headerBg: '#FFFFFF',
+  barBorder: 'rgba(0,0,0,0.12)',
+  barHourText: '#000000',
+};
+
+const NIGHT_THEME: CanvasTheme = {
+  background: '#0c1021',
+  rowEven: '#111827',
+  rowOdd: '#0c1021',
+  weekend: 'rgba(120, 40, 40, 0.25)',
+  holiday: 'rgba(140, 50, 50, 0.30)',
+  today: 'rgba(80, 80, 30, 0.20)',
+  grid: 'rgba(60, 75, 95, 0.50)',
+  now: 'rgba(255, 60, 60, 0.80)',
+  barFill: '#2a3040',
+  barFuture: '#1e2535',
+  labelBg: '#1e2535',
+  labelBorder: '#3a4a60',
+  labelText: '#4cc9f0',
+  machineText: '#c8d6e5',
+  dateText: '#94a3b8',
+  dateWeekend: '#f87171',
+  separator: '#151d2e',
+  headerBg: '#0c1021',
+  barBorder: 'rgba(255,255,255,0.10)',
+  barHourText: '#d1d5db',
+};
 
 // ─── Row layout ─────────────────────────────────────────────────────────
 
@@ -103,15 +154,16 @@ function buildRowLayout(
 function drawRowBackgrounds(
   ctx: CanvasRenderingContext2D,
   rows: RowInfo[],
-  width: number
+  width: number,
+  theme: CanvasTheme
 ) {
   let machineIdx = 0;
   for (const row of rows) {
     if (row.type === 'separator') {
-      ctx.fillStyle = COL_SEPARATOR;
+      ctx.fillStyle = theme.separator;
       ctx.fillRect(0, row.y, width, SEPARATOR_HEIGHT);
     } else {
-      ctx.fillStyle = machineIdx % 2 === 0 ? COL_ROW_EVEN : COL_ROW_ODD;
+      ctx.fillStyle = machineIdx % 2 === 0 ? theme.rowEven : theme.rowOdd;
       ctx.fillRect(0, row.y, width, ROW_HEIGHT);
       machineIdx++;
     }
@@ -124,7 +176,8 @@ function drawCalendarColumns(
   numDays: number,
   width: number,
   totalHeight: number,
-  todayHighlight: boolean = true
+  todayHighlight: boolean = true,
+  theme: CanvasTheme = DAY_THEME
 ) {
   const ppd = getPPD(width, LEFT_MARGIN, numDays);
   const today = startOfDay(new Date());
@@ -135,22 +188,22 @@ function drawCalendarColumns(
 
     // Weekend / holiday tint
     if (isHoliday(date) || isSunday(date)) {
-      ctx.fillStyle = COL_HOLIDAY;
+      ctx.fillStyle = theme.holiday;
       ctx.fillRect(x, TOP_MARGIN, ppd, totalHeight - TOP_MARGIN);
     } else if (isSaturday(date)) {
-      ctx.fillStyle = COL_WEEKEND;
+      ctx.fillStyle = theme.weekend;
       ctx.fillRect(x, TOP_MARGIN, ppd, totalHeight - TOP_MARGIN);
     }
 
     // Today highlight
     if (todayHighlight && date.getTime() === today.getTime()) {
-      ctx.fillStyle = COL_TODAY;
+      ctx.fillStyle = theme.today;
       ctx.fillRect(x, TOP_MARGIN, ppd, totalHeight - TOP_MARGIN);
     }
 
     // Vertical grid line
     ctx.beginPath();
-    ctx.strokeStyle = COL_GRID;
+    ctx.strokeStyle = theme.grid;
     ctx.lineWidth = 0.5;
     ctx.moveTo(x, TOP_MARGIN);
     ctx.lineTo(x, totalHeight);
@@ -162,13 +215,14 @@ function drawShiftBand(
   ctx: CanvasRenderingContext2D,
   viewStart: Date,
   numDays: number,
-  width: number
+  width: number,
+  theme: CanvasTheme
 ) {
   const bands = shiftBands(viewStart, numDays);
   const ppd = getPPD(width, LEFT_MARGIN, numDays);
   const pph = ppd / 24;
 
-  ctx.fillStyle = COL_HEADER_BG;
+  ctx.fillStyle = theme.headerBg;
   ctx.fillRect(0, 0, width, SHIFT_BAND_H);
 
   for (const band of bands) {
@@ -192,17 +246,18 @@ function drawDateHeader(
   ctx: CanvasRenderingContext2D,
   viewStart: Date,
   numDays: number,
-  width: number
+  width: number,
+  theme: CanvasTheme
 ) {
   const ppd = getPPD(width, LEFT_MARGIN, numDays);
 
-  // White background for header area
-  ctx.fillStyle = COL_HEADER_BG;
+  // Header background
+  ctx.fillStyle = theme.headerBg;
   ctx.fillRect(0, SHIFT_BAND_H, width, DATE_HEADER_H);
 
   // Bottom border
   ctx.beginPath();
-  ctx.strokeStyle = COL_GRID;
+  ctx.strokeStyle = theme.grid;
   ctx.lineWidth = 1;
   ctx.moveTo(0, TOP_MARGIN - 1);
   ctx.lineTo(width, TOP_MARGIN - 1);
@@ -218,7 +273,7 @@ function drawDateHeader(
 
     // Month label when month changes
     if (month !== lastMonth) {
-      ctx.fillStyle = COL_MACHINE_TEXT;
+      ctx.fillStyle = theme.machineText;
       ctx.font = 'bold 11px sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
@@ -231,14 +286,14 @@ function drawDateHeader(
     const isHol = isHoliday(date);
 
     ctx.font = isHol ? 'bold 11px sans-serif' : '11px sans-serif';
-    ctx.fillStyle = isWE || isHol ? COL_DATE_WEEKEND : COL_DATE_TEXT;
+    ctx.fillStyle = isWE || isHol ? theme.dateWeekend : theme.dateText;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     ctx.fillText(String(dayNum), x + ppd / 2, TOP_MARGIN - 3);
 
     // Vertical grid line in header
     ctx.beginPath();
-    ctx.strokeStyle = COL_GRID;
+    ctx.strokeStyle = theme.grid;
     ctx.lineWidth = 0.5;
     ctx.moveTo(x, SHIFT_BAND_H + 16);
     ctx.lineTo(x, TOP_MARGIN);
@@ -248,15 +303,16 @@ function drawDateHeader(
 
 function drawMachineLabels(
   ctx: CanvasRenderingContext2D,
-  rows: RowInfo[]
+  rows: RowInfo[],
+  theme: CanvasTheme
 ) {
   // Left column background
-  ctx.fillStyle = COL_HEADER_BG;
+  ctx.fillStyle = theme.headerBg;
   ctx.fillRect(0, TOP_MARGIN, LEFT_MARGIN, rows.length * ROW_HEIGHT + 200);
 
   // Border
   ctx.beginPath();
-  ctx.strokeStyle = COL_GRID;
+  ctx.strokeStyle = theme.grid;
   ctx.lineWidth = 1;
   ctx.moveTo(LEFT_MARGIN, 0);
   ctx.lineTo(LEFT_MARGIN, rows.length * ROW_HEIGHT + TOP_MARGIN + 200);
@@ -267,7 +323,7 @@ function drawMachineLabels(
 
     const isFermenter = row.machineName.startsWith('F-');
     ctx.font = isFermenter ? 'bold 11px sans-serif' : '11px sans-serif';
-    ctx.fillStyle = COL_MACHINE_TEXT;
+    ctx.fillStyle = theme.machineText;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     ctx.fillText(row.machineName, LEFT_MARGIN - 8, row.y + ROW_HEIGHT / 2);
@@ -281,7 +337,8 @@ function drawBatchBars(
   rows: RowInfo[],
   viewStart: Date,
   numDays: number,
-  width: number
+  width: number,
+  theme: CanvasTheme
 ) {
   const now = new Date();
   const machineRowMap = new Map<string, RowInfo>();
@@ -309,7 +366,7 @@ function drawBatchBars(
     const barY = row.y + BAR_Y_PAD;
 
     // Bar fill
-    ctx.fillStyle = isFuture ? COL_BAR_FUTURE : COL_BAR_FILL;
+    ctx.fillStyle = isFuture ? theme.barFuture : theme.barFill;
     ctx.fillRect(pos.left, barY, pos.width, BAR_HEIGHT);
 
     // Colored bottom border — wallboard style
@@ -318,25 +375,25 @@ function drawBatchBars(
     ctx.fillRect(pos.left, barY + BAR_HEIGHT - BORDER_WIDTH, pos.width, BORDER_WIDTH);
 
     // Thin top/right/left borders
-    ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+    ctx.strokeStyle = theme.barBorder;
     ctx.lineWidth = 0.5;
     ctx.strokeRect(pos.left, barY, pos.width, BAR_HEIGHT);
 
-    // Start hour label at left edge (black, all stages)
+    // Start hour label at left edge
     if (pos.width > 25) {
       const startHour = String(stage.startDatetime.getHours());
       ctx.font = '8px sans-serif';
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = theme.barHourText;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillText(startHour, pos.left + 2, barY + BAR_HEIGHT / 2);
     }
 
-    // End hour label at right edge (black, fermenter stages only)
+    // End hour label at right edge (fermenter stages only)
     if (stage.stageType === 'fermentation' && pos.width > 40) {
       const endHour = String(stage.endDatetime.getHours());
       ctx.font = '8px sans-serif';
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = theme.barHourText;
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
       ctx.fillText(endHour, pos.left + pos.width - 2, barY + BAR_HEIGHT / 2);
@@ -353,18 +410,18 @@ function drawBatchBars(
       const labelY = barY + (BAR_HEIGHT - labelH) / 2;
 
       // Label background
-      ctx.fillStyle = COL_LABEL_BG;
+      ctx.fillStyle = theme.labelBg;
       ctx.beginPath();
       roundRect(ctx, labelX, labelY, labelW, labelH, 2);
       ctx.fill();
-      ctx.strokeStyle = COL_LABEL_BORDER;
+      ctx.strokeStyle = theme.labelBorder;
       ctx.lineWidth = 0.5;
       ctx.beginPath();
       roundRect(ctx, labelX, labelY, labelW, labelH, 2);
       ctx.stroke();
 
       // Label text
-      ctx.fillStyle = COL_LABEL_TEXT;
+      ctx.fillStyle = theme.labelText;
       ctx.font = 'bold 9px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -378,13 +435,14 @@ function drawNowLine(
   viewStart: Date,
   numDays: number,
   width: number,
-  totalHeight: number
+  totalHeight: number,
+  theme: CanvasTheme
 ) {
   const x = nowLineX(viewStart, new Date(), width, LEFT_MARGIN, numDays);
   if (x < LEFT_MARGIN || x > width) return;
 
   ctx.beginPath();
-  ctx.strokeStyle = COL_NOW;
+  ctx.strokeStyle = theme.now;
   ctx.lineWidth = 1.5;
   ctx.setLineDash([4, 3]);
   ctx.moveTo(x, TOP_MARGIN);
@@ -393,7 +451,7 @@ function drawNowLine(
   ctx.setLineDash([]);
 
   // Small triangle at top
-  ctx.fillStyle = COL_NOW;
+  ctx.fillStyle = theme.now;
   ctx.beginPath();
   ctx.moveTo(x - 4, TOP_MARGIN);
   ctx.lineTo(x + 4, TOP_MARGIN);
@@ -431,6 +489,7 @@ interface WallboardCanvasProps {
   showNowLine?: boolean;
   showShiftBand?: boolean;
   canvasId?: string;
+  nightMode?: boolean;
 }
 
 export default function WallboardCanvas({
@@ -440,6 +499,7 @@ export default function WallboardCanvas({
   showNowLine: showNowLineProp = true,
   showShiftBand: showShiftBandProp = true,
   canvasId,
+  nightMode = false,
 }: WallboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -498,6 +558,9 @@ export default function WallboardCanvas({
     ? lastRow.y + (lastRow.type === 'separator' ? SEPARATOR_HEIGHT : ROW_HEIGHT) + 4
     : TOP_MARGIN + 100;
 
+  // Select color theme
+  const theme = nightMode ? NIGHT_THEME : DAY_THEME;
+
   // Main draw callback
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -517,23 +580,23 @@ export default function WallboardCanvas({
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, dims.width, canvasHeight);
 
-    // White background
-    ctx.fillStyle = '#FFFFFF';
+    // Background
+    ctx.fillStyle = theme.background;
     ctx.fillRect(0, 0, dims.width, canvasHeight);
 
     // Draw layers (back to front)
-    drawRowBackgrounds(ctx, rows, dims.width);
-    drawCalendarColumns(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, showTodayHighlight);
-    drawBatchBars(ctx, visibleStages, batchChainMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width);
+    drawRowBackgrounds(ctx, rows, dims.width, theme);
+    drawCalendarColumns(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, showTodayHighlight, theme);
+    drawBatchBars(ctx, visibleStages, batchChainMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     if (showNowLineProp) {
-      drawNowLine(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight);
+      drawNowLine(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, theme);
     }
-    drawMachineLabels(ctx, rows);
+    drawMachineLabels(ctx, rows, theme);
     if (showShiftBandProp) {
-      drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width);
+      drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     }
-    drawDateHeader(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width);
-  }, [dims, rows, visibleStages, batchChainMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp]);
+    drawDateHeader(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
+  }, [dims, rows, visibleStages, batchChainMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme]);
 
   // Redraw on any change
   useEffect(() => {

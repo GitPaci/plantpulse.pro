@@ -9,6 +9,7 @@ import WallboardCanvas from '@/components/timeline/WallboardCanvas';
 import { usePlantPulseStore } from '@/lib/store';
 import { currentShiftTeam } from '@/lib/shift-rotation';
 import { SHIFT_TEAM_COLORS } from '@/lib/colors';
+import { useNightMode } from '@/lib/useNightMode';
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { addDays } from 'date-fns';
 
@@ -27,6 +28,7 @@ export default function WallboardPage() {
   const [now, setNow] = useState(() => new Date());
   const [isFullscreen, setIsFullscreen] = useState(false);
   const wallboardRootRef = useRef<HTMLDivElement>(null);
+  const { nightMode, toggle: toggleNightMode } = useNightMode();
 
   // Keep badge in sync with real time (and any shift boundary crossing) without refresh.
   useEffect(() => {
@@ -81,7 +83,7 @@ export default function WallboardPage() {
   }
 
   return (
-    <div ref={wallboardRootRef} className={`h-screen flex flex-col overflow-hidden ${isFullscreen ? 'wallboard-fullscreen' : ''}`}>
+    <div ref={wallboardRootRef} className={`h-screen flex flex-col overflow-hidden ${isFullscreen ? 'wallboard-fullscreen' : ''} ${nightMode ? 'wallboard-night' : ''}`}>
       {!isFullscreen && <Navigation />}
 
       {/* Toolbar */}
@@ -120,6 +122,22 @@ export default function WallboardPage() {
 
           <div className="flex-1" />
 
+          {/* Night View toggle — immediately before Fullscreen button */}
+          <button
+            type="button"
+            onClick={toggleNightMode}
+            className={`wallboard-night-toggle inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-colors ${
+              nightMode
+                ? 'border-amber-400/40 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                : 'border-indigo-300/40 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+            }`}
+            aria-label={nightMode ? 'Switch to Day View' : 'Switch to Night View'}
+            title={nightMode ? 'Switch to Day View' : 'Switch to Night View'}
+          >
+            <span aria-hidden="true">{nightMode ? '\u2600' : '\uD83C\uDF19'}</span>
+            {nightMode ? 'Day' : 'Night'}
+          </button>
+
           {/* Fullscreen enter button — immediately before Shift indicator */}
           <button
             type="button"
@@ -154,29 +172,47 @@ export default function WallboardPage() {
         </div>
       )}
 
-      {/* Fullscreen exit button overlay — appears on hover */}
+      {/* Fullscreen overlays — appear on hover/interaction */}
       {isFullscreen && (
-        <div className="wallboard-fullscreen-overlay">
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="wallboard-fullscreen-exit-btn"
-            aria-label="Exit Fullscreen"
-            title="Exit Fullscreen"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="4 14 10 14 10 20" />
-              <polyline points="20 10 14 10 14 4" />
-              <line x1="14" y1="10" x2="21" y2="3" />
-              <line x1="3" y1="21" x2="10" y2="14" />
-            </svg>
-          </button>
-        </div>
+        <>
+          {/* Night toggle overlay — top-left */}
+          <div className="wallboard-fullscreen-overlay wallboard-fullscreen-night-overlay">
+            <button
+              type="button"
+              onClick={toggleNightMode}
+              className="wallboard-fullscreen-exit-btn"
+              aria-label={nightMode ? 'Switch to Day View' : 'Switch to Night View'}
+              title={nightMode ? 'Switch to Day View' : 'Switch to Night View'}
+            >
+              <span style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true">
+                {nightMode ? '\u2600\uFE0E' : '\uD83C\uDF19'}
+              </span>
+            </button>
+          </div>
+
+          {/* Exit fullscreen overlay — top-right */}
+          <div className="wallboard-fullscreen-overlay">
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="wallboard-fullscreen-exit-btn"
+              aria-label="Exit Fullscreen"
+              title="Exit Fullscreen"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="4 14 10 14 10 20" />
+                <polyline points="20 10 14 10 14 4" />
+                <line x1="14" y1="10" x2="21" y2="3" />
+                <line x1="3" y1="21" x2="10" y2="14" />
+              </svg>
+            </button>
+          </div>
+        </>
       )}
 
       {/* Canvas fills remaining space */}
       <div className="flex-1 min-h-0">
-        <WallboardCanvas />
+        <WallboardCanvas nightMode={nightMode} />
       </div>
     </div>
   );
