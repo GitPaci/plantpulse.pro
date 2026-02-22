@@ -98,6 +98,7 @@ Multi-role users are allowed:
   - Dynamic now-centered range: 4 days back + today + 2--3 weeks forward
   - Shift ownership band at top (secondary layer)
   - Bars + tasks + maintenance acknowledgements
+  - Night View: dark, high-contrast TV-optimized mode (toggle or auto-switch at 22:00/05:00 local)
 
 - **Planner View (modern UrediPlan)**
   - Interactive schedule editor in drafts

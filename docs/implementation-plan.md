@@ -92,6 +92,17 @@ Phases 8-12 are Enterprise-only.
     - Exit via hover-reveal button (top-right corner, fades in on mouse movement) or browser Escape key
     - State syncs with browser fullscreen change events (e.g. user presses Escape)
     - CSS: `.wallboard-fullscreen`, `.wallboard-fullscreen-overlay`, `.wallboard-fullscreen-exit-btn` in `globals.css`
+  - **Night View mode** (implemented):
+    - Toggleable dark, high-contrast theme optimized for TV displays during night shifts
+    - Toolbar toggle button positioned immediately before the Fullscreen button; shows moon/Night (off) or sun/Day (on)
+    - Fullscreen: floating overlay toggle at top-left corner (mirrors exit button pattern), auto-hides on inactivity
+    - Automatic switching: Night View at 22:00 local, Day View at 05:00 local (device clock, no server)
+    - Manual override respected until next scheduled boundary, then auto-schedule resumes
+    - Preference persisted in `localStorage` (key: `wallboard-night`)
+    - Canvas uses theme-aware color system (`DAY_THEME` / `NIGHT_THEME` in `WallboardCanvas.tsx`)
+    - Only affects Wallboard page; Schedule, Planner, and PDF export always use day theme
+    - `@media print` CSS rule prevents night styles from leaking into print output
+    - Hook: `lib/useNightMode.ts`; CSS: `.wallboard-night-*` classes in `globals.css`
 - `components/wallboard/TaskArrow.tsx` — Task markers:
   - Planned: red indicator, clickable
   - Done: green + checkmark

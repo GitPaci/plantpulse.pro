@@ -213,6 +213,23 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - State syncs with `fullscreenchange` event (handles browser Escape, OS-level fullscreen exit)
 - Implementation: `app/wallboard/page.tsx` (logic) + `globals.css` (`.wallboard-fullscreen-*` classes)
 
+#### 14. Wallboard Night View mode
+- Toggleable dark, high-contrast theme optimized for TV displays in dimly lit control rooms
+- **Toolbar toggle** (non-fullscreen): positioned immediately before the Fullscreen button
+  - OFF: moon icon + "Night" (indigo tint)
+  - ON: sun icon + "Day" (amber tint)
+- **Fullscreen overlay toggle**: top-left corner, same show/hide behavior as the exit overlay (opacity 0 → 1 on hover or `:focus-within`)
+- **Automatic switching** (device local time, no server):
+  - Night View activates at 22:00 local
+  - Day View restores at 05:00 local
+  - Checks once per minute via `setInterval`
+  - Manual toggle is respected until the next scheduled boundary, then auto-schedule resumes
+- **Persistence**: `localStorage` key `wallboard-night` (survives reload)
+- **Scope**: only affects Wallboard page — Schedule, Planner, and PDF export always use day theme
+- **Canvas colors**: `DAY_THEME` / `NIGHT_THEME` objects in `WallboardCanvas.tsx`; night uses deep navy background (`#0c1021`), light labels (`#c8d6e5`), cyan series labels (`#4cc9f0`), brighter now-line (`rgba(255,60,60,0.80)`)
+- **Print safety**: `@media print` CSS rule forces light theme
+- Implementation: `lib/useNightMode.ts` (hook) + `WallboardCanvas.tsx` (theme) + `app/wallboard/page.tsx` (toggles) + `globals.css` (`.wallboard-night-*` classes)
+
 ---
 
 ## Target Data Model (Modern)
@@ -411,6 +428,7 @@ plantpulse.pro/
 │   │   ├── shift-rotation.ts    # 4-team, 12h, 8-step cycle
 │   │   ├── holidays.ts          # Slovenian holidays + Easter algorithm
 │   │   ├── colors.ts            # Deterministic batch color cycling
+│   │   ├── useNightMode.ts      # Wallboard night/day auto-switch hook
 │   │   └── types.ts             # TypeScript interfaces
 │   └── __tests__/               # Test files mirroring src structure
 ├── public/

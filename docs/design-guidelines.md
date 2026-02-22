@@ -89,6 +89,65 @@ screens (e.g. factory floor TVs, control room monitors).
 
 ---
 
+## Wallboard Night View Mode
+
+The Manufacturing Wallboard supports a dark, high-contrast Night View optimized for
+TV displays in dimly lit control rooms during night shifts.
+
+**Toggle (non-fullscreen):**
+- Button in toolbar, positioned immediately before the Fullscreen button (right side)
+- OFF state: moon icon + "Night" label (indigo tint)
+- ON state: sun icon + "Day" label (amber tint)
+
+**Toggle (fullscreen):**
+- Floating overlay button at **top-left** corner (mirrors the exit button at top-right)
+- Hidden by default; appears on mouse movement or click, auto-hides after inactivity
+- Same show/hide behavior as the fullscreen exit overlay (opacity 0 → 1 on hover/`:focus-within`)
+
+**Automatic switching (local device time):**
+- Night View activates automatically at **22:00** local time
+- Day View restores automatically at **05:00** local time
+- Uses a lightweight timer (checks once per minute via `setInterval`)
+- No server calls — uses device clock only
+
+**Manual override:**
+- If the user manually toggles Night/Day, their choice is respected until the next
+  scheduled boundary (22:00 or 05:00), then the automatic schedule resumes
+
+**Persistence:**
+- Current mode is stored in `localStorage` (key: `wallboard-night`)
+- Survives page reload — wallboard opens in the last-used mode
+
+**Scope:**
+- Only affects the Wallboard page (canvas colors + toolbar + container background)
+- Schedule view, Planner view, and PDF export are **never** affected
+- `@media print` CSS rule ensures night styles do not leak into printed output
+
+**Night theme colors (canvas):**
+
+| Element | Day | Night |
+|---------|-----|-------|
+| Background | `#FFFFFF` | `#0c1021` (deep navy) |
+| Row (even) | `#EBF4FB` | `#111827` |
+| Row (odd) | `#FFFFFF` | `#0c1021` |
+| Grid lines | `rgba(185,200,215,0.50)` | `rgba(60,75,95,0.50)` |
+| Now-line | `rgba(160,0,0,0.65)` | `rgba(255,60,60,0.80)` (brighter) |
+| Machine labels | `#1a365d` | `#c8d6e5` (light grey-blue) |
+| Date text | `#334155` | `#94a3b8` |
+| Series label | `#0088BB` | `#4cc9f0` (cyan) |
+| Bar fill (past) | `#E2E2E2` | `#2a3040` |
+| Bar fill (future) | `#EFEFEF` | `#1e2535` |
+| Bar hour text | `#000000` | `#d1d5db` |
+
+**Accessibility:**
+- Night toggle: `aria-label` updates dynamically ("Switch to Day View" / "Switch to Night View")
+- Fullscreen overlay: reachable via keyboard (`:focus-within` triggers visibility)
+- High contrast ratios maintained in both themes (machine labels, date text, now-line)
+
+**Implementation:** `lib/useNightMode.ts` (hook) + `WallboardCanvas.tsx` (theme-aware rendering) + `app/wallboard/page.tsx` (toggles) + `globals.css` (`.wallboard-night-*` classes)
+
+---
+
 ## Shutdown Block Design
 
 - Full-width across all machines
