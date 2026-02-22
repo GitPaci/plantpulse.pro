@@ -36,6 +36,14 @@ const FILTER_OPTIONS: FilterOption[] = [
   { id: 'f', label: 'Fermenters (F)', groups: ['fermenter'] },
 ];
 
+// Fixed export surface for deterministic A4 landscape PDF rendering.
+// 297mm × 210mm at 96 CSS DPI ≈ 1122 × 794 px.
+const SCHEDULE_PDF_CANVAS_ID = 'schedule-export-canvas-pdf';
+const SCHEDULE_PDF_VIEWPORT = {
+  widthPx: 1122,
+  heightPx: 794,
+};
+
 export default function SchedulePage() {
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
   // Multi-select: set of active filter IDs. Empty set = show all.
@@ -161,7 +169,7 @@ export default function SchedulePage() {
     setIsExporting(true);
     try {
       const monthLabel = format(currentMonth, 'MMMM yyyy');
-      await exportSchedulePdf('schedule-export-canvas', monthLabel);
+      await exportSchedulePdf(SCHEDULE_PDF_CANVAS_ID, monthLabel);
     } catch (err) {
       console.error('PDF export failed:', err);
     } finally {
@@ -377,6 +385,28 @@ export default function SchedulePage() {
           // Schedule filtering must use the same machine set for rows + events.
           // Pass fully filtered groups directly so the canvas row layout and
           // stage filtering both derive from the same visible machine IDs.
+          customMachineGroups={filteredMachineGroups ?? scheduleMachineGroups}
+          showTodayHighlight={false}
+          showNowLine={false}
+          showShiftBand={false}
+        />
+      </div>
+
+      {/* Hidden fixed-size render target used only for PDF export.
+          Keeps export output independent from mobile/desktop viewport size. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed -z-10"
+        style={{
+          left: '-99999px',
+          top: 0,
+          width: `${SCHEDULE_PDF_VIEWPORT.widthPx}px`,
+          height: `${SCHEDULE_PDF_VIEWPORT.heightPx}px`,
+          opacity: 0,
+        }}
+      >
+        <WallboardCanvas
+          canvasId={SCHEDULE_PDF_CANVAS_ID}
           customMachineGroups={filteredMachineGroups ?? scheduleMachineGroups}
           showTodayHighlight={false}
           showNowLine={false}
