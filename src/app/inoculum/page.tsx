@@ -396,13 +396,13 @@ export default function SchedulePage() {
           Keeps export output independent from mobile/desktop viewport size. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed -z-10"
+        className="pointer-events-none fixed"
         style={{
           left: '-99999px',
           top: 0,
           width: `${SCHEDULE_PDF_VIEWPORT.widthPx}px`,
           height: `${SCHEDULE_PDF_VIEWPORT.heightPx}px`,
-          opacity: 0,
+          visibility: 'hidden',
         }}
       >
         <WallboardCanvas
