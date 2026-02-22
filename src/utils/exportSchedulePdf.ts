@@ -133,7 +133,7 @@ export async function exportSchedulePdf(
   // --- Create PDF: A4 landscape, 8 mm margins ---
   const pageW = 297; // mm
   const pageH = 210;
-  const margin = 8;
+  const margin = 5;
   const contentW = pageW - margin * 2;
 
   const doc = new jsPDF({
@@ -156,14 +156,6 @@ export async function exportSchedulePdf(
     });
     cursorY += 2;
   }
-
-  // Month + Year (always rendered)
-  cursorY += 4;
-  doc.setFont('Helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(120, 120, 120);
-  doc.text(monthLabel, pageW / 2, cursorY, { align: 'center' });
-  cursorY += 3;
 
   // Thin separator under header
   doc.setDrawColor(200, 200, 200);
