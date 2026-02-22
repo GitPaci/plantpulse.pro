@@ -37,7 +37,7 @@ const FILTER_OPTIONS: FilterOption[] = [
 ];
 
 // Fixed export surface for deterministic A4 landscape PDF rendering.
-// 297mm × 210mm at 96 CSS DPI ≈ 1122 × 794 px.
+// 297mm × 210mm at 96 CSS DPI ≈ 1166 × 794 px.
 const SCHEDULE_PDF_CANVAS_ID = 'schedule-export-canvas-pdf';
 const SCHEDULE_PDF_VIEWPORT = {
   widthPx: 1122,
