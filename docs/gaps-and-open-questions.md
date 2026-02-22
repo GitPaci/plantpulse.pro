@@ -256,3 +256,102 @@ Track anonymous product usage to validate Enterprise demand:
 
 **Tool:** PostHog (free tier, self-hostable) or Plausible (privacy-first).
 No PII in analytics events. Email only in waitlist (explicit opt-in).
+
+---
+
+## PDF Export Gaps
+
+The Schedule PDF export uses a dual-canvas architecture: a visible responsive
+canvas for on-screen display and a hidden fixed-size canvas (1122×794 px) for
+deterministic A4 capture. While the overall design is sound, the current
+implementation has several gaps that conflict with the project's core principles.
+
+### Gap 1: `html2canvas` + `visibility: hidden` — blank PDF body
+
+**Severity:** Critical (blocks usable PDF output)
+
+The hidden export canvas container is styled with `visibility: hidden` and
+`left: -99999px`. Two problems arise:
+
+1. **`html2canvas` respects CSS visibility.** When it encounters an element (or
+   its ancestor) with `visibility: hidden`, it may skip rendering the visual
+   content entirely. The captured image is a blank white rectangle — only the
+   jsPDF header/footer are visible in the final PDF.
+
+2. **`ResizeObserver` may report zero dimensions.** WallboardCanvas relies on
+   `ResizeObserver` on its container to get `dims.width` / `dims.height`. The
+   draw function early-returns with `if (dims.width === 0) return;`. If the
+   observer fires with zero dimensions (possible for `visibility: hidden` in
+   some browsers), the canvas is never drawn at all.
+
+**Recommended fix:** Replace `html2canvas` capture with a direct
+`canvas.toDataURL('image/png')` call on the native `<canvas>` element. Since
+WallboardCanvas already renders to a real HTML canvas, its pixel data is
+accessible without any DOM-to-canvas re-rendering library. This eliminates the
+`visibility: hidden` interaction entirely and is simpler, faster, and more
+reliable.
+
+If `html2canvas` is retained, change the container from `visibility: hidden` to
+`opacity: 0; overflow: hidden; pointer-events: none` so the element remains
+"visible" in the CSS rendering sense but is invisible to the user.
+
+**Philosophy alignment:** The project favors "zero unnecessary dependencies."
+Using `html2canvas` to capture a `<canvas>` element is redundant — the canvas
+already holds its own pixel data.
+
+### Gap 2: DPR double-scaling — excessive memory on high-DPI devices
+
+**Severity:** Medium (performance, not correctness)
+
+WallboardCanvas scales the canvas buffer by `window.devicePixelRatio` (e.g. 2×
+on Retina). Then `html2canvas` applies its own `scale: 2`. On a 2× DPR device,
+the final capture is 4× the CSS dimensions:
+
+```
+Export canvas: 1122 × 794 CSS px
+After DPR 2×:  2244 × 1588 device px
+After html2canvas scale 2×: 4488 × 3176 captured px
+```
+
+That is ≈ 14.3 million pixels — far more than needed for a 297mm A4 page at
+print resolution. It wastes memory and slows export, especially on mobile.
+
+**Recommended fix:** If using direct `canvas.toDataURL()`, no extra scaling is
+needed — the canvas buffer already contains the high-DPI pixel data. If
+retaining `html2canvas`, set `scale: 1` since the canvas is already DPR-scaled.
+
+### Gap 3: Hidden canvas runs unnecessary 60-second redraw timer
+
+**Severity:** Low (wasted CPU, no user-visible effect)
+
+WallboardCanvas has a `setInterval` that redraws every 60 seconds to refresh
+the now-line position. The hidden export canvas sets `showNowLine={false}`, so
+the now-line is never drawn — but the timer still fires, triggering a full
+canvas redraw every minute for an off-screen surface.
+
+**Recommended fix:** Either skip the interval when `showNowLine` is `false`, or
+accept the wasted redraw as negligible. A cleaner approach is to add a prop
+(e.g. `disableAutoRefresh`) that the export canvas sets to `true`.
+
+### Gap 4: `loadDemoData()` called by both canvas instances
+
+**Severity:** Low (no functional impact due to Zustand idempotency)
+
+Both the visible and hidden WallboardCanvas instances call `loadDemoData()` in
+their `useEffect` mount hooks. The Zustand store is idempotent (only loads once
+if not already loaded), so this doesn't cause duplicate data. But it is
+redundant — the page-level component (`SchedulePage`) already calls
+`loadDemoData()` before rendering either canvas.
+
+**Recommended fix:** Remove `loadDemoData()` from WallboardCanvas and ensure
+it is called only at the page level. This simplifies the component and makes
+data ownership clearer.
+
+### Summary table
+
+| # | Gap | Severity | Philosophy conflict |
+|---|-----|----------|---------------------|
+| 1 | `visibility: hidden` produces blank capture | Critical | Unnecessary use of `html2canvas` on a native `<canvas>` element |
+| 2 | DPR double-scaling wastes memory | Medium | Over-engineering: 4× resolution for a 297mm page |
+| 3 | 60s timer on hidden canvas | Low | Unnecessary CPU work on off-screen surface |
+| 4 | Duplicate `loadDemoData()` calls | Low | Redundant side-effect; data ownership unclear |

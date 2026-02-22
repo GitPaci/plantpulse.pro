@@ -126,13 +126,16 @@ Phases 8-12 are Enterprise-only.
   - **PDF export** (implemented):
     - "Export PDF" button + gear icon for Print Settings in toolbar
     - Client-side only: `html2canvas` captures schedule canvas at 2× scale, `jsPDF` generates A4 landscape PDF
+    - **Dual-canvas architecture**: visible responsive canvas for on-screen display + hidden fixed-size canvas (1122×794 px, A4 at 96 DPI) positioned off-screen for deterministic PDF capture regardless of device/viewport
     - `utils/exportSchedulePdf.ts` — all export logic, settings I/O, timestamp helper
     - `settings/PrintSettings.tsx` — modal for configurable header/footer with localStorage persistence
+    - `app/inoculum/page.tsx` — dual-canvas wiring, export trigger, constants (`SCHEDULE_PDF_CANVAS_ID`, `SCHEDULE_PDF_VIEWPORT`)
     - Header: optional facility title + month/year + separator
     - Footer: version, timestamp with TZ + UTC offset, prepared-by, signature line, disclaimer, page numbers
     - Enterprise fields (logo, watermark, electronic signatures, document control) visible but disabled
     - Filename: `PlantPulse_{Month}_{Year}.pdf`
     - Zero network calls, works offline, no cookies, no telemetry
+    - **Known gap**: `html2canvas` may produce blank captures due to `visibility: hidden` on the export canvas container — see `docs/gaps-and-open-questions.md § PDF Export Gaps`
   - **Responsive toolbar** (implemented):
     - Desktop (>= 768px): horizontal toolbar layout unchanged
     - Mobile (< 768px): toolbar collapses into a "☰ Controls" hamburger button
