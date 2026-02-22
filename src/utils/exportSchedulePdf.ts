@@ -1,7 +1,6 @@
-// Schedule PDF export — client-side only (html2canvas + jsPDF)
+// Schedule PDF export — client-side only (canvas bitmap + jsPDF)
 // No server calls, no cookies, no telemetry, works offline.
 
-import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 // ---------------------------------------------------------------------------
@@ -89,6 +88,30 @@ export function formatExportTimestamp(): string {
 
 const APP_VERSION = '0.1.0';
 
+async function waitForCanvasPaint(frames: number = 2): Promise<void> {
+  for (let i = 0; i < frames; i++) {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  }
+}
+
+function getScheduleCanvas(canvasElementId: string): HTMLCanvasElement {
+  const el = document.getElementById(canvasElementId);
+  if (!el) {
+    throw new Error(`Schedule element #${canvasElementId} not found`);
+  }
+
+  if (!(el instanceof HTMLCanvasElement)) {
+    throw new Error(`Schedule element #${canvasElementId} is not a canvas`);
+  }
+
+  if (el.width === 0 || el.height === 0) {
+    throw new Error(`Schedule canvas #${canvasElementId} is empty (${el.width}x${el.height})`);
+  }
+
+  return el;
+}
+
+
 /**
  * Capture the visible schedule canvas and generate an A4 landscape PDF.
  *
@@ -99,24 +122,18 @@ export async function exportSchedulePdf(
   canvasElementId: string,
   monthLabel: string
 ): Promise<void> {
-  const scheduleEl = document.getElementById(canvasElementId);
-  if (!scheduleEl) {
-    throw new Error(`Schedule element #${canvasElementId} not found`);
-  }
-
   const settings = loadPrintSettings();
 
-  // --- Capture via html2canvas ---
-  const captured = await html2canvas(scheduleEl, {
-    scale: 2,
-    useCORS: true,
-    backgroundColor: '#fff',
-  });
+  await waitForCanvasPaint(2);
+  const scheduleCanvas = getScheduleCanvas(canvasElementId);
+  const capturedW = scheduleCanvas.width;
+  const capturedH = scheduleCanvas.height;
+  const imgData = scheduleCanvas.toDataURL('image/png', 1.0);
 
   // --- Create PDF: A4 landscape, 8 mm margins ---
   const pageW = 297; // mm
   const pageH = 210;
-  const margin = 8;
+  const margin = 5;
   const contentW = pageW - margin * 2;
 
   const doc = new jsPDF({
@@ -139,14 +156,6 @@ export async function exportSchedulePdf(
     });
     cursorY += 2;
   }
-
-  // Month + Year (always rendered)
-  cursorY += 4;
-  doc.setFont('Helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(120, 120, 120);
-  doc.text(monthLabel, pageW / 2, cursorY, { align: 'center' });
-  cursorY += 3;
 
   // Thin separator under header
   doc.setDrawColor(200, 200, 200);
@@ -175,7 +184,7 @@ export async function exportSchedulePdf(
   const imageAreaH = imageBottomY - imageTopY;
 
   // ---- Schedule image ----
-  const imgAspect = captured.width / captured.height;
+  const imgAspect = capturedW / capturedH;
   const areaAspect = contentW / imageAreaH;
 
   let imgW: number;
@@ -191,7 +200,6 @@ export async function exportSchedulePdf(
   const imgX = margin + (contentW - imgW) / 2;
   const imgY = imageTopY + (imageAreaH - imgH) / 2;
 
-  const imgData = captured.toDataURL('image/png');
   doc.addImage(imgData, 'PNG', imgX, imgY, imgW, imgH);
 
   // ---- Footer ----
