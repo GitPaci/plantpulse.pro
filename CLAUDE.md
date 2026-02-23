@@ -185,6 +185,11 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 #### 11. PDF export (modern, Schedule view only)
 - Client-side only: `html2canvas` captures the schedule `<canvas>` at 2× scale, `jsPDF` generates A4 landscape PDF
 - Zero network calls, works offline, no cookies, no telemetry
+- **Dual-canvas architecture** for viewport independence:
+  - Visible canvas (`schedule-export-canvas`): responsive, adapts to browser viewport — used for on-screen display only
+  - Hidden export canvas (`schedule-export-canvas-pdf`): fixed at 1122×794 px (A4 landscape at 96 CSS DPI = 297×210 mm), positioned off-screen (`left: -99999px; visibility: hidden`)
+  - PDF export always captures the hidden fixed-size canvas, never the visible one, so output is identical regardless of device/viewport
+  - Constants: `SCHEDULE_PDF_CANVAS_ID = 'schedule-export-canvas-pdf'`, `SCHEDULE_PDF_VIEWPORT = { widthPx: 1122, heightPx: 794 }`
 - Configurable via Print Settings modal (persisted in `localStorage` key: `plantpulse.schedulePrintSettings.v1`)
 - Header: optional facility title (Helvetica bold 11pt) + month/year (always) + separator line
 - Footer (3-column, 7–8pt grey):
@@ -194,7 +199,11 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - All footer elements are individually toggleable (showVersion, showTimestamp, showPreparedBy, showSignature, showPageNumbers)
 - Enterprise-locked fields (visible but disabled): company logo, custom color theme, custom footer presets, watermark overlay, multi-page export, auto user ID from SSO, electronic signatures, document control number
 - Filename: `PlantPulse_{Month}_{Year}.pdf`
-- Implementation: `utils/exportSchedulePdf.ts` (logic) + `settings/PrintSettings.tsx` (UI)
+- Implementation: `utils/exportSchedulePdf.ts` (logic) + `settings/PrintSettings.tsx` (UI) + dual-canvas wiring in `app/inoculum/page.tsx`
+- **Known gaps** (see `docs/gaps-and-open-questions.md § PDF Export Gaps`):
+  - `html2canvas` + `visibility: hidden` interaction may produce blank captures — the hidden export canvas inherits `visibility: hidden` from its container, which `html2canvas` may respect, skipping all visual content. A more reliable approach is to read the native `<canvas>` pixel data directly via `canvas.toDataURL()`, bypassing `html2canvas` entirely for the export canvas.
+  - DPR double-scaling: WallboardCanvas already scales by `devicePixelRatio` for crisp rendering; `html2canvas` then applies its own `scale: 2`. On a 2× DPR device this produces a 4× capture (≈ 4488×3176 px), consuming excess memory with no visual benefit in a 297mm-wide PDF.
+  - The hidden export canvas runs a 60-second redraw interval (intended for now-line refresh) even though `showNowLine={false}` — unnecessary CPU work for an off-screen surface.
 
 #### 12. Schedule toolbar — responsive / mobile
 - Desktop (>= 768px): horizontal toolbar layout (month nav, filter chips, export/print, stage count) — unchanged

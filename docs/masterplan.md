@@ -115,6 +115,7 @@ Multi-role users are allowed:
   - If no specific group is selected, defaults to showing all equipment
   - Filtering affects visible equipment rows and their events; hidden equipment does not render
   - **Export PDF**: client-side A4 landscape PDF generation (html2canvas + jsPDF, zero network calls)
+    - Dual-canvas architecture: hidden fixed-size canvas (1122×794 px = A4 at 96 DPI) ensures identical output regardless of device/viewport; visible responsive canvas is for on-screen display only
     - Configurable header (facility title, month/year) and compliance-inspired footer
     - Footer includes: app version, export timestamp with timezone + UTC offset, prepared-by, signature line, disclaimer, page numbers
     - Print Settings modal with localStorage persistence (gear icon next to Export PDF button)

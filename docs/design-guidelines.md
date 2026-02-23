@@ -209,6 +209,13 @@ From the GxP guidance: focus on audit trails, IAM, retention, and change control
 The Schedule view includes a client-side PDF export that produces a professional
 A4 landscape document suitable for printing and posting on a manufacturing wall.
 
+**Viewport-independent capture (dual-canvas architecture):**
+- The Schedule page renders **two** `WallboardCanvas` instances:
+  1. **Visible canvas** (`schedule-export-canvas`) — responsive, fills the viewport, used for on-screen interaction only.
+  2. **Hidden export canvas** (`schedule-export-canvas-pdf`) — fixed at 1122 × 794 px (A4 landscape at 96 CSS DPI), positioned off-screen (`left: -99999px; visibility: hidden`).
+- PDF export always captures the hidden canvas so the output is identical regardless of device, viewport size, or orientation.
+- Both canvases share the same data, month, and equipment filter state; the hidden canvas disables today-highlight, now-line, and shift band.
+
 **Layout rules:**
 - A4 landscape (297 × 210 mm), 8 mm margins
 - Header: optional facility title (Helvetica bold 11pt, dark grey, centered) + month/year (Helvetica normal 9pt, medium grey) + thin separator
