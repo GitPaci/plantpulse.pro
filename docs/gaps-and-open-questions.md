@@ -106,37 +106,50 @@ before building the import validator.
   - What happens with duplicate rows (same machine + start + series)?
   - Are empty rows silently skipped or flagged?
   - How are partial rows handled (machine but no dates)?
-  - Date format tolerance: does "2025-03-15" vs "15.3.2025" both work?
-- Machine reference sheet: should the template contain a list of valid machines,
-  or is that hardcoded in the app?
+
+**Partially decided:**
+- **Date format:** Use unambiguous formats only. Preferred: `YYYY-MMM-DD`
+  (e.g. `2025-Mar-15`) or `DD-MMM-YYYY` (e.g. `15-Mar-2025`). The three-letter
+  month abbreviation eliminates day/month ambiguity across locales. On import,
+  the parser should accept both formats and ISO 8601 (`YYYY-MM-DD`).
+- **Machine names:** Multiple equipment templates loaded randomly when a new session
+  opens (so users see variety). The user can rename, regroup, and reconfigure all
+  equipment in the Equipment Setup menu. Templates are NOT hardcoded — they are
+  demo presets that the user customizes.
 - How many sheets per workbook? Current spec says schedule Sheet1 + optional
   tasks Sheet2, but this needs to be locked down.
 
-**Decision needed:** Freeze the template schema and create sample files.
+**Still needed:** Create the actual `.xlsx` template sample files.
 
-### 3. Rule Engine Edge Cases (Phase 2 blocker)
-
-The VBA business rules are documented, but several edge cases need decisions
-before coding the scheduling module.
+### 3. Rule Engine Edge Cases — DECIDED
 
 **Overlap detection:**
-- If a batch overlaps on a propagator/pre-fermenter, VBA warns but allows.
-  Do we keep that behavior, or block it in the modern version?
-- What's the minimum gap between batches on the same vessel? VBA uses 0 hours
-  (any non-negative gap is OK). Should we enforce a turnaround/CIP window?
+- **PF/PR overlap: Warn but do NOT block.** Show a warning with suggested
+  better placement, but the user is allowed to create overlapping stages on
+  propagators and pre-fermenters if they choose. Same spirit as VBA behavior.
+- **Minimum turnaround gap:** At least one turnaround activity (e.g. CIP) must
+  be defined in the gap between consecutive batches on the same vessel. The user
+  sets the turnaround duration in the Process Setup menu using a days:hours:minutes
+  picker, and can name the activity (e.g. "CIP", "SIP", "Cleaning"). Multiple
+  turnaround activity types can be defined per equipment group.
 
 **Auto-scheduling (new chain wizard):**
-- When no vessel is available in the product line's pool, does the wizard:
-  (a) show an error, (b) suggest the next available date, or (c) allow override?
-- `NasPF_MAX` and `NasPR_MAX` tolerance windows: what are the actual values?
-  These are referenced in VBA but the constants aren't in the extracted macros.
-- Can a chain span across a shutdown boundary? VBA doesn't check this.
+- **No vessel available: Warning + auto-move.** Show a warning and automatically
+  move the entire batch chain to the next available slot where all vessels in the
+  chain have capacity. Do not silently fail or just show an error.
+- **NasPF_MAX / NasPR_MAX:** These are simply the longest expected PF and PR phase
+  durations from the product line's stageDefaults. They are NOT a separate feature —
+  the VBA references were an unfinished implementation. Use the product line's
+  `defaultDurationHours` as the practical maximum tolerance window.
+- **Chain spanning shutdown/weekend/holiday:** Yes, chains CAN span these boundaries.
+  The shutdown, weekend, and holiday rules are configurable in the Process Setup
+  and Shift Schedule menus. The system should visually indicate when a chain crosses
+  a non-working boundary, but it is not blocked.
 
 **Bulk shift:**
-- VBA doesn't re-validate overlaps after a bulk shift. Should we?
-  At minimum: warn. Block? Or just highlight conflicts?
-
-**Decision needed:** Document exact rules for each case, even if "same as VBA" is the answer.
+- **Yes, re-validate after bulk shift.** After a bulk shift operation, the system
+  runs overlap detection on all affected stages and highlights any new conflicts.
+  Conflicts are shown as warnings (not blocking) — the user decides whether to fix them.
 
 ### 4. Test Strategy (Phase 1-2)
 
