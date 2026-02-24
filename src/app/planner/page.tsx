@@ -6,6 +6,7 @@
 
 import Navigation from '@/components/ui/Navigation';
 import WallboardCanvas from '@/components/timeline/WallboardCanvas';
+import EquipmentSetup from '@/components/planner/EquipmentSetup';
 import { usePlantPulseStore } from '@/lib/store';
 import { subDays, addDays, startOfDay } from 'date-fns';
 import { useState } from 'react';
@@ -171,6 +172,9 @@ export default function PlannerPage() {
   const stages = usePlantPulseStore((s) => s.stages);
   const batchChains = usePlantPulseStore((s) => s.batchChains);
 
+  // Modal state
+  const [equipmentSetupOpen, setEquipmentSetupOpen] = useState(false);
+
   function shiftView(days: number) {
     setViewConfig({
       viewStart: addDays(viewConfig.viewStart, days),
@@ -301,7 +305,7 @@ export default function PlannerPage() {
                 icon={<IconEquipment />}
                 label="Equipment Setup"
                 description="Names, groups, product line assignments"
-                onClick={handleNotImplemented('Equipment Setup')}
+                onClick={() => setEquipmentSetupOpen(true)}
               />
               <ToolButton
                 icon={<IconProcess />}
@@ -327,6 +331,12 @@ export default function PlannerPage() {
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <EquipmentSetup
+        open={equipmentSetupOpen}
+        onClose={() => setEquipmentSetupOpen(false)}
+      />
     </div>
   );
 }
