@@ -43,10 +43,16 @@ Phases 8-12 are Enterprise-only.
   - Maintenance tasks
 - `lib/store.ts` — Zustand store (in-memory BigReadArray replacement):
   - Load from demo generator or Excel import
-  - Stage CRUD operations
-  - Batch chain operations
+  - **Stage CRUD** (implemented): add, update, delete, moveToMachine
+  - **Batch chain CRUD** (implemented): add, update, delete (cascades to child stages)
+  - **Machine CRUD** (implemented): add, update, delete (cleans up display groups)
+  - **Machine display group CRUD** (implemented): add, update, delete
+  - **Product line CRUD** (implemented): add, update, delete
+  - **Turnaround activity CRUD** (implemented): add, update, delete
+  - **Bulk shift** (implemented): `bulkShiftStages(stageIds[], deltaHours)` shifts selected stages
   - Task confirmation actions
   - No persistence (state resets on page reload)
+  - Helper: `generateId(prefix)` for unique ID generation
 
 ### Phase 3 — Excel import/export
 
@@ -145,24 +151,35 @@ Phases 8-12 are Enterprise-only.
 
 ### Phase 6 — Planner View page
 
-- `app/planner/page.tsx` — Interactive schedule editor:
-  - Drag to move stage blocks
-  - Stretch to change duration
-  - Click to edit in side panel
-  - Delete / reassign machine
-- `components/planner/ChainEditor.tsx` — View/edit chain segments
-- `components/planner/NewChainWizard.tsx` — Add new batch chain:
+- `app/planner/page.tsx` — Interactive schedule editor (partially implemented):
+  - Sidebar with collapsible tool sections: Batch Operations, Schedule Data, Setup
+  - Toolbar with day/week navigation and Today reset
+  - Drag to move stage blocks (pending)
+  - Stretch to change duration (pending)
+  - Click to edit in side panel (pending)
+  - Delete / reassign machine (pending)
+- `components/planner/ChainEditor.tsx` — View/edit chain segments (pending)
+- `components/planner/NewChainWizard.tsx` — Add new batch chain (pending):
   - Auto-scheduling with back-calculation
   - Vessel availability suggestions
   - Overlap checking
-- `components/planner/BulkShiftTool.tsx` — Shift multiple batches by N hours
-- `components/planner/StageDetailPanel.tsx` — Side panel editor
-- Facility configuration panel (in Planner or Settings):
-  - Add/rename/remove product lines
-  - Add/rename/remove machines, assign to product lines
-  - Edit default stage durations per product line
-  - Changes apply to current session (export to save)
-- Conflict indicators: overlap, hold risk, shutdown crossing
+- `components/planner/BulkShiftTool.tsx` — Shift multiple batches by N hours (pending)
+- `components/planner/StageDetailPanel.tsx` — Side panel editor (pending)
+- **Equipment Setup modal** (implemented):
+  - `components/planner/EquipmentSetup.tsx` — full CRUD modal for facility equipment
+  - **Machines tab**: inline editing of name, group (Propagator/Pre-fermenter/Fermenter/Inoculum), product line assignment, display order (up/down reorder), add/delete
+  - **Display Groups tab**: card-based UI with editable group names, checkbox grid for machine-to-group assignment, add/delete groups
+  - Product line filter: dropdown to show machines by product line or unassigned
+  - Draft state pattern: all changes buffered in local state, applied to Zustand store on Save only
+  - Unsaved changes indicator in footer
+  - Reusable modal CSS (`pp-modal-*` classes in `globals.css`) shared by all setup modals
+  - Wired to Planner sidebar via "Equipment Setup" tool button
+- Process Setup modal (pending):
+  - Stage defaults, CIP/turnaround activities, shutdown and holiday rules
+  - `TurnaroundActivity` type defined in `lib/types.ts` with d:h:m duration fields
+- Shift Schedule modal (pending):
+  - Teams, rotation pattern, shift bar colors
+- Conflict indicators: overlap, hold risk, shutdown crossing (pending)
 
 ### Phase 7 — Landing page + deploy
 

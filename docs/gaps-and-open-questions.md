@@ -132,6 +132,15 @@ before building the import validator.
   sets the turnaround duration in the Process Setup menu using a days:hours:minutes
   picker, and can name the activity (e.g. "CIP", "SIP", "Cleaning"). Multiple
   turnaround activity types can be defined per equipment group.
+- **Data model implemented:** `TurnaroundActivity` interface defined in
+  `lib/types.ts` with `durationDays` / `durationHours` / `durationMinutes` fields,
+  `equipmentGroup` assignment, and `isDefault` flag. Store CRUD for turnaround
+  activities is in place (`add/update/delete` in `lib/store.ts`). Helper function
+  `turnaroundTotalHours()` computes the effective gap duration for scheduling math.
+- **Still needed:** Wire turnaround activities into the overlap detection engine
+  (`lib/scheduling.ts`) so that the minimum gap between consecutive batches on
+  the same vessel is enforced (warn, not block). Build the Process Setup modal UI
+  for users to configure turnaround activities per equipment group.
 
 **Auto-scheduling (new chain wizard):**
 - **No vessel available: Warning + auto-move.** Show a warning and automatically
@@ -150,6 +159,8 @@ before building the import validator.
 - **Yes, re-validate after bulk shift.** After a bulk shift operation, the system
   runs overlap detection on all affected stages and highlights any new conflicts.
   Conflicts are shown as warnings (not blocking) — the user decides whether to fix them.
+- **Store action implemented:** `bulkShiftStages(stageIds[], deltaHours)` in
+  `lib/store.ts`. Re-validation after shift is still pending (needs `scheduling.ts`).
 
 ### 4. Test Strategy (Phase 1-2)
 
@@ -269,6 +280,50 @@ Track anonymous product usage to validate Enterprise demand:
 
 **Tool:** PostHog (free tier, self-hostable) or Plausible (privacy-first).
 No PII in analytics events. Email only in waitlist (explicit opt-in).
+
+---
+
+## Planner View Gaps
+
+The Planner View (`app/planner/page.tsx`) has a sidebar with tool sections and a
+timeline canvas. The following tracks what is implemented vs. pending.
+
+### Implemented
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Planner page layout (sidebar + timeline + toolbar) | Done | Collapsible sections, day/week nav |
+| Store CRUD — all entities | Done | Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity |
+| `bulkShiftStages()` store action | Done | Shifts selected stages by N hours |
+| `generateId()` helper | Done | Monotonic counter with optional prefix |
+| `TurnaroundActivity` type | Done | d:h:m duration, equipment group, isDefault flag |
+| `turnaroundTotalHours()` helper | Done | Computes total hours from d:h:m fields |
+| Equipment Setup modal | Done | Machines tab (inline edit, reorder, add/delete) + Display Groups tab (checkbox grid) |
+| Reusable modal CSS (`pp-modal-*`) | Done | Backdrop, header, tabs, body, footer, buttons — shared by all setup modals |
+
+### Pending — Setup Modals
+
+| Component | Gap | Priority |
+|-----------|-----|----------|
+| Process Setup modal | UI for stage defaults, turnaround activities (CIP/SIP), shutdown/holiday rules | High — needed before scheduling engine |
+| Shift Schedule modal | UI for team names, rotation pattern, shift colors | Medium — wallboard already uses hardcoded cycle |
+
+### Pending — Batch Operations
+
+| Component | Gap | Priority |
+|-----------|-----|----------|
+| New Batch Chain wizard | Auto-scheduling with back-calculation, vessel suggestions, overlap check | High — core planner feature |
+| Bulk Shift tool | UI for cutoff date/series filter + hour delta input, post-shift validation | High |
+| Chain Editor / Stage Detail Panel | Click-to-edit side panel for stage properties | High |
+| Drag-to-move / stretch-to-resize | Canvas interaction for stage bars | Medium |
+
+### Pending — Data I/O
+
+| Component | Gap | Priority |
+|-----------|-----|----------|
+| Import Schedule (xlsx) | Wire `lib/excel-io.ts` to sidebar button | High |
+| Export Schedule (xlsx) | Wire `lib/excel-io.ts` to sidebar button | High |
+| Import/Export Maintenance | Separate template, separate button | Medium |
 
 ---
 
