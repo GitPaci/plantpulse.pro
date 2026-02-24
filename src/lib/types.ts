@@ -81,3 +81,20 @@ export interface MaintenanceTask {
   acknowledgedAt?: Date;
   comment?: string;
 }
+
+// Turnaround activity type — defines required gap activities between batches
+// (e.g. CIP, SIP, Cleaning). Configured per equipment group in Process Setup.
+export interface TurnaroundActivity {
+  id: string;
+  name: string;               // user-defined label, e.g. "CIP", "SIP", "Cleaning"
+  durationDays: number;       // days component of duration
+  durationHours: number;      // hours component of duration
+  durationMinutes: number;    // minutes component of duration
+  equipmentGroup: MachineGroup; // which equipment group this applies to
+  isDefault: boolean;         // if true, auto-inserted when scheduling new batches
+}
+
+// Computed total duration in hours for scheduling math
+export function turnaroundTotalHours(t: TurnaroundActivity): number {
+  return t.durationDays * 24 + t.durationHours + t.durationMinutes / 60;
+}
