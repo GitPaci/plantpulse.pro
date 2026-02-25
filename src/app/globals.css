@@ -1010,3 +1010,15 @@ body {
   background: var(--pp-surface);
   border-radius: 3px;
 }
+
+/* ─── Product Lines tab ─────────────────────────────────────────────── */
+
+.pp-setup-pl-machine-chip {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-border);
+  border-radius: 4px;
+  color: var(--pp-pharma);
+}
