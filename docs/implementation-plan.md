@@ -180,9 +180,15 @@ Phases 8-12 are Enterprise-only.
   - Unsaved changes indicator in footer
   - Reusable modal CSS (`pp-modal-*` classes in `globals.css`) shared by all setup modals
   - Wired to Planner sidebar via "Equipment Setup" tool button
-- Process Setup modal (pending):
-  - Stage defaults, CIP/turnaround activities, shutdown and holiday rules
+- **Process Setup modal** (implemented):
+  - `components/planner/ProcessSetup.tsx` — three-tab modal for process configuration
+  - **Stage Defaults tab**: per product line, edit default duration and equipment group for each stage type; add/remove/reorder stages in the seed train template
+  - **Turnaround Activities tab**: CRUD for CIP/SIP/Cleaning activities per equipment group; d:h:m duration picker with total-hours readout; "default" checkbox for auto-insertion during scheduling; equipment group filter
+  - **Shutdowns tab**: CRUD for plant shutdown periods with name, date range, reason; click-to-expand editor; past shutdowns dimmed; sorted by start date
+  - `ShutdownPeriod` type defined in `lib/types.ts`; full store CRUD in `lib/store.ts`
   - `TurnaroundActivity` type defined in `lib/types.ts` with d:h:m duration fields
+  - Draft state pattern: all changes buffered locally, applied to Zustand store on Save
+  - Wired to Planner sidebar via "Process Setup" tool button
 - Shift Schedule modal (pending):
   - Teams, rotation pattern, shift bar colors
 - Conflict indicators: overlap, hold risk, shutdown crossing (pending)

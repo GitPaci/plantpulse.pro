@@ -1022,3 +1022,319 @@ body {
   border-radius: 4px;
   color: var(--pp-pharma);
 }
+
+/* ─── Process Setup modal ──────────────────────────────────────────── */
+
+.pp-process-help {
+  font-size: 12px;
+  color: var(--pp-muted);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+/* ── Stage Defaults tab ──────────────────────────────────────── */
+
+.pp-process-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pp-process-pl-card {
+  border: 1px solid var(--pp-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pp-process-pl-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--pp-surface);
+  border-bottom: 1px solid var(--pp-border);
+}
+
+.pp-process-pl-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--pp-pharma);
+}
+
+.pp-process-pl-id {
+  font-size: 11px;
+  color: var(--pp-muted);
+  flex: 1;
+}
+
+.pp-process-stage-list {
+  padding: 4px 0;
+}
+
+.pp-process-stage-header-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pp-muted);
+  border-bottom: 1px solid var(--pp-border);
+}
+
+.pp-process-stage-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.pp-process-stage-row:last-child {
+  border-bottom: none;
+}
+
+.pp-process-stage-col-order {
+  width: 48px;
+  display: flex;
+  gap: 2px;
+}
+
+.pp-process-stage-col-type {
+  flex: 2;
+  min-width: 120px;
+}
+
+.pp-process-stage-col-dur {
+  width: 80px;
+}
+
+.pp-process-stage-col-group {
+  flex: 2;
+  min-width: 120px;
+}
+
+.pp-process-stage-col-actions {
+  width: 48px;
+  text-align: right;
+}
+
+/* ── Turnaround Activities tab ───────────────────────────────── */
+
+.pp-process-turnaround {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pp-process-activity-list {
+  border: 1px solid var(--pp-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pp-process-activity-header-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pp-muted);
+  background: var(--pp-surface);
+  border-bottom: 1px solid var(--pp-border);
+}
+
+.pp-process-activity-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.pp-process-activity-row:last-child {
+  border-bottom: none;
+}
+
+.pp-process-activity-col-name {
+  flex: 2;
+  min-width: 80px;
+}
+
+.pp-process-activity-col-dur {
+  flex: 3;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pp-process-activity-col-group {
+  flex: 2;
+  min-width: 110px;
+}
+
+.pp-process-activity-col-default {
+  width: 48px;
+  text-align: center;
+}
+
+.pp-process-activity-col-actions {
+  width: 48px;
+  text-align: right;
+}
+
+/* d:h:m duration picker */
+
+.pp-process-dhm {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pp-process-dhm-input {
+  width: 42px !important;
+  text-align: center;
+  padding: 2px 4px !important;
+}
+
+.pp-process-dhm-label {
+  font-size: 10px;
+  color: var(--pp-muted);
+  margin-right: 4px;
+}
+
+.pp-process-dhm-total {
+  font-size: 10px;
+  color: var(--pp-muted);
+}
+
+/* ── Shutdowns tab ───────────────────────────────────────────── */
+
+.pp-process-shutdowns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pp-process-shutdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pp-process-shutdown-card {
+  border: 1px solid var(--pp-border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.pp-process-shutdown-card.editing {
+  border-color: var(--pp-pharma);
+}
+
+.pp-process-shutdown-card.past {
+  opacity: 0.6;
+}
+
+.pp-process-shutdown-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  background: var(--pp-surface);
+}
+
+.pp-process-shutdown-summary:hover {
+  background: #f1f5f9;
+}
+
+.pp-process-shutdown-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: #dc2626;
+  flex-shrink: 0;
+}
+
+.pp-process-shutdown-card.past .pp-process-shutdown-indicator {
+  background: var(--pp-muted);
+}
+
+.pp-process-shutdown-name {
+  font-weight: 500;
+  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-process-shutdown-dates {
+  font-size: 11px;
+  color: var(--pp-muted);
+  white-space: nowrap;
+}
+
+.pp-process-shutdown-duration {
+  font-size: 11px;
+  color: var(--pp-muted);
+  font-weight: 500;
+  min-width: 28px;
+  text-align: right;
+}
+
+.pp-process-shutdown-past-badge {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #e2e8f0;
+  color: var(--pp-muted);
+}
+
+.pp-process-shutdown-editor {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--pp-border);
+}
+
+.pp-process-shutdown-dates-row {
+  display: flex;
+  gap: 12px;
+}
+
+.pp-process-shutdown-dates-row > * {
+  flex: 1;
+}
+
+.pp-process-shutdown-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pp-process-field-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pp-muted);
+  font-weight: 500;
+}
+
+.pp-process-shutdown-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}

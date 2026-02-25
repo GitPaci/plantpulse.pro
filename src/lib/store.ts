@@ -12,6 +12,7 @@ import type {
   ViewConfig,
   TurnaroundActivity,
   EquipmentGroup,
+  ShutdownPeriod,
 } from './types';
 import {
   DEFAULT_MACHINES,
@@ -39,6 +40,7 @@ interface PlantPulseState {
   batchChains: BatchChain[];
   stages: Stage[];
   turnaroundActivities: TurnaroundActivity[];
+  shutdownPeriods: ShutdownPeriod[];
   viewConfig: ViewConfig;
 
   // ── View actions ──────────────────────────────────────────────────
@@ -94,6 +96,12 @@ interface PlantPulseState {
   addTurnaroundActivity: (activity: TurnaroundActivity) => void;
   updateTurnaroundActivity: (id: string, updates: Partial<Omit<TurnaroundActivity, 'id'>>) => void;
   deleteTurnaroundActivity: (id: string) => void;
+
+  // ── Shutdown periods ────────────────────────────────────────────
+  setShutdownPeriods: (periods: ShutdownPeriod[]) => void;
+  addShutdownPeriod: (period: ShutdownPeriod) => void;
+  updateShutdownPeriod: (id: string, updates: Partial<Omit<ShutdownPeriod, 'id'>>) => void;
+  deleteShutdownPeriod: (id: string) => void;
 }
 
 // ─── Store ─────────────────────────────────────────────────────────────
@@ -106,6 +114,7 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   batchChains: [],
   stages: [],
   turnaroundActivities: [],
+  shutdownPeriods: [],
   viewConfig: {
     viewStart: subDays(startOfDay(new Date()), 4),
     numberOfDays: 21,
@@ -294,5 +303,24 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   deleteTurnaroundActivity: (id) =>
     set((state) => ({
       turnaroundActivities: state.turnaroundActivities.filter((a) => a.id !== id),
+    })),
+
+  // ── Shutdown periods ────────────────────────────────────────────
+
+  setShutdownPeriods: (periods) => set({ shutdownPeriods: periods }),
+
+  addShutdownPeriod: (period) =>
+    set((state) => ({ shutdownPeriods: [...state.shutdownPeriods, period] })),
+
+  updateShutdownPeriod: (id, updates) =>
+    set((state) => ({
+      shutdownPeriods: state.shutdownPeriods.map((p) =>
+        p.id === id ? { ...p, ...updates } : p
+      ),
+    })),
+
+  deleteShutdownPeriod: (id) =>
+    set((state) => ({
+      shutdownPeriods: state.shutdownPeriods.filter((p) => p.id !== id),
     })),
 }));
