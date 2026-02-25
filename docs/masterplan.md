@@ -142,9 +142,16 @@ Multi-role users are allowed:
   - Users can add/rename/remove product lines to match their facility
   - GNT and KK are legacy defaults used in demo data, not hardcoded
 
+- **Equipment Group** (user-configurable)
+  - id, name, short_name, display_order
+  - Fully dynamic — no longer a hardcoded enum. Managed via Equipment Setup modal.
+  - Schedule view filter buttons are built dynamically from equipment groups.
+
 - **Machine** (user-configurable)
-  - name, group, product_line (optional), holds, display_order
+  - name, group (references EquipmentGroup.id), product_line (optional), display_order
   - Users can add/rename/remove machines and assign them to product lines
+  - Optional downtime window (start date, optional end date, optional reason)
+  - `isMachineUnavailable()` checks availability at a point in time; `isDowntimeEnded()` suppresses past windows
 
 - **Batch**
   - batch_chain_id, batch_name, batch_color (deterministic), product_line, status, name_locked
@@ -158,6 +165,21 @@ Multi-role users are allowed:
 
 - **Maintenance Task** (independent, layered)
   - machine_id, planned window, task_code/type, status, acknowledged_by/at, comment/not-possible reason
+
+- **Turnaround Activity** (user-configurable per equipment group)
+  - name, duration (days:hours:minutes), equipment_group, is_default flag
+  - Defines required gap activities between consecutive batches (e.g. CIP, SIP, Cleaning)
+  - Configured in Process Setup modal; `turnaroundTotalHours()` computes effective gap
+
+- **Shutdown Period**
+  - name, start_date, end_date, reason (optional)
+  - Plant-wide shutdown windows managed in Process Setup modal
+  - Past shutdowns visually dimmed; new batches can still cross shutdown boundaries (with visual indication)
+
+- **Machine Display Group** (auto-derived)
+  - name, machine_ids
+  - Automatically derived from product line + machine assignments via `buildDisplayGroups()`
+  - No manual machine-to-group assignment needed
 
 - **Shift Rotation**
   - 4 teams, 12-hour shifts

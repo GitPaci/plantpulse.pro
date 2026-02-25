@@ -106,6 +106,11 @@ F-1, F-4, F-5, F-6, F-7, F-8, F-9, F-10, F-11
 
 Groups are separated by an empty-string sentinel in the VBA array.
 
+**Modern app:** Equipment groups are fully user-configurable via the Equipment
+Setup modal (no longer a hardcoded enum). Display groups are auto-derived from
+product line assignments via `buildDisplayGroups()`. The `imena` array order is
+used only as the demo data default.
+
 ### Business rules (extracted from VBA logic)
 
 #### 1. Overlap detection
@@ -182,7 +187,31 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Headers: ["pososda", "nacep", "precep", "serija"]
 - Data starts at row A2
 
-#### 11. PDF export (modern, Schedule view only)
+#### 11. Machine downtime / unavailability (modern, no VBA equivalent)
+- Per-machine unavailability windows defined in Equipment Setup modal (Machines tab)
+- Each window has: start date, optional end date (indefinite if omitted), optional reason
+- Three visual states for yellow dot indicator:
+  - **Active**: solid yellow dot (start ≤ now ≤ end or no end)
+  - **Scheduled/upcoming**: outlined yellow dot (start > now)
+  - **Ended**: no indicator (past finite windows suppressed by `isDowntimeEnded()`)
+- `isMachineUnavailable(machine, atDate?)` — checks if machine is unavailable at a point in time
+- `hasMachineDowntime(machine)` — checks if machine has active or future downtime (excludes past windows)
+- Machines with active downtime are excluded from auto-scheduling vessel assignment
+
+#### 12. Turnaround activities (modern, no VBA equivalent)
+- User-defined gap activities between consecutive batches on the same vessel (e.g. CIP, SIP, Cleaning)
+- Configured per equipment group in Process Setup modal (Turnaround Activities tab)
+- Duration specified as days:hours:minutes; `turnaroundTotalHours()` computes effective gap for scheduling math
+- `isDefault` flag marks activities for auto-insertion during batch scheduling
+- Still pending: wiring into overlap detection engine (`lib/scheduling.ts`)
+
+#### 13. Shutdown periods (modern, no VBA equivalent)
+- Plant-wide shutdown windows with name, date range, and optional reason
+- Managed in Process Setup modal (Shutdowns tab)
+- Past shutdowns are visually dimmed; sorted by start date
+- Full CRUD in Zustand store (`add/update/deleteShutdownPeriod`)
+
+#### 14. PDF export (modern, Schedule view only)
 - Client-side only: `html2canvas` captures the schedule `<canvas>` at 2× scale, `jsPDF` generates A4 landscape PDF
 - Zero network calls, works offline, no cookies, no telemetry
 - **Dual-canvas architecture** for viewport independence:
@@ -205,7 +234,7 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
   - DPR double-scaling: WallboardCanvas already scales by `devicePixelRatio` for crisp rendering; `html2canvas` then applies its own `scale: 2`. On a 2× DPR device this produces a 4× capture (≈ 4488×3176 px), consuming excess memory with no visual benefit in a 297mm-wide PDF.
   - The hidden export canvas runs a 60-second redraw interval (intended for now-line refresh) even though `showNowLine={false}` — unnecessary CPU work for an off-screen surface.
 
-#### 12. Schedule toolbar — responsive / mobile
+#### 15. Schedule toolbar — responsive / mobile
 - Desktop (>= 768px): horizontal toolbar layout (month nav, filter chips, export/print, stage count) — unchanged
 - Mobile (< 768px): toolbar collapses into a "☰ Controls" hamburger button + month label + stage count
 - Tapping opens a dropdown panel with three sections: month navigation, equipment filter grid (2-col), export/print actions (full-width buttons)
@@ -214,7 +243,7 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Implementation: inline in `app/inoculum/page.tsx`; CSS in `globals.css` (`.schedule-mobile-*` classes)
 - Uses Tailwind responsive utilities: desktop = `hidden md:flex`, mobile = `flex md:hidden`
 
-#### 13. Wallboard fullscreen mode
+#### 16. Wallboard fullscreen mode
 - Browser Fullscreen API: enter via toolbar button (positioned immediately before the Shift indicator), exit via hover-reveal button or Escape
 - In fullscreen: navigation bar and toolbar hidden; canvas fills entire viewport
 - Black background with TV-safe margin (EBU R95): 2.5% top/bottom, 3.5% left/right padding
@@ -222,7 +251,7 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - State syncs with `fullscreenchange` event (handles browser Escape, OS-level fullscreen exit)
 - Implementation: `app/wallboard/page.tsx` (logic) + `globals.css` (`.wallboard-fullscreen-*` classes)
 
-#### 14. Wallboard Night View mode
+#### 17. Wallboard Night View mode
 - Toggleable dark, high-contrast theme optimized for TV displays in dimly lit control rooms
 - **Toolbar toggle** (non-fullscreen): positioned immediately before the Fullscreen button
   - OFF: moon icon + "Night" (indigo tint)
@@ -248,6 +277,17 @@ Based on the masterplan vision + VBA reality:
 ### Core entities
 
 ```typescript
+// Equipment groups are user-configurable (not a fixed enum).
+// Machine.group and TurnaroundActivity.equipmentGroup store EquipmentGroup.id strings.
+type MachineGroup = string;
+
+interface EquipmentGroup {
+  id: string;             // stable key, e.g. "propagator", "fermenter", "bioreactor"
+  name: string;           // display label, e.g. "Propagator", "Fermenter"
+  shortName: string;      // toolbar chip label, e.g. "PR", "F", "BIO"
+  displayOrder: number;   // controls filter button order and general sort
+}
+
 // Product lines are user-configurable. GNT/KK are the legacy defaults used
 // in demo data. Users can add/rename/remove product lines and their associated
 // machines, stage types, and default durations.
@@ -264,13 +304,21 @@ interface StageDefault {
   machineGroup: string;   // which machine group to pick from
 }
 
+// Machine unavailability window — excludes machine from planning while active.
+// If endDate is undefined the machine is unavailable indefinitely.
+interface MachineDowntime {
+  startDate: Date;
+  endDate?: Date;         // undefined = indefinite (until manually cleared)
+  reason?: string;        // optional note, e.g. "CIP rebuild", "Inspection"
+}
+
 interface Machine {
   id: string;             // e.g. "F-2", "PR-1"
   name: string;           // display name
-  group: MachineGroup;    // "propagator" | "pre_fermenter" | "fermenter" | "inoculum"
+  group: MachineGroup;    // user-defined equipment group (references EquipmentGroup.id)
   productLine?: string;   // assigned product line, or null if shared
   displayOrder: number;
-  holds?: HoldConfig;     // min/max duration constraints
+  downtime?: MachineDowntime;  // optional unavailability window
 }
 
 interface BatchChain {
@@ -278,9 +326,7 @@ interface BatchChain {
   batchName: string;      // human-readable (e.g. "GNT-142")
   seriesNumber: number;   // legacy series_id
   productLine: string;    // references ProductLine.id
-  color: string;          // deterministic from seriesNumber
   status: "draft" | "proposed" | "committed";
-  nameLocked: boolean;
   // Enterprise ERP fields omitted for Free edition
 }
 
@@ -292,8 +338,14 @@ interface Stage {
   startDatetime: Date;    // "nacep" equivalent
   endDatetime: Date;      // "precep" equivalent
   state: "planned" | "active" | "completed";
-  minDuration?: number;   // hours
-  maxDuration?: number;   // hours
+}
+
+// Display groups are auto-derived from product line + machine assignments
+// via buildDisplayGroups(). No manual machine-to-group checkbox grid needed.
+interface MachineDisplayGroup {
+  id: string;
+  name: string;
+  machineIds: string[];
 }
 
 interface CheckpointTask {
@@ -322,6 +374,28 @@ interface MaintenanceTask {
   comment?: string;
 }
 
+// Turnaround activity type — defines required gap activities between batches
+// (e.g. CIP, SIP, Cleaning). Configured per equipment group in Process Setup.
+interface TurnaroundActivity {
+  id: string;
+  name: string;               // user-defined label, e.g. "CIP", "SIP", "Cleaning"
+  durationDays: number;       // days component of duration
+  durationHours: number;      // hours component of duration
+  durationMinutes: number;    // minutes component of duration
+  equipmentGroup: string;     // references EquipmentGroup.id
+  isDefault: boolean;         // if true, auto-inserted when scheduling new batches
+}
+
+// Planned shutdown period — blocks all machines for the duration.
+// Used for plant-wide shutdowns, annual maintenance windows, etc.
+interface ShutdownPeriod {
+  id: string;
+  name: string;            // e.g. "Annual Shutdown 2026", "Christmas Break"
+  startDate: Date;
+  endDate: Date;
+  reason?: string;         // optional note
+}
+
 interface ShiftRotation {
   teams: string[];        // 4 team names
   shiftLengthHours: 12;
@@ -335,17 +409,21 @@ interface ShiftRotation {
 
 | VBA concept | Modern equivalent |
 |-------------|-------------------|
-| `BigReadArray` | In-memory store (Stage[] array for Free edition) |
-| `imena` array | Machine[] with displayOrder |
+| `BigReadArray` | In-memory Zustand store (Stage[], BatchChain[], Machine[], etc.) |
+| `imena` array | Machine[] with displayOrder; display groups auto-derived via `buildDisplayGroups()` |
+| Hardcoded vessel groups | EquipmentGroup[] — user-configurable via Equipment Setup modal |
 | `serija` number | BatchChain.seriesNumber |
 | `DodaneNoveSerije` staging | Draft batch chain creation |
-| `Premik` bulk shift | Bulk shift tool with cutoff filter |
+| `Premik` bulk shift | `bulkShiftStages()` store action with cutoff filter |
 | `ObdelavaSerija` form | Side panel / modal stage editor |
 | `NovaSer` form | "Add new batch chain" wizard |
 | `DynBtn` click handlers | Stage bar click → detail panel |
 | ADODB Excel connection | Excel import/parse (Free) or DB query (Enterprise) |
 | PowerPoint shape rendering | Canvas/SVG timeline rendering |
 | UserForm maximize/restore | Responsive layout |
+| *(no VBA equivalent)* | TurnaroundActivity — gap activities between batches (CIP/SIP/Cleaning) |
+| *(no VBA equivalent)* | ShutdownPeriod — plant-wide shutdown windows |
+| *(no VBA equivalent)* | MachineDowntime — per-machine unavailability windows |
 
 ---
 
@@ -419,7 +497,9 @@ plantpulse.pro/
 │   │   │   ├── ChainEditor.tsx
 │   │   │   ├── BulkShiftTool.tsx
 │   │   │   ├── NewChainWizard.tsx
-│   │   │   └── StageDetailPanel.tsx
+│   │   │   ├── StageDetailPanel.tsx
+│   │   │   ├── EquipmentSetup.tsx  # Equipment Setup modal (3 tabs)
+│   │   │   └── ProcessSetup.tsx    # Process Setup modal (3 tabs)
 │   │   ├── wallboard/           # Wallboard-specific components
 │   │   │   ├── TaskArrow.tsx
 │   │   │   └── MaintenanceMarker.tsx
@@ -429,7 +509,7 @@ plantpulse.pro/
 │   ├── settings/
 │   │   └── PrintSettings.tsx    # Print Settings modal (localStorage-persisted)
 │   ├── lib/
-│   │   ├── store.ts             # Zustand store (BigReadArray replacement)
+│   │   ├── store.ts             # Zustand store — CRUD for all entities (Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup, ShutdownPeriod)
 │   │   ├── excel-io.ts          # SheetJS import/export
 │   │   ├── timeline-math.ts     # Pixel geometry (ported from VBA)
 │   │   ├── scheduling.ts        # Overlap detection, auto-scheduling, bulk shift
@@ -464,11 +544,11 @@ npm run test         # Run tests
 npm run lint         # Run linter
 ```
 
-### Build order (Phase 1–4 for Free MVP)
+### Build order (Phase 1–6 for Free MVP)
 
-1. **`lib/types.ts`** — Define all TypeScript interfaces
+1. **`lib/types.ts`** — Define all TypeScript interfaces (done: includes EquipmentGroup, MachineDowntime, TurnaroundActivity, ShutdownPeriod, MachineDisplayGroup)
 2. **`lib/excel-io.ts`** — Import from legacy `.xlsx` format + export
-3. **`lib/store.ts`** — Zustand store with BigReadArray-equivalent operations
+3. **`lib/store.ts`** — Zustand store with CRUD for all entities (done: Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup, ShutdownPeriod + bulkShiftStages)
 4. **`lib/timeline-math.ts`** — Port the VBA pixel geometry functions
 5. **`lib/holidays.ts`** — Slovenian holidays + Gauss Easter
 6. **`lib/colors.ts`** — `seriesNumber mod 12` color palette
@@ -476,8 +556,10 @@ npm run lint         # Run linter
 8. **`components/timeline/`** — Core timeline renderer
 9. **`app/wallboard/`** — Operator wallboard view (read-only + task confirm)
 10. **`lib/scheduling.ts`** + **`lib/seed-train.ts`** — Business rules engine
-11. **`components/planner/`** — Interactive planning tools
-12. **`app/planner/`** — Planner view with draft editing
+11. **`components/planner/EquipmentSetup.tsx`** — Equipment Setup modal: Machines (with downtime), Equipment Groups, Product Lines (done)
+12. **`components/planner/ProcessSetup.tsx`** — Process Setup modal: Stage Defaults, Turnaround Activities, Shutdowns (done)
+13. **`components/planner/`** — Interactive planning tools (ChainEditor, BulkShiftTool, NewChainWizard, StageDetailPanel)
+14. **`app/planner/`** — Planner view with draft editing
 
 ### Excel template schema (Phase 1)
 

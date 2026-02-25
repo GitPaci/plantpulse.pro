@@ -49,6 +49,8 @@ Phases 8-12 are Enterprise-only.
   - **Machine display group CRUD** (implemented): add, update, delete
   - **Product line CRUD** (implemented): add, update, delete
   - **Turnaround activity CRUD** (implemented): add, update, delete
+  - **Equipment group CRUD** (implemented): add, update, delete
+  - **Shutdown period CRUD** (implemented): add, update, delete
   - **Bulk shift** (implemented): `bulkShiftStages(stageIds[], deltaHours)` shifts selected stages
   - Task confirmation actions
   - No persistence (state resets on page reload)
@@ -251,8 +253,9 @@ Phases 8-12 are Enterprise-only.
 
 ### Phase 13 — Shutdown modeling (Enterprise features)
 
-- Shutdown blocks: full-width "PLANT SHUTDOWN" across all machines
-- Planning rule: no chains crossing shutdown unless override
+- Basic shutdown CRUD already implemented in Free MVP (Process Setup modal > Shutdowns tab, `ShutdownPeriod` type + store CRUD)
+- Shutdown blocks: full-width "PLANT SHUTDOWN" across all machines (timeline rendering — pending)
+- Planning rule: no chains crossing shutdown unless override (Enterprise enforcement)
 - Rotation reset anchor at shutdown
 - Staffing windows: warnings (Free) / hard enforcement (Enterprise)
 
