@@ -293,12 +293,18 @@ timeline canvas. The following tracks what is implemented vs. pending.
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Planner page layout (sidebar + timeline + toolbar) | Done | Collapsible sections, day/week nav |
-| Store CRUD — all entities | Done | Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity |
+| Store CRUD — all entities | Done | Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup |
 | `bulkShiftStages()` store action | Done | Shifts selected stages by N hours |
 | `generateId()` helper | Done | Monotonic counter with optional prefix |
 | `TurnaroundActivity` type | Done | d:h:m duration, equipment group, isDefault flag |
 | `turnaroundTotalHours()` helper | Done | Computes total hours from d:h:m fields |
-| Equipment Setup modal | Done | Machines tab (inline edit, reorder, add/delete) + Display Groups tab (checkbox grid) |
+| Equipment Setup modal — Machines tab | Done | Inline edit (name, group, product line), reorder, add/delete, downtime editor |
+| Equipment Setup modal — Equipment Groups tab | Done | CRUD for dynamic equipment group types (no longer hardcoded union) |
+| Equipment Setup modal — Product Lines tab | Done | Was "Display Groups"; auto-derives display groups from product line assignments on Save |
+| Machine downtime / unavailability | Done | Yellow dot indicator (active/scheduled/ended states), `isMachineUnavailable()` helper, inline date editor |
+| Dynamic equipment groups (`MachineGroup = string`) | Done | `EquipmentGroup` interface + store CRUD; Schedule view filter buttons built dynamically |
+| Product line → display group sync | Done | `buildDisplayGroups()` auto-derives `MachineDisplayGroup[]` from product lines + machines |
+| Downtime ended-state detection | Done | `isDowntimeEnded()` suppresses indicator for past finite windows; only active/upcoming shown |
 | Reusable modal CSS (`pp-modal-*`) | Done | Backdrop, header, tabs, body, footer, buttons — shared by all setup modals |
 
 ### Pending — Setup Modals
