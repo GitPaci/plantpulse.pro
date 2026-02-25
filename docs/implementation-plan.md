@@ -167,8 +167,14 @@ Phases 8-12 are Enterprise-only.
 - `components/planner/StageDetailPanel.tsx` — Side panel editor (pending)
 - **Equipment Setup modal** (implemented):
   - `components/planner/EquipmentSetup.tsx` — full CRUD modal for facility equipment
-  - **Machines tab**: inline editing of name, group (Propagator/Pre-fermenter/Fermenter/Inoculum), product line assignment, display order (up/down reorder), add/delete
-  - **Display Groups tab**: card-based UI with editable group names, checkbox grid for machine-to-group assignment, add/delete groups
+  - **Machines tab**: inline editing of name, equipment group, product line assignment, display order (up/down reorder), add/delete
+    - **Machine downtime**: yellow dot indicator per machine; click to define an unavailability window (start date, optional end date, optional reason)
+    - Active downtime = solid yellow dot; upcoming/scheduled = outlined yellow dot; past (ended) = no indicator
+    - Machines with active downtime are excluded from the scheduling engine via `isMachineUnavailable()`
+  - **Equipment Groups tab**: CRUD for equipment group types (propagator, pre-fermenter, fermenter, inoculum, etc.) — fully user-configurable, no longer hardcoded
+  - **Product Lines tab** (was "Display Groups"): shows machines grouped by product line, read-only machine list per line, add/rename/reorder/delete product lines
+    - Display groups are auto-derived from product line assignments on Save via `buildDisplayGroups()`
+    - No manual machine-to-group checkbox grid — assignment is driven by the machine's product line in the Machines tab
   - Product line filter: dropdown to show machines by product line or unassigned
   - Draft state pattern: all changes buffered in local state, applied to Zustand store on Save only
   - Unsaved changes indicator in footer
