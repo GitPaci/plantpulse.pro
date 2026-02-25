@@ -56,10 +56,18 @@ export function isMachineUnavailable(m: Machine, atDate?: Date): boolean {
   return true;
 }
 
-// Check if a machine has any downtime defined (active, future, or past open-ended).
-// Used for the yellow indicator dot in Equipment Setup.
+// Check if a machine's downtime window has already ended.
+export function isDowntimeEnded(m: Machine): boolean {
+  if (!m.downtime) return false;
+  if (!m.downtime.endDate) return false; // open-ended → never "ended"
+  return m.downtime.endDate < new Date();
+}
+
+// Check if a machine has active or future downtime (relevant for planning).
+// Past finite windows are excluded — they no longer affect planning decisions.
 export function hasMachineDowntime(m: Machine): boolean {
-  return m.downtime !== undefined;
+  if (!m.downtime) return false;
+  return !isDowntimeEnded(m);
 }
 
 export interface BatchChain {
