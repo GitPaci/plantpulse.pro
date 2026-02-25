@@ -6,7 +6,21 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlantPulseStore, generateId } from '@/lib/store';
-import type { Machine, MachineDisplayGroup, EquipmentGroup } from '@/lib/types';
+import type { Machine, MachineDisplayGroup, EquipmentGroup, MachineDowntime } from '@/lib/types';
+import { isMachineUnavailable } from '@/lib/types';
+
+// ─── Date helpers for datetime-local inputs ────────────────────────────
+
+function toDatetimeLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromDatetimeLocal(s: string): Date | null {
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -132,6 +146,33 @@ export default function EquipmentSetup({ open, onClose }: Props) {
       });
     });
     setDirty(true);
+  }
+
+  // ── Machine downtime editing ─────────────────────────────────────────
+
+  function setMachineDowntime(id: string, downtime: MachineDowntime | undefined) {
+    updateDraftMachine(id, { downtime });
+  }
+
+  function addDowntime(id: string) {
+    setMachineDowntime(id, {
+      startDate: new Date(),
+      endDate: undefined,
+      reason: '',
+    });
+  }
+
+  function clearDowntime(id: string) {
+    setMachineDowntime(id, undefined);
+  }
+
+  function updateDowntimeField(
+    id: string,
+    current: MachineDowntime,
+    field: keyof MachineDowntime,
+    value: Date | string | undefined
+  ) {
+    setMachineDowntime(id, { ...current, [field]: value });
   }
 
   // ── Equipment group editing ────────────────────────────────────────
@@ -328,121 +369,221 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                 {filteredMachines.length === 0 && (
                   <div className="pp-setup-empty">No machines match the current filter.</div>
                 )}
-                {filteredMachines.map((m, idx) => (
-                  <div
-                    key={m.id}
-                    className={`pp-setup-row ${editingId === m.id ? 'editing' : ''}`}
-                  >
-                    <span className="pp-setup-col-order">
-                      <button
-                        className="pp-setup-move-btn"
-                        onClick={() => moveMachine(m.id, 'up')}
-                        disabled={idx === 0}
-                        title="Move up"
-                      >
-                        &uarr;
-                      </button>
-                      <button
-                        className="pp-setup-move-btn"
-                        onClick={() => moveMachine(m.id, 'down')}
-                        disabled={idx === filteredMachines.length - 1}
-                        title="Move down"
-                      >
-                        &darr;
-                      </button>
-                    </span>
+                {filteredMachines.map((m, idx) => {
+                  const isEditing = editingId === m.id;
+                  const hasDowntime = !!m.downtime;
+                  const isCurrentlyDown = isMachineUnavailable(m);
+                  const downtimeTitle = hasDowntime
+                    ? isCurrentlyDown
+                      ? `Unavailable${m.downtime?.reason ? ': ' + m.downtime.reason : ''}`
+                      : `Downtime scheduled${m.downtime?.reason ? ': ' + m.downtime.reason : ''}`
+                    : undefined;
 
-                    <span className="pp-setup-col-name">
-                      {editingId === m.id ? (
-                        <input
-                          type="text"
-                          value={m.name}
-                          onChange={(e) => updateDraftMachine(m.id, { name: e.target.value })}
-                          className="pp-setup-input"
-                          autoFocus
-                        />
-                      ) : (
-                        <span
-                          className="pp-setup-clickable"
-                          onClick={() => setEditingId(m.id)}
-                          title="Click to edit"
-                        >
-                          {m.name}
-                        </span>
-                      )}
-                    </span>
-
-                    <span className="pp-setup-col-group">
-                      {editingId === m.id ? (
-                        <select
-                          value={m.group}
-                          onChange={(e) =>
-                            updateDraftMachine(m.id, { group: e.target.value })
-                          }
-                          className="pp-setup-select-sm"
-                        >
-                          {sortedEqGroups.map((eg) => (
-                            <option key={eg.id} value={eg.id}>{eg.name}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="pp-setup-badge">
-                          {eqGroupNameById[m.group] || m.group}
-                        </span>
-                      )}
-                    </span>
-
-                    <span className="pp-setup-col-line">
-                      {editingId === m.id ? (
-                        <select
-                          value={m.productLine || ''}
-                          onChange={(e) =>
-                            updateDraftMachine(m.id, {
-                              productLine: e.target.value || undefined,
-                            })
-                          }
-                          className="pp-setup-select-sm"
-                        >
-                          <option value="">None</option>
-                          {productLines.map((pl) => (
-                            <option key={pl.id} value={pl.id}>{pl.name}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span>
-                          {productLines.find((pl) => pl.id === m.productLine)?.name || '—'}
-                        </span>
-                      )}
-                    </span>
-
-                    <span className="pp-setup-col-actions">
-                      {editingId === m.id ? (
+                  return (
+                  <div key={m.id} className="pp-setup-row-wrapper">
+                    <div className={`pp-setup-row ${isEditing ? 'editing' : ''}`}>
+                      <span className="pp-setup-col-order">
                         <button
-                          className="pp-setup-action-btn pp-setup-done-btn"
-                          onClick={() => setEditingId(null)}
-                          title="Done editing"
+                          className="pp-setup-move-btn"
+                          onClick={() => moveMachine(m.id, 'up')}
+                          disabled={idx === 0}
+                          title="Move up"
                         >
-                          Done
+                          &uarr;
                         </button>
-                      ) : (
                         <button
-                          className="pp-setup-action-btn"
-                          onClick={() => setEditingId(m.id)}
-                          title="Edit"
+                          className="pp-setup-move-btn"
+                          onClick={() => moveMachine(m.id, 'down')}
+                          disabled={idx === filteredMachines.length - 1}
+                          title="Move down"
                         >
-                          Edit
+                          &darr;
                         </button>
-                      )}
-                      <button
-                        className="pp-setup-action-btn pp-setup-delete-btn"
-                        onClick={() => removeMachine(m.id)}
-                        title="Delete"
-                      >
-                        Del
-                      </button>
-                    </span>
+                      </span>
+
+                      <span className="pp-setup-col-name">
+                        <span className="pp-setup-name-with-indicator">
+                          {hasDowntime && (
+                            <span
+                              className={`pp-downtime-dot ${isCurrentlyDown ? 'active' : 'scheduled'}`}
+                              title={downtimeTitle}
+                            />
+                          )}
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={m.name}
+                              onChange={(e) => updateDraftMachine(m.id, { name: e.target.value })}
+                              className="pp-setup-input"
+                              autoFocus
+                            />
+                          ) : (
+                            <span
+                              className="pp-setup-clickable"
+                              onClick={() => setEditingId(m.id)}
+                              title="Click to edit"
+                            >
+                              {m.name}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+
+                      <span className="pp-setup-col-group">
+                        {isEditing ? (
+                          <select
+                            value={m.group}
+                            onChange={(e) =>
+                              updateDraftMachine(m.id, { group: e.target.value })
+                            }
+                            className="pp-setup-select-sm"
+                          >
+                            {sortedEqGroups.map((eg) => (
+                              <option key={eg.id} value={eg.id}>{eg.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="pp-setup-badge">
+                            {eqGroupNameById[m.group] || m.group}
+                          </span>
+                        )}
+                      </span>
+
+                      <span className="pp-setup-col-line">
+                        {isEditing ? (
+                          <select
+                            value={m.productLine || ''}
+                            onChange={(e) =>
+                              updateDraftMachine(m.id, {
+                                productLine: e.target.value || undefined,
+                              })
+                            }
+                            className="pp-setup-select-sm"
+                          >
+                            <option value="">None</option>
+                            {productLines.map((pl) => (
+                              <option key={pl.id} value={pl.id}>{pl.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span>
+                            {productLines.find((pl) => pl.id === m.productLine)?.name || '—'}
+                          </span>
+                        )}
+                      </span>
+
+                      <span className="pp-setup-col-actions">
+                        {isEditing ? (
+                          <button
+                            className="pp-setup-action-btn pp-setup-done-btn"
+                            onClick={() => setEditingId(null)}
+                            title="Done editing"
+                          >
+                            Done
+                          </button>
+                        ) : (
+                          <button
+                            className="pp-setup-action-btn"
+                            onClick={() => setEditingId(m.id)}
+                            title="Edit"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        <button
+                          className="pp-setup-action-btn pp-setup-delete-btn"
+                          onClick={() => removeMachine(m.id)}
+                          title="Delete"
+                        >
+                          Del
+                        </button>
+                      </span>
+                    </div>
+
+                    {/* Downtime editor — shown when editing this machine */}
+                    {isEditing && (
+                      <div className="pp-downtime-panel">
+                        <div className="pp-downtime-header">
+                          <span className="pp-downtime-label">Unavailability</span>
+                          {!hasDowntime ? (
+                            <button
+                              className="pp-setup-add-btn pp-downtime-add-btn"
+                              onClick={() => addDowntime(m.id)}
+                            >
+                              + Set unavailable
+                            </button>
+                          ) : (
+                            <button
+                              className="pp-setup-action-btn pp-setup-delete-btn"
+                              onClick={() => clearDowntime(m.id)}
+                              title="Clear downtime"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        {hasDowntime && m.downtime && (
+                          <div className="pp-downtime-fields">
+                            <div className="pp-downtime-field">
+                              <label className="pp-downtime-field-label">From</label>
+                              <input
+                                type="datetime-local"
+                                value={toDatetimeLocal(m.downtime.startDate)}
+                                onChange={(e) => {
+                                  const d = fromDatetimeLocal(e.target.value);
+                                  if (d) updateDowntimeField(m.id, m.downtime!, 'startDate', d);
+                                }}
+                                className="pp-setup-input pp-downtime-date-input"
+                              />
+                            </div>
+                            <div className="pp-downtime-field">
+                              <label className="pp-downtime-field-label">
+                                Until
+                                {!m.downtime.endDate && (
+                                  <span className="pp-downtime-indefinite">(indefinite)</span>
+                                )}
+                              </label>
+                              <div className="pp-downtime-end-row">
+                                <input
+                                  type="datetime-local"
+                                  value={m.downtime.endDate ? toDatetimeLocal(m.downtime.endDate) : ''}
+                                  onChange={(e) => {
+                                    const d = fromDatetimeLocal(e.target.value);
+                                    updateDowntimeField(m.id, m.downtime!, 'endDate', d ?? undefined);
+                                  }}
+                                  className="pp-setup-input pp-downtime-date-input"
+                                  placeholder="Leave empty for indefinite"
+                                />
+                                {m.downtime.endDate && (
+                                  <button
+                                    className="pp-setup-action-btn"
+                                    onClick={() => updateDowntimeField(m.id, m.downtime!, 'endDate', undefined)}
+                                    title="Set to indefinite"
+                                  >
+                                    &infin;
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <div className="pp-downtime-field">
+                              <label className="pp-downtime-field-label">Reason</label>
+                              <input
+                                type="text"
+                                value={m.downtime.reason || ''}
+                                onChange={(e) =>
+                                  updateDowntimeField(m.id, m.downtime!, 'reason', e.target.value)
+                                }
+                                className="pp-setup-input"
+                                placeholder="e.g. CIP rebuild, Inspection"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           )}

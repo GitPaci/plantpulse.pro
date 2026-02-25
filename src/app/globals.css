@@ -709,17 +709,21 @@ body {
   border-bottom: 1px solid var(--pp-border);
 }
 
+/* Row wrapper: holds the main row + optional downtime panel */
+.pp-setup-row-wrapper {
+  border-bottom: 1px solid var(--pp-border);
+}
+
+.pp-setup-row-wrapper:last-child {
+  border-bottom: none;
+}
+
 .pp-setup-row {
   display: flex;
   align-items: center;
   padding: 6px 10px;
-  border-bottom: 1px solid var(--pp-border);
   font-size: 12px;
   transition: background 0.1s;
-}
-
-.pp-setup-row:last-child {
-  border-bottom: none;
 }
 
 .pp-setup-row:hover {
@@ -728,6 +732,13 @@ body {
 
 .pp-setup-row.editing {
   background: #f0f4ff;
+}
+
+/* Name with downtime indicator */
+.pp-setup-name-with-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .pp-setup-col-order {
@@ -843,6 +854,98 @@ body {
   text-align: center;
   font-size: 12px;
   color: var(--pp-muted);
+}
+
+/* ─── Downtime indicator dot ──────────────────────────────────────────── */
+
+.pp-downtime-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  cursor: help;
+}
+
+/* Active: machine is currently unavailable */
+.pp-downtime-dot.active {
+  background: #eab308;
+  box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.25);
+}
+
+/* Scheduled: downtime defined but not yet active (future start) */
+.pp-downtime-dot.scheduled {
+  background: none;
+  border: 2px solid #eab308;
+}
+
+/* ─── Downtime editor panel ───────────────────────────────────────────── */
+
+.pp-downtime-panel {
+  padding: 8px 10px 10px 58px; /* 58px = col-order width + padding alignment */
+  background: #f8f9fc;
+  border-top: 1px dashed var(--pp-border);
+}
+
+.pp-downtime-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.pp-downtime-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pp-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.pp-downtime-add-btn {
+  font-size: 11px !important;
+  padding: 3px 10px !important;
+}
+
+.pp-downtime-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.pp-downtime-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.pp-downtime-field-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--pp-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.pp-downtime-indefinite {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #d97706;
+  margin-left: 4px;
+}
+
+.pp-downtime-date-input {
+  max-width: 200px;
+  font-size: 11px !important;
+  padding: 3px 6px !important;
+}
+
+.pp-downtime-end-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* ─── Display groups tab ──────────────────────────────────────────────── */

@@ -29,12 +29,37 @@ export interface StageDefault {
   machineGroup: string;
 }
 
+// Machine unavailability window — excludes machine from planning while active.
+// If endDate is undefined the machine is unavailable indefinitely.
+export interface MachineDowntime {
+  startDate: Date;
+  endDate?: Date;         // undefined = indefinite (until manually cleared)
+  reason?: string;        // optional note, e.g. "CIP rebuild", "Inspection"
+}
+
 export interface Machine {
   id: string;
   name: string;
   group: MachineGroup;
   productLine?: string;
   displayOrder: number;
+  downtime?: MachineDowntime;  // optional unavailability window
+}
+
+// Check if a machine is currently unavailable at a given point in time.
+// Used by the scheduling engine to exclude machines from auto-assignment.
+export function isMachineUnavailable(m: Machine, atDate?: Date): boolean {
+  if (!m.downtime) return false;
+  const now = atDate ?? new Date();
+  if (m.downtime.startDate > now) return false; // downtime is in the future
+  if (m.downtime.endDate && m.downtime.endDate < now) return false; // downtime has ended
+  return true;
+}
+
+// Check if a machine has any downtime defined (active, future, or past open-ended).
+// Used for the yellow indicator dot in Equipment Setup.
+export function hasMachineDowntime(m: Machine): boolean {
+  return m.downtime !== undefined;
 }
 
 export interface BatchChain {
