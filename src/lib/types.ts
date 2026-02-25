@@ -141,3 +141,13 @@ export interface TurnaroundActivity {
 export function turnaroundTotalHours(t: TurnaroundActivity): number {
   return t.durationDays * 24 + t.durationHours + t.durationMinutes / 60;
 }
+
+// Planned shutdown period — blocks all machines for the duration.
+// Used for plant-wide shutdowns, annual maintenance windows, etc.
+export interface ShutdownPeriod {
+  id: string;
+  name: string;            // e.g. "Annual Shutdown 2026", "Christmas Break"
+  startDate: Date;
+  endDate: Date;
+  reason?: string;         // optional note
+}
