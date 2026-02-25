@@ -148,6 +148,42 @@ TV displays in dimly lit control rooms during night shifts.
 
 ---
 
+## Machine Downtime Indicator
+
+Machines with scheduled or active unavailability display a yellow dot indicator
+in the Equipment Setup modal (Machines tab) and on timeline machine labels.
+
+**Three visual states:**
+
+| State | Appearance | Condition |
+|-------|------------|-----------|
+| **Active** | Solid yellow dot | `startDate ≤ now` and (`endDate ≥ now` or no end date) |
+| **Scheduled/upcoming** | Outlined yellow dot | `startDate > now` |
+| **Ended** | No indicator | `endDate < now` (suppressed by `isDowntimeEnded()`) |
+
+**Interaction:** Click the dot (or machine row) in Equipment Setup to open the
+downtime editor with start date, optional end date, and optional reason fields.
+
+**Scheduling impact:** Machines with active downtime are excluded from
+auto-scheduling vessel assignment via `isMachineUnavailable()`.
+
+---
+
+## Setup Modal Design Pattern
+
+Equipment Setup and Process Setup modals share a consistent design language
+using the `pp-modal-*` CSS class system:
+
+- **Backdrop:** Semi-transparent overlay (`pp-modal-backdrop`)
+- **Header:** Title + close button + optional tab bar (`pp-modal-header`, `pp-modal-tabs`)
+- **Body:** Scrollable content area with tab panels (`pp-modal-body`)
+- **Footer:** Save/Cancel buttons + unsaved changes indicator (`pp-modal-footer`)
+- **Draft state:** All changes are buffered in local component state; only applied
+  to the Zustand store on explicit Save. This prevents partial edits from leaking
+  into the global state.
+
+---
+
 ## Shutdown Block Design
 
 - Full-width across all machines
