@@ -1,12 +1,12 @@
 'use client';
 
-// Equipment Setup modal — configure machines, equipment groups, display groups,
-// and product line assignments. Equipment groups are fully user-configurable.
+// Equipment Setup modal — configure machines, equipment groups, product lines.
+// Product lines drive display groups on the timeline (auto-derived on Save).
 // Changes are held in local draft state and applied on Save.
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlantPulseStore, generateId } from '@/lib/store';
-import type { Machine, MachineDisplayGroup, EquipmentGroup, MachineDowntime } from '@/lib/types';
+import type { Machine, MachineDisplayGroup, EquipmentGroup, MachineDowntime, ProductLine } from '@/lib/types';
 import { isMachineUnavailable } from '@/lib/types';
 
 // ─── Date helpers for datetime-local inputs ────────────────────────────
@@ -22,9 +22,28 @@ function fromDatetimeLocal(s: string): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+// ─── Auto-derive display groups from product lines + machine assignments ─
+
+function buildDisplayGroups(
+  pLines: ProductLine[],
+  machines: Machine[],
+): MachineDisplayGroup[] {
+  return [...pLines]
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .map((pl) => ({
+      id: pl.id,
+      name: pl.name,
+      machineIds: machines
+        .filter((m) => m.productLine === pl.id)
+        .sort((a, b) => a.displayOrder - b.displayOrder)
+        .map((m) => m.id),
+    }))
+    .filter((g) => g.machineIds.length > 0);
+}
+
 // ─── Types ─────────────────────────────────────────────────────────────
 
-type Tab = 'machines' | 'equipmentGroups' | 'displayGroups';
+type Tab = 'machines' | 'equipmentGroups' | 'productLines';
 
 interface Props {
   open: boolean;
@@ -35,17 +54,17 @@ interface Props {
 
 export default function EquipmentSetup({ open, onClose }: Props) {
   const machines = usePlantPulseStore((s) => s.machines);
-  const machineGroups = usePlantPulseStore((s) => s.machineGroups);
   const equipmentGroups = usePlantPulseStore((s) => s.equipmentGroups);
   const productLines = usePlantPulseStore((s) => s.productLines);
   const setMachines = usePlantPulseStore((s) => s.setMachines);
   const setMachineGroups = usePlantPulseStore((s) => s.setMachineGroups);
   const setEquipmentGroups = usePlantPulseStore((s) => s.setEquipmentGroups);
+  const setProductLines = usePlantPulseStore((s) => s.setProductLines);
 
   // Local draft state — changes are buffered here until Save
   const [draftMachines, setDraftMachines] = useState<Machine[]>([]);
-  const [draftDisplayGroups, setDraftDisplayGroups] = useState<MachineDisplayGroup[]>([]);
   const [draftEquipmentGroups, setDraftEquipmentGroups] = useState<EquipmentGroup[]>([]);
+  const [draftProductLines, setDraftProductLines] = useState<ProductLine[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>('machines');
   const [filterLine, setFilterLine] = useState<string>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -66,16 +85,25 @@ export default function EquipmentSetup({ open, onClose }: Props) {
     return map;
   }, [draftEquipmentGroups]);
 
+  // Sorted product lines
+  const sortedProductLines = useMemo(
+    () => [...draftProductLines].sort((a, b) => a.displayOrder - b.displayOrder),
+    [draftProductLines]
+  );
+
   // Reset draft when modal opens
   useEffect(() => {
     if (open) {
       setDraftMachines([...machines]);
-      setDraftDisplayGroups(machineGroups.map((g) => ({ ...g, machineIds: [...g.machineIds] })));
       setDraftEquipmentGroups(equipmentGroups.map((eg) => ({ ...eg })));
+      setDraftProductLines(productLines.map((pl) => ({
+        ...pl,
+        stageDefaults: pl.stageDefaults.map((sd) => ({ ...sd })),
+      })));
       setEditingId(null);
       setDirty(false);
     }
-  }, [open, machines, machineGroups, equipmentGroups]);
+  }, [open, machines, equipmentGroups, productLines]);
 
   // Close on Escape
   useEffect(() => {
@@ -110,7 +138,7 @@ export default function EquipmentSetup({ open, onClose }: Props) {
       id: newId,
       name: newId,
       group: defaultGroup,
-      productLine: productLines[0]?.id,
+      productLine: sortedProductLines[0]?.id,
       displayOrder: nextOrder,
     };
     setDraftMachines((prev) => [...prev, newMachine]);
@@ -120,12 +148,6 @@ export default function EquipmentSetup({ open, onClose }: Props) {
 
   function removeMachine(id: string) {
     setDraftMachines((prev) => prev.filter((m) => m.id !== id));
-    setDraftDisplayGroups((prev) =>
-      prev.map((g) => ({
-        ...g,
-        machineIds: g.machineIds.filter((mid) => mid !== id),
-      }))
-    );
     if (editingId === id) setEditingId(null);
     setDirty(true);
   }
@@ -222,51 +244,67 @@ export default function EquipmentSetup({ open, onClose }: Props) {
     setDirty(true);
   }
 
-  // ── Display group editing ──────────────────────────────────────────
+  // ── Product line editing ───────────────────────────────────────────
 
-  function addDisplayGroup() {
-    const newId = generateId('GRP-');
-    setDraftDisplayGroups((prev) => [
+  function addProductLine() {
+    const nextOrder =
+      draftProductLines.length > 0
+        ? Math.max(...draftProductLines.map((pl) => pl.displayOrder)) + 1
+        : 1;
+    const newId = generateId('PL-');
+    setDraftProductLines((prev) => [
       ...prev,
-      { id: newId, name: 'New Group', machineIds: [] },
+      { id: newId, name: 'New Line', displayOrder: nextOrder, stageDefaults: [] },
     ]);
+    setEditingId(newId);
     setDirty(true);
   }
 
-  function removeDisplayGroup(id: string) {
-    setDraftDisplayGroups((prev) => prev.filter((g) => g.id !== id));
+  function removeProductLine(id: string) {
+    setDraftProductLines((prev) => prev.filter((pl) => pl.id !== id));
+    // Unassign machines from the deleted product line
+    setDraftMachines((prev) =>
+      prev.map((m) => (m.productLine === id ? { ...m, productLine: undefined } : m))
+    );
+    if (editingId === id) setEditingId(null);
     setDirty(true);
   }
 
-  function updateDisplayGroupName(id: string, name: string) {
-    setDraftDisplayGroups((prev) =>
-      prev.map((g) => (g.id === id ? { ...g, name } : g))
+  function updateDraftProductLine(id: string, updates: Partial<ProductLine>) {
+    setDraftProductLines((prev) =>
+      prev.map((pl) => (pl.id === id ? { ...pl, ...updates } : pl))
     );
     setDirty(true);
   }
 
-  function toggleMachineInDisplayGroup(groupId: string, machineId: string) {
-    setDraftDisplayGroups((prev) =>
-      prev.map((g) => {
-        if (g.id !== groupId) return g;
-        const has = g.machineIds.includes(machineId);
-        return {
-          ...g,
-          machineIds: has
-            ? g.machineIds.filter((mid) => mid !== machineId)
-            : [...g.machineIds, machineId],
-        };
-      })
-    );
+  function moveProductLine(id: string, direction: 'up' | 'down') {
+    setDraftProductLines((prev) => {
+      const sorted = [...prev].sort((a, b) => a.displayOrder - b.displayOrder);
+      const idx = sorted.findIndex((pl) => pl.id === id);
+      if (idx < 0) return prev;
+      const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= sorted.length) return prev;
+      const orderA = sorted[idx].displayOrder;
+      const orderB = sorted[swapIdx].displayOrder;
+      return prev.map((pl) => {
+        if (pl.id === sorted[idx].id) return { ...pl, displayOrder: orderB };
+        if (pl.id === sorted[swapIdx].id) return { ...pl, displayOrder: orderA };
+        return pl;
+      });
+    });
     setDirty(true);
   }
 
   // ── Save / Cancel ──────────────────────────────────────────────────
 
   function handleSave() {
+    // Auto-derive display groups from product lines + machine assignments
+    const derivedGroups = buildDisplayGroups(draftProductLines, draftMachines);
+
     setMachines(draftMachines);
-    setMachineGroups(draftDisplayGroups);
+    setMachineGroups(derivedGroups);
     setEquipmentGroups(draftEquipmentGroups);
+    setProductLines(draftProductLines);
     setDirty(false);
     onClose();
   }
@@ -289,6 +327,27 @@ export default function EquipmentSetup({ open, onClose }: Props) {
     }
     return counts;
   }, [draftMachines]);
+
+  // Machines grouped by product line (for Product Lines tab preview)
+  const machinesByProductLine = useMemo(() => {
+    const map: Record<string, Machine[]> = {};
+    for (const m of draftMachines) {
+      if (m.productLine) {
+        if (!map[m.productLine]) map[m.productLine] = [];
+        map[m.productLine].push(m);
+      }
+    }
+    // Sort machines within each group
+    for (const key of Object.keys(map)) {
+      map[key].sort((a, b) => a.displayOrder - b.displayOrder);
+    }
+    return map;
+  }, [draftMachines]);
+
+  const unassignedMachines = useMemo(
+    () => draftMachines.filter((m) => !m.productLine).sort((a, b) => a.displayOrder - b.displayOrder),
+    [draftMachines]
+  );
 
   // ── Render ─────────────────────────────────────────────────────────
 
@@ -327,10 +386,10 @@ export default function EquipmentSetup({ open, onClose }: Props) {
             Equipment Groups ({draftEquipmentGroups.length})
           </button>
           <button
-            className={`pp-modal-tab ${activeTab === 'displayGroups' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('displayGroups'); setEditingId(null); }}
+            className={`pp-modal-tab ${activeTab === 'productLines' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('productLines'); setEditingId(null); }}
           >
-            Display Groups ({draftDisplayGroups.length})
+            Product Lines ({draftProductLines.length})
           </button>
         </div>
 
@@ -347,7 +406,7 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                   className="pp-setup-select"
                 >
                   <option value="all">All lines</option>
-                  {productLines.map((pl) => (
+                  {sortedProductLines.map((pl) => (
                     <option key={pl.id} value={pl.id}>{pl.name}</option>
                   ))}
                   <option value="none">Unassigned</option>
@@ -461,13 +520,13 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                             className="pp-setup-select-sm"
                           >
                             <option value="">None</option>
-                            {productLines.map((pl) => (
+                            {sortedProductLines.map((pl) => (
                               <option key={pl.id} value={pl.id}>{pl.name}</option>
                             ))}
                           </select>
                         ) : (
                           <span>
-                            {productLines.find((pl) => pl.id === m.productLine)?.name || '—'}
+                            {draftProductLines.find((pl) => pl.id === m.productLine)?.name || '—'}
                           </span>
                         )}
                       </span>
@@ -710,59 +769,138 @@ export default function EquipmentSetup({ open, onClose }: Props) {
             </>
           )}
 
-          {/* ── Display Groups tab ───────────────────────────────── */}
-          {activeTab === 'displayGroups' && (
+          {/* ── Product Lines tab ─────────────────────────────────── */}
+          {activeTab === 'productLines' && (
             <>
               <div className="pp-setup-filter-bar">
                 <span className="pp-setup-filter-label">
-                  Display groups control how machines are organized on the timeline.
+                  Product lines group machines on the timeline. Assigning a machine
+                  to a product line (in the Machines tab) automatically places it in
+                  the corresponding timeline group.
                 </span>
                 <div style={{ flex: 1 }} />
-                <button className="pp-setup-add-btn" onClick={addDisplayGroup}>
-                  + Add Group
+                <button className="pp-setup-add-btn" onClick={addProductLine}>
+                  + Add Line
                 </button>
               </div>
 
               <div className="pp-setup-groups">
-                {draftDisplayGroups.map((g) => (
-                  <div key={g.id} className="pp-setup-group-card">
+                {sortedProductLines.map((pl, idx) => {
+                  const plMachines = machinesByProductLine[pl.id] || [];
+                  const isEditing = editingId === pl.id;
+                  return (
+                    <div key={pl.id} className={`pp-setup-group-card ${isEditing ? 'editing' : ''}`}>
+                      <div className="pp-setup-group-header">
+                        <span className="pp-setup-col-order" style={{ width: 'auto', marginRight: 4 }}>
+                          <button
+                            className="pp-setup-move-btn"
+                            onClick={() => moveProductLine(pl.id, 'up')}
+                            disabled={idx === 0}
+                            title="Move up"
+                          >
+                            &uarr;
+                          </button>
+                          <button
+                            className="pp-setup-move-btn"
+                            onClick={() => moveProductLine(pl.id, 'down')}
+                            disabled={idx === sortedProductLines.length - 1}
+                            title="Move down"
+                          >
+                            &darr;
+                          </button>
+                        </span>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={pl.name}
+                            onChange={(e) => updateDraftProductLine(pl.id, { name: e.target.value })}
+                            className="pp-setup-input pp-setup-group-name-input"
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            className="pp-setup-clickable"
+                            style={{ fontWeight: 500 }}
+                            onClick={() => setEditingId(pl.id)}
+                            title="Click to rename"
+                          >
+                            {pl.name}
+                          </span>
+                        )}
+                        <span className="pp-setup-group-count">
+                          {plMachines.length} machines
+                        </span>
+                        {isEditing ? (
+                          <button
+                            className="pp-setup-action-btn pp-setup-done-btn"
+                            onClick={() => setEditingId(null)}
+                            title="Done"
+                          >
+                            Done
+                          </button>
+                        ) : (
+                          <button
+                            className="pp-setup-action-btn"
+                            onClick={() => setEditingId(pl.id)}
+                            title="Edit"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        <button
+                          className="pp-setup-action-btn pp-setup-delete-btn"
+                          onClick={() => removeProductLine(pl.id)}
+                          title="Delete product line"
+                        >
+                          Del
+                        </button>
+                      </div>
+                      <div className="pp-setup-group-machines">
+                        {plMachines.length === 0 ? (
+                          <span className="text-xs text-[var(--pp-muted)]" style={{ padding: '4px 0' }}>
+                            No machines assigned. Use the Machines tab to assign equipment to this line.
+                          </span>
+                        ) : (
+                          plMachines.map((m) => (
+                            <span key={m.id} className="pp-setup-pl-machine-chip">
+                              {m.downtime && (
+                                <span
+                                  className={`pp-downtime-dot ${isMachineUnavailable(m) ? 'active' : 'scheduled'}`}
+                                  title={m.downtime.reason || 'Downtime'}
+                                />
+                              )}
+                              {m.name}
+                              <span className="pp-setup-group-checkbox-tag">
+                                {eqGroupNameById[m.group] || m.group}
+                              </span>
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {unassignedMachines.length > 0 && (
+                  <div className="pp-setup-group-card" style={{ opacity: 0.7 }}>
                     <div className="pp-setup-group-header">
-                      <input
-                        type="text"
-                        value={g.name}
-                        onChange={(e) => updateDisplayGroupName(g.id, e.target.value)}
-                        className="pp-setup-input pp-setup-group-name-input"
-                      />
+                      <span style={{ fontWeight: 500, color: 'var(--pp-muted)' }}>Unassigned</span>
                       <span className="pp-setup-group-count">
-                        {g.machineIds.length} machines
+                        {unassignedMachines.length} machines
                       </span>
-                      <button
-                        className="pp-setup-action-btn pp-setup-delete-btn"
-                        onClick={() => removeDisplayGroup(g.id)}
-                        title="Delete group"
-                      >
-                        Del
-                      </button>
                     </div>
                     <div className="pp-setup-group-machines">
-                      {[...draftMachines]
-                        .sort((a, b) => a.displayOrder - b.displayOrder)
-                        .map((m) => (
-                          <label key={m.id} className="pp-setup-group-checkbox">
-                            <input
-                              type="checkbox"
-                              checked={g.machineIds.includes(m.id)}
-                              onChange={() => toggleMachineInDisplayGroup(g.id, m.id)}
-                            />
-                            <span>{m.name}</span>
-                            <span className="pp-setup-group-checkbox-tag">
-                              {eqGroupNameById[m.group] || m.group}
-                            </span>
-                          </label>
-                        ))}
+                      {unassignedMachines.map((m) => (
+                        <span key={m.id} className="pp-setup-pl-machine-chip">
+                          {m.name}
+                          <span className="pp-setup-group-checkbox-tag">
+                            {eqGroupNameById[m.group] || m.group}
+                          </span>
+                        </span>
+                      ))}
                     </div>
                   </div>
-                ))}
+                )}
               </div>
             </>
           )}
