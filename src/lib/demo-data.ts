@@ -8,7 +8,17 @@ import type {
   Stage,
   ProductLine,
   MachineDisplayGroup,
+  EquipmentGroup,
 } from './types';
+
+// ─── Default equipment groups (user-configurable at runtime) ─────────
+
+export const DEFAULT_EQUIPMENT_GROUPS: EquipmentGroup[] = [
+  { id: 'inoculum',       name: 'Inoculum',       shortName: 'INO',  displayOrder: 0 },
+  { id: 'propagator',     name: 'Propagator',     shortName: 'PR',   displayOrder: 1 },
+  { id: 'pre_fermenter',  name: 'Pre-fermenter',  shortName: 'PF',   displayOrder: 2 },
+  { id: 'fermenter',      name: 'Fermenter',      shortName: 'F',    displayOrder: 3 },
+];
 
 // ─── Default machines (from VBA imena array) ───────────────────────────
 

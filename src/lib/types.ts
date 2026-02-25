@@ -1,7 +1,17 @@
 // PlantPulse Scheduler — Core TypeScript interfaces
 // Mapped from VBA BigReadArray + modern extensions (see CLAUDE.md)
 
-export type MachineGroup = 'propagator' | 'pre_fermenter' | 'fermenter' | 'inoculum';
+// Equipment groups are user-configurable (not a fixed enum).
+// Machine.group and TurnaroundActivity.equipmentGroup store EquipmentGroup.id strings.
+export type MachineGroup = string;
+
+export interface EquipmentGroup {
+  id: string;             // stable key, e.g. "propagator", "fermenter", "bioreactor"
+  name: string;           // display label, e.g. "Propagator", "Fermenter"
+  shortName: string;      // toolbar chip label, e.g. "PR", "F", "BIO"
+  displayOrder: number;   // controls filter button order and general sort
+}
+
 export type StageType = 'propagation' | 'pre_fermentation' | 'fermentation';
 export type StageState = 'planned' | 'active' | 'completed';
 export type BatchStatus = 'draft' | 'proposed' | 'committed';
@@ -90,7 +100,7 @@ export interface TurnaroundActivity {
   durationDays: number;       // days component of duration
   durationHours: number;      // hours component of duration
   durationMinutes: number;    // minutes component of duration
-  equipmentGroup: MachineGroup; // which equipment group this applies to
+  equipmentGroup: string;       // references EquipmentGroup.id
   isDefault: boolean;         // if true, auto-inserted when scheduling new batches
 }
 

@@ -11,11 +11,13 @@ import type {
   MachineDisplayGroup,
   ViewConfig,
   TurnaroundActivity,
+  EquipmentGroup,
 } from './types';
 import {
   DEFAULT_MACHINES,
   DEFAULT_GROUPS,
   DEFAULT_PRODUCT_LINES,
+  DEFAULT_EQUIPMENT_GROUPS,
   generateDemoData,
 } from './demo-data';
 
@@ -32,6 +34,7 @@ interface PlantPulseState {
   // Data
   machines: Machine[];
   machineGroups: MachineDisplayGroup[];
+  equipmentGroups: EquipmentGroup[];
   productLines: ProductLine[];
   batchChains: BatchChain[];
   stages: Stage[];
@@ -74,6 +77,12 @@ interface PlantPulseState {
   updateMachineGroup: (id: string, updates: Partial<Omit<MachineDisplayGroup, 'id'>>) => void;
   deleteMachineGroup: (id: string) => void;
 
+  // ── Equipment groups ─────────────────────────────────────────────
+  setEquipmentGroups: (groups: EquipmentGroup[]) => void;
+  addEquipmentGroup: (group: EquipmentGroup) => void;
+  updateEquipmentGroup: (id: string, updates: Partial<Omit<EquipmentGroup, 'id'>>) => void;
+  deleteEquipmentGroup: (id: string) => void;
+
   // ── Product line CRUD ─────────────────────────────────────────────
   setProductLines: (lines: ProductLine[]) => void;
   addProductLine: (line: ProductLine) => void;
@@ -92,6 +101,7 @@ interface PlantPulseState {
 export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   machines: DEFAULT_MACHINES,
   machineGroups: DEFAULT_GROUPS,
+  equipmentGroups: DEFAULT_EQUIPMENT_GROUPS,
   productLines: DEFAULT_PRODUCT_LINES,
   batchChains: [],
   stages: [],
@@ -224,6 +234,25 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   deleteMachineGroup: (id) =>
     set((state) => ({
       machineGroups: state.machineGroups.filter((g) => g.id !== id),
+    })),
+
+  // ── Equipment groups ─────────────────────────────────────────────
+
+  setEquipmentGroups: (groups) => set({ equipmentGroups: groups }),
+
+  addEquipmentGroup: (group) =>
+    set((state) => ({ equipmentGroups: [...state.equipmentGroups, group] })),
+
+  updateEquipmentGroup: (id, updates) =>
+    set((state) => ({
+      equipmentGroups: state.equipmentGroups.map((eg) =>
+        eg.id === id ? { ...eg, ...updates } : eg
+      ),
+    })),
+
+  deleteEquipmentGroup: (id) =>
+    set((state) => ({
+      equipmentGroups: state.equipmentGroups.filter((eg) => eg.id !== id),
     })),
 
   // ── Product line CRUD ─────────────────────────────────────────────
