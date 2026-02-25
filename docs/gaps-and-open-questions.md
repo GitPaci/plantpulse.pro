@@ -137,10 +137,12 @@ before building the import validator.
   `equipmentGroup` assignment, and `isDefault` flag. Store CRUD for turnaround
   activities is in place (`add/update/delete` in `lib/store.ts`). Helper function
   `turnaroundTotalHours()` computes the effective gap duration for scheduling math.
+- **Process Setup modal implemented:** Users can now configure turnaround
+  activities per equipment group in the Process Setup modal (Turnaround Activities
+  tab) with d:h:m duration picker, default flag, and equipment group filter.
 - **Still needed:** Wire turnaround activities into the overlap detection engine
   (`lib/scheduling.ts`) so that the minimum gap between consecutive batches on
-  the same vessel is enforced (warn, not block). Build the Process Setup modal UI
-  for users to configure turnaround activities per equipment group.
+  the same vessel is enforced (warn, not block).
 
 **Auto-scheduling (new chain wizard):**
 - **No vessel available: Warning + auto-move.** Show a warning and automatically
@@ -306,12 +308,15 @@ timeline canvas. The following tracks what is implemented vs. pending.
 | Product line → display group sync | Done | `buildDisplayGroups()` auto-derives `MachineDisplayGroup[]` from product lines + machines |
 | Downtime ended-state detection | Done | `isDowntimeEnded()` suppresses indicator for past finite windows; only active/upcoming shown |
 | Reusable modal CSS (`pp-modal-*`) | Done | Backdrop, header, tabs, body, footer, buttons — shared by all setup modals |
+| Process Setup modal — Stage Defaults tab | Done | Per product line: edit default durations, equipment groups, add/remove/reorder stages |
+| Process Setup modal — Turnaround Activities tab | Done | CRUD for CIP/SIP/Cleaning per equipment group; d:h:m picker; default flag |
+| Process Setup modal — Shutdowns tab | Done | CRUD for shutdown periods with date range, name, reason; past dimmed |
+| `ShutdownPeriod` type + store CRUD | Done | `lib/types.ts` + `lib/store.ts`; full add/update/delete |
 
 ### Pending — Setup Modals
 
 | Component | Gap | Priority |
 |-----------|-----|----------|
-| Process Setup modal | UI for stage defaults, turnaround activities (CIP/SIP), shutdown/holiday rules | High — needed before scheduling engine |
 | Shift Schedule modal | UI for team names, rotation pattern, shift colors | Medium — wallboard already uses hardcoded cycle |
 
 ### Pending — Batch Operations
