@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlantPulseStore, generateId } from '@/lib/store';
 import type { Machine, MachineDisplayGroup, EquipmentGroup, MachineDowntime, ProductLine } from '@/lib/types';
-import { isMachineUnavailable } from '@/lib/types';
+import { isMachineUnavailable, hasMachineDowntime } from '@/lib/types';
 
 // ─── Date helpers for datetime-local inputs ────────────────────────────
 
@@ -430,9 +430,9 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                 )}
                 {filteredMachines.map((m, idx) => {
                   const isEditing = editingId === m.id;
-                  const hasDowntime = !!m.downtime;
+                  const hasRelevantDowntime = hasMachineDowntime(m);
                   const isCurrentlyDown = isMachineUnavailable(m);
-                  const downtimeTitle = hasDowntime
+                  const downtimeTitle = hasRelevantDowntime
                     ? isCurrentlyDown
                       ? `Unavailable${m.downtime?.reason ? ': ' + m.downtime.reason : ''}`
                       : `Downtime scheduled${m.downtime?.reason ? ': ' + m.downtime.reason : ''}`
@@ -462,7 +462,7 @@ export default function EquipmentSetup({ open, onClose }: Props) {
 
                       <span className="pp-setup-col-name">
                         <span className="pp-setup-name-with-indicator">
-                          {hasDowntime && (
+                          {hasRelevantDowntime && (
                             <span
                               className={`pp-downtime-dot ${isCurrentlyDown ? 'active' : 'scheduled'}`}
                               title={downtimeTitle}
@@ -564,7 +564,7 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                       <div className="pp-downtime-panel">
                         <div className="pp-downtime-header">
                           <span className="pp-downtime-label">Unavailability</span>
-                          {!hasDowntime ? (
+                          {!m.downtime ? (
                             <button
                               className="pp-setup-add-btn pp-downtime-add-btn"
                               onClick={() => addDowntime(m.id)}
@@ -581,7 +581,7 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                             </button>
                           )}
                         </div>
-                        {hasDowntime && m.downtime && (
+                        {m.downtime && (
                           <div className="pp-downtime-fields">
                             <div className="pp-downtime-field">
                               <label className="pp-downtime-field-label">From</label>
@@ -863,10 +863,10 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                         ) : (
                           plMachines.map((m) => (
                             <span key={m.id} className="pp-setup-pl-machine-chip">
-                              {m.downtime && (
+                              {hasMachineDowntime(m) && (
                                 <span
                                   className={`pp-downtime-dot ${isMachineUnavailable(m) ? 'active' : 'scheduled'}`}
-                                  title={m.downtime.reason || 'Downtime'}
+                                  title={m.downtime?.reason || 'Downtime'}
                                 />
                               )}
                               {m.name}
