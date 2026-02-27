@@ -32,11 +32,18 @@ function fromDateLocal(s: string): Date | null {
 
 // ─── Stage type display names ──────────────────────────────────────────
 
-const STAGE_TYPE_LABELS: Record<string, string> = {
-  propagation: 'Propagation',
-  pre_fermentation: 'Pre-fermentation',
-  fermentation: 'Fermentation',
-};
+// Default stage types — covers the 4 equipment groups in a typical seed train.
+// Users can add custom stage types via the Stage Defaults tab.
+const DEFAULT_STAGE_TYPES: { value: string; label: string }[] = [
+  { value: 'inoculation', label: 'Inoculation' },
+  { value: 'propagation', label: 'Propagation' },
+  { value: 'pre_fermentation', label: 'Pre-fermentation' },
+  { value: 'fermentation', label: 'Fermentation' },
+];
+
+const STAGE_TYPE_LABELS: Record<string, string> = Object.fromEntries(
+  DEFAULT_STAGE_TYPES.map((st) => [st.value, st.label])
+);
 
 function stageTypeLabel(st: string): string {
   return STAGE_TYPE_LABELS[st] ?? st;
@@ -137,7 +144,7 @@ export default function ProcessSetup({
           ...pl,
           stageDefaults: [
             ...pl.stageDefaults,
-            { stageType: 'fermentation' as const, defaultDurationHours: 48, machineGroup: 'fermenter' },
+            { stageType: 'fermentation', defaultDurationHours: 48, machineGroup: 'fermenter' },
           ],
         };
       })
@@ -364,9 +371,11 @@ export default function ProcessSetup({
                               }
                               className="pp-setup-select"
                             >
-                              <option value="propagation">Propagation</option>
-                              <option value="pre_fermentation">Pre-fermentation</option>
-                              <option value="fermentation">Fermentation</option>
+                              {DEFAULT_STAGE_TYPES.map((st) => (
+                                <option key={st.value} value={st.value}>
+                                  {st.label}
+                                </option>
+                              ))}
                             </select>
                           </span>
 

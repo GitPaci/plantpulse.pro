@@ -12,9 +12,12 @@ Phases 8-12 are Enterprise-only.
 - Initialize Next.js 15 + TypeScript + Tailwind CSS + Zustand
 - Configure Vitest + Testing Library
 - Define TypeScript interfaces (`src/lib/types.ts`), including ProductLine, StageDefault
+  - `StageType` is `string` (user-configurable, not a fixed union)
+  - Default stage types: inoculation, propagation, pre_fermentation, fermentation
 - Define default facility config (product lines, machines, stage durations)
   - GNT + KK as demo defaults, but all user-configurable at runtime
-  - Users can add/rename/remove product lines, machines, and stage durations
+  - 4-stage seed train: inoculation (24h) → propagation → pre-fermentation → fermentation
+  - Users can add/rename/remove product lines, machines, stage types, and stage durations
 - Set up Vercel project + connect plantpulse.pro domain
 - Define edition adapter interfaces (conceptual):
   - StorageAdapter: ExcelSession | CloudDB | OnPremDB

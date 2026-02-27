@@ -12,7 +12,10 @@ export interface EquipmentGroup {
   displayOrder: number;   // controls filter button order and general sort
 }
 
-export type StageType = 'propagation' | 'pre_fermentation' | 'fermentation';
+// Stage types are user-configurable (not a fixed enum).
+// Default stage types: inoculation, propagation, pre_fermentation, fermentation.
+// Users can define custom stage types via Process Setup > Stage Defaults.
+export type StageType = string;
 export type StageState = 'planned' | 'active' | 'completed';
 export type BatchStatus = 'draft' | 'proposed' | 'committed';
 

@@ -94,6 +94,7 @@ export const DEFAULT_PRODUCT_LINES: ProductLine[] = [
     name: 'Gentamicin',
     displayOrder: 1,
     stageDefaults: [
+      { stageType: 'inoculation', defaultDurationHours: 24, machineGroup: 'inoculum' },
       { stageType: 'propagation', defaultDurationHours: 48, machineGroup: 'propagator' },
       { stageType: 'pre_fermentation', defaultDurationHours: 55, machineGroup: 'pre_fermenter' },
       { stageType: 'fermentation', defaultDurationHours: 192, machineGroup: 'fermenter' },
@@ -104,6 +105,7 @@ export const DEFAULT_PRODUCT_LINES: ProductLine[] = [
     name: 'KK',
     displayOrder: 2,
     stageDefaults: [
+      { stageType: 'inoculation', defaultDurationHours: 24, machineGroup: 'inoculum' },
       { stageType: 'propagation', defaultDurationHours: 44, machineGroup: 'propagator' },
       { stageType: 'pre_fermentation', defaultDurationHours: 20, machineGroup: 'pre_fermenter' },
       { stageType: 'fermentation', defaultDurationHours: 192, machineGroup: 'fermenter' },
@@ -164,6 +166,10 @@ export function generateDemoData(): {
       const prMachine = KK_PROPAGATORS[prIdx % KK_PROPAGATORS.length];
       prIdx++;
 
+      // Back-calculate inoculation: 24h before PR start
+      const inoStart = subHours(prStart, 24);
+      const inoEnd = new Date(prStart.getTime());
+
       const chainId = `KK-${seriesNum}`;
 
       chains.push({
@@ -175,6 +181,15 @@ export function generateDemoData(): {
       });
 
       stages.push(
+        {
+          id: `s-${stageId++}`,
+          machineId: 'BKK',
+          batchChainId: chainId,
+          stageType: 'inoculation',
+          startDatetime: inoStart,
+          endDatetime: inoEnd,
+          state: inoEnd < today ? 'completed' : inoStart < today ? 'active' : 'planned',
+        },
         {
           id: `s-${stageId++}`,
           machineId: prMachine,
@@ -228,6 +243,10 @@ export function generateDemoData(): {
     const prMachine = GNT_PROPAGATORS[gntPrIdx % GNT_PROPAGATORS.length];
     gntPrIdx++;
 
+    // Back-calculate inoculation: 24h before PR start
+    const inoStart = subHours(prStart, 24);
+    const inoEnd = new Date(prStart.getTime());
+
     const chainId = `GNT-${gntSeries}`;
 
     chains.push({
@@ -239,6 +258,15 @@ export function generateDemoData(): {
     });
 
     stages.push(
+      {
+        id: `s-${stageId++}`,
+        machineId: 'BGNT',
+        batchChainId: chainId,
+        stageType: 'inoculation',
+        startDatetime: inoStart,
+        endDatetime: inoEnd,
+        state: inoEnd < today ? 'completed' : 'active',
+      },
       {
         id: `s-${stageId++}`,
         machineId: prMachine,
