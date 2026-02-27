@@ -130,7 +130,22 @@ export default function ProcessSetup({
             if (i !== stageIdx) return sd;
             if (field === 'defaultDurationHours') {
               const num = Number(value);
-              return { ...sd, defaultDurationHours: isNaN(num) || num < 0 ? 0 : num };
+              const target = isNaN(num) || num < 0 ? 0 : num;
+              // Auto-fill min/max at ±10% when target changes
+              return {
+                ...sd,
+                defaultDurationHours: target,
+                minDurationHours: Math.round(target * 0.9),
+                maxDurationHours: Math.round(target * 1.1),
+              };
+            }
+            if (field === 'minDurationHours') {
+              const num = Number(value);
+              return { ...sd, minDurationHours: isNaN(num) || num < 0 ? 0 : num };
+            }
+            if (field === 'maxDurationHours') {
+              const num = Number(value);
+              return { ...sd, maxDurationHours: isNaN(num) || num < 0 ? 0 : num };
             }
             if (field === 'machineGroup') {
               return { ...sd, machineGroup: String(value) };
@@ -153,7 +168,7 @@ export default function ProcessSetup({
           ...pl,
           stageDefaults: [
             ...pl.stageDefaults,
-            { stageType: 'fermentation', defaultDurationHours: 48, machineGroup: 'fermenter' },
+            { stageType: 'fermentation', defaultDurationHours: 48, minDurationHours: 43, maxDurationHours: 53, machineGroup: 'fermenter' },
           ],
         };
       })
@@ -346,7 +361,9 @@ export default function ProcessSetup({
                       <div className="pp-process-stage-header-row">
                         <span className="pp-process-stage-col-order">#</span>
                         <span className="pp-process-stage-col-type">Stage Type</span>
-                        <span className="pp-process-stage-col-dur">Duration (h)</span>
+                        <span className="pp-process-stage-col-dur">Target (h)</span>
+                        <span className="pp-process-stage-col-dur-sm">Min (h)</span>
+                        <span className="pp-process-stage-col-dur-sm">Max (h)</span>
                         <span className="pp-process-stage-col-group">Equipment Group</span>
                         <span className="pp-process-stage-col-actions">Actions</span>
                       </div>
@@ -402,6 +419,40 @@ export default function ProcessSetup({
                             />
                             <span className="pp-process-duration-hint">
                               {formatHoursAsDHM(sd.defaultDurationHours)}
+                            </span>
+                          </span>
+
+                          <span className="pp-process-stage-col-dur-sm">
+                            <input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={sd.minDurationHours ?? Math.round(sd.defaultDurationHours * 0.9)}
+                              onChange={(e) =>
+                                updateStageDefault(pl.id, idx, 'minDurationHours', e.target.value)
+                              }
+                              className="pp-setup-input"
+                              style={{ width: 60 }}
+                            />
+                            <span className="pp-process-duration-hint">
+                              {formatHoursAsDHM(sd.minDurationHours ?? Math.round(sd.defaultDurationHours * 0.9))}
+                            </span>
+                          </span>
+
+                          <span className="pp-process-stage-col-dur-sm">
+                            <input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={sd.maxDurationHours ?? Math.round(sd.defaultDurationHours * 1.1)}
+                              onChange={(e) =>
+                                updateStageDefault(pl.id, idx, 'maxDurationHours', e.target.value)
+                              }
+                              className="pp-setup-input"
+                              style={{ width: 60 }}
+                            />
+                            <span className="pp-process-duration-hint">
+                              {formatHoursAsDHM(sd.maxDurationHours ?? Math.round(sd.defaultDurationHours * 1.1))}
                             </span>
                           </span>
 

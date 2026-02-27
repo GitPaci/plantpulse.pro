@@ -29,6 +29,8 @@ export interface ProductLine {
 export interface StageDefault {
   stageType: StageType;
   defaultDurationHours: number;
+  minDurationHours?: number;     // optional floor; defaults to target × 0.9
+  maxDurationHours?: number;     // optional ceiling; defaults to target × 1.1
   machineGroup: string;
 }
 

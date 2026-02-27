@@ -1111,6 +1111,10 @@ body {
   width: 80px;
 }
 
+.pp-process-stage-col-dur-sm {
+  width: 68px;
+}
+
 .pp-process-duration-hint {
   display: block;
   font-size: 10px;
