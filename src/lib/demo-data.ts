@@ -94,10 +94,10 @@ export const DEFAULT_PRODUCT_LINES: ProductLine[] = [
     name: 'Gentamicin',
     displayOrder: 1,
     stageDefaults: [
-      { stageType: 'inoculation', defaultDurationHours: 24, machineGroup: 'inoculum' },
-      { stageType: 'propagation', defaultDurationHours: 48, machineGroup: 'propagator' },
-      { stageType: 'pre_fermentation', defaultDurationHours: 55, machineGroup: 'pre_fermenter' },
-      { stageType: 'fermentation', defaultDurationHours: 192, machineGroup: 'fermenter' },
+      { stageType: 'inoculation', defaultDurationHours: 24, minDurationHours: 22, maxDurationHours: 26, machineGroup: 'inoculum' },
+      { stageType: 'propagation', defaultDurationHours: 48, minDurationHours: 43, maxDurationHours: 53, machineGroup: 'propagator' },
+      { stageType: 'pre_fermentation', defaultDurationHours: 55, minDurationHours: 50, maxDurationHours: 61, machineGroup: 'pre_fermenter' },
+      { stageType: 'fermentation', defaultDurationHours: 192, minDurationHours: 173, maxDurationHours: 211, machineGroup: 'fermenter' },
     ],
   },
   {
@@ -105,10 +105,10 @@ export const DEFAULT_PRODUCT_LINES: ProductLine[] = [
     name: 'KK',
     displayOrder: 2,
     stageDefaults: [
-      { stageType: 'inoculation', defaultDurationHours: 24, machineGroup: 'inoculum' },
-      { stageType: 'propagation', defaultDurationHours: 44, machineGroup: 'propagator' },
-      { stageType: 'pre_fermentation', defaultDurationHours: 20, machineGroup: 'pre_fermenter' },
-      { stageType: 'fermentation', defaultDurationHours: 192, machineGroup: 'fermenter' },
+      { stageType: 'inoculation', defaultDurationHours: 24, minDurationHours: 22, maxDurationHours: 26, machineGroup: 'inoculum' },
+      { stageType: 'propagation', defaultDurationHours: 44, minDurationHours: 40, maxDurationHours: 48, machineGroup: 'propagator' },
+      { stageType: 'pre_fermentation', defaultDurationHours: 20, minDurationHours: 18, maxDurationHours: 22, machineGroup: 'pre_fermenter' },
+      { stageType: 'fermentation', defaultDurationHours: 192, minDurationHours: 173, maxDurationHours: 211, machineGroup: 'fermenter' },
     ],
   },
 ];
