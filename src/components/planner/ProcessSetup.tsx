@@ -49,6 +49,15 @@ function stageTypeLabel(st: string): string {
   return STAGE_TYPE_LABELS[st] ?? st;
 }
 
+/** Format total hours as "Xd HH:MM" for readability */
+function formatHoursAsDHM(totalHours: number): string {
+  if (!totalHours || totalHours < 0) return '0d 0:00';
+  const days = Math.floor(totalHours / 24);
+  const remainHours = Math.floor(totalHours % 24);
+  const minutes = Math.round((totalHours % 1) * 60);
+  return `${days}d ${remainHours}:${String(minutes).padStart(2, '0')}`;
+}
+
 // ─── Component ─────────────────────────────────────────────────────────
 
 type Tab = 'stages' | 'turnaround' | 'shutdowns';
@@ -391,6 +400,9 @@ export default function ProcessSetup({
                               className="pp-setup-input"
                               style={{ width: 72 }}
                             />
+                            <span className="pp-process-duration-hint">
+                              {formatHoursAsDHM(sd.defaultDurationHours)}
+                            </span>
                           </span>
 
                           <span className="pp-process-stage-col-group">
