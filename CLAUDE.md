@@ -93,7 +93,9 @@ demo data template for new sessions.
 - Pre-fermenters: PF-3, PF-4, PF-5, PF-6 (intermediate, default duration 20h)
 - Fermenters: F-1, F-4, F-5, F-6, F-7, F-8, F-9, F-10, F-11 (production)
 
-**Other:** bkk1–bkk5 (inoculum/flask-scale vessels)
+**Inoculum (both lines):**
+- BKK (KK inoculum vessel, stage type: inoculation, default duration 24h)
+- BGNT (GNT inoculum vessel, stage type: inoculation, default duration 24h)
 
 The full display order (hardcoded in VBA as `imena` array, configurable in modern app):
 ```
@@ -299,7 +301,7 @@ interface ProductLine {
 }
 
 interface StageDefault {
-  stageType: string;      // e.g. "propagation", "pre_fermentation", "fermentation"
+  stageType: string;      // e.g. "inoculation", "propagation", "pre_fermentation", "fermentation"
   defaultDurationHours: number;
   machineGroup: string;   // which machine group to pick from
 }
@@ -334,7 +336,7 @@ interface Stage {
   id: string;
   machineId: string;
   batchChainId: string;
-  stageType: "propagation" | "pre_fermentation" | "fermentation";
+  stageType: string;      // user-configurable, e.g. "inoculation", "propagation", "pre_fermentation", "fermentation"
   startDatetime: Date;    // "nacep" equivalent
   endDatetime: Date;      // "precep" equivalent
   state: "planned" | "active" | "completed";
@@ -546,7 +548,7 @@ npm run lint         # Run linter
 
 ### Build order (Phase 1–6 for Free MVP)
 
-1. **`lib/types.ts`** — Define all TypeScript interfaces (done: includes EquipmentGroup, MachineDowntime, TurnaroundActivity, ShutdownPeriod, MachineDisplayGroup)
+1. **`lib/types.ts`** — Define all TypeScript interfaces (done: includes EquipmentGroup, MachineDowntime, TurnaroundActivity, ShutdownPeriod, MachineDisplayGroup; StageType changed from union to string for user-configurable stage types)
 2. **`lib/excel-io.ts`** — Import from legacy `.xlsx` format + export
 3. **`lib/store.ts`** — Zustand store with CRUD for all entities (done: Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup, ShutdownPeriod + bulkShiftStages)
 4. **`lib/timeline-math.ts`** — Port the VBA pixel geometry functions
@@ -740,9 +742,9 @@ function backCalculateChain(
   return stages;
 }
 
-// Legacy VBA defaults for reference:
-// GNT: propagation 48h, pre_fermentation 55h, fermentation (variable)
-// KK:  propagation 44h, pre_fermentation 20h, fermentation (variable)
+// Modern defaults (4-stage seed train):
+// GNT: inoculation 24h, propagation 48h, pre_fermentation 55h, fermentation (variable)
+// KK:  inoculation 24h, propagation 44h, pre_fermentation 20h, fermentation (variable)
 
 ```
 
