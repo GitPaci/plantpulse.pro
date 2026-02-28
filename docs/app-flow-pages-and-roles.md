@@ -30,7 +30,7 @@
 | Modal | Tabs | Purpose |
 |-------|------|---------|
 | **Equipment Setup** | Machines, Equipment Groups, Product Lines | Configure facility equipment: add/rename/reorder machines, define equipment groups (dynamic, no longer hardcoded), manage product lines (auto-derives display groups via `buildDisplayGroups()`). Machines tab includes per-machine downtime editor (yellow dot indicator: active/scheduled/ended states). |
-| **Process Setup** | Stage Defaults, Turnaround Activities, Shutdowns | Configure process parameters: edit default stage durations per product line, define turnaround activities (CIP/SIP/Cleaning) per equipment group with d:h:m picker, manage plant shutdown periods with date range and reason. |
+| **Process Setup** | Stage Types, Stage Defaults, Turnaround Activities, Shutdowns | Configure process parameters: define stage types (Inoculum, Seed n-2, Seed n-1, Production) with full CRUD, edit default stage durations per product line with target/min/max, define turnaround activities (CIP/SIP/Cleaning) per equipment group with d:h:m picker, manage plant shutdown periods with date range and reason. |
 | **Account/Profile** | Role assignments, default lens, language. |
 
 ---
