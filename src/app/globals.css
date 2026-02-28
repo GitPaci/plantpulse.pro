@@ -636,7 +636,23 @@ body {
 .pp-setup-filter-label {
   font-size: 12px;
   color: var(--pp-muted);
-  white-space: nowrap;
+}
+
+/* Description bar: stacked layout for long help text + add button */
+.pp-setup-desc-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-bottom: 12px;
+}
+
+.pp-setup-desc-text {
+  flex: 1 1 100%;
+  font-size: 12px;
+  color: var(--pp-muted);
+  margin: 0;
+  line-height: 1.5;
 }
 
 .pp-setup-select,

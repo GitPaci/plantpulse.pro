@@ -650,12 +650,12 @@ export default function EquipmentSetup({ open, onClose }: Props) {
           {/* ── Equipment Groups tab ─────────────────────────────── */}
           {activeTab === 'equipmentGroups' && (
             <>
-              <div className="pp-setup-filter-bar">
-                <span className="pp-setup-filter-label">
-                  Equipment groups classify machines by type (e.g. Propagator, Fermenter).
+              <div className="pp-setup-desc-bar">
+                <p className="pp-setup-desc-text">
+                  Equipment groups classify machines by type
+                  (e.g. Propagator, Fermenter).<br />
                   They appear as filter buttons on the Schedule view.
-                </span>
-                <div style={{ flex: 1 }} />
+                </p>
                 <button className="pp-setup-add-btn" onClick={addEquipmentGroup}>
                   + Add Group
                 </button>
@@ -772,13 +772,12 @@ export default function EquipmentSetup({ open, onClose }: Props) {
           {/* ── Product Lines tab ─────────────────────────────────── */}
           {activeTab === 'productLines' && (
             <>
-              <div className="pp-setup-filter-bar">
-                <span className="pp-setup-filter-label">
+              <div className="pp-setup-desc-bar">
+                <p className="pp-setup-desc-text">
                   Product lines group machines on the timeline. Assigning a machine
                   to a product line (in the Machines tab) automatically places it in
                   the corresponding timeline group.
-                </span>
-                <div style={{ flex: 1 }} />
+                </p>
                 <button className="pp-setup-add-btn" onClick={addProductLine}>
                   + Add Line
                 </button>
