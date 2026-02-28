@@ -13,12 +13,14 @@ import type {
   TurnaroundActivity,
   EquipmentGroup,
   ShutdownPeriod,
+  StageTypeDefinition,
 } from './types';
 import {
   DEFAULT_MACHINES,
   DEFAULT_GROUPS,
   DEFAULT_PRODUCT_LINES,
   DEFAULT_EQUIPMENT_GROUPS,
+  DEFAULT_STAGE_TYPE_DEFINITIONS,
   generateDemoData,
 } from './demo-data';
 
@@ -41,6 +43,7 @@ interface PlantPulseState {
   stages: Stage[];
   turnaroundActivities: TurnaroundActivity[];
   shutdownPeriods: ShutdownPeriod[];
+  stageTypeDefinitions: StageTypeDefinition[];
   viewConfig: ViewConfig;
 
   // ── View actions ──────────────────────────────────────────────────
@@ -102,6 +105,12 @@ interface PlantPulseState {
   addShutdownPeriod: (period: ShutdownPeriod) => void;
   updateShutdownPeriod: (id: string, updates: Partial<Omit<ShutdownPeriod, 'id'>>) => void;
   deleteShutdownPeriod: (id: string) => void;
+
+  // ── Stage type definitions ─────────────────────────────────────
+  setStageTypeDefinitions: (defs: StageTypeDefinition[]) => void;
+  addStageTypeDefinition: (def: StageTypeDefinition) => void;
+  updateStageTypeDefinition: (id: string, updates: Partial<Omit<StageTypeDefinition, 'id'>>) => void;
+  deleteStageTypeDefinition: (id: string) => void;
 }
 
 // ─── Store ─────────────────────────────────────────────────────────────
@@ -115,6 +124,7 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   stages: [],
   turnaroundActivities: [],
   shutdownPeriods: [],
+  stageTypeDefinitions: DEFAULT_STAGE_TYPE_DEFINITIONS,
   viewConfig: {
     viewStart: subDays(startOfDay(new Date()), 4),
     numberOfDays: 21,
@@ -322,5 +332,24 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   deleteShutdownPeriod: (id) =>
     set((state) => ({
       shutdownPeriods: state.shutdownPeriods.filter((p) => p.id !== id),
+    })),
+
+  // ── Stage type definitions ─────────────────────────────────────
+
+  setStageTypeDefinitions: (defs) => set({ stageTypeDefinitions: defs }),
+
+  addStageTypeDefinition: (def) =>
+    set((state) => ({ stageTypeDefinitions: [...state.stageTypeDefinitions, def] })),
+
+  updateStageTypeDefinition: (id, updates) =>
+    set((state) => ({
+      stageTypeDefinitions: state.stageTypeDefinitions.map((d) =>
+        d.id === id ? { ...d, ...updates } : d
+      ),
+    })),
+
+  deleteStageTypeDefinition: (id) =>
+    set((state) => ({
+      stageTypeDefinitions: state.stageTypeDefinitions.filter((d) => d.id !== id),
     })),
 }));

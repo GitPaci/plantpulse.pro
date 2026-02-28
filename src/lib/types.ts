@@ -13,9 +13,20 @@ export interface EquipmentGroup {
 }
 
 // Stage types are user-configurable (not a fixed enum).
-// Default stage types: inoculation, propagation, pre_fermentation, fermentation.
-// Users can define custom stage types via Process Setup > Stage Defaults.
+// Default stage types: inoculum, seed (n-2), seed (n-1), production.
+// Users can define custom stage types via Process Setup > Stage Types tab.
 export type StageType = string;
+
+// Stage type definition — user-editable metadata for each stage type.
+// StageDefault.stageType stores the StageTypeDefinition.id string.
+export interface StageTypeDefinition {
+  id: string;            // stable key, e.g. "inoculum", "seed_n2", "production"
+  name: string;          // display label, e.g. "Inoculum", "Seed (n-2)"
+  shortName: string;     // compact label for bars/chips, e.g. "INO", "n-2"
+  description?: string;  // optional note
+  displayOrder: number;  // controls dropdown and display sort order
+}
+
 export type StageState = 'planned' | 'active' | 'completed';
 export type BatchStatus = 'draft' | 'proposed' | 'committed';
 
