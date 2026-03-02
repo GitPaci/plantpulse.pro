@@ -33,6 +33,7 @@ export type BatchStatus = 'draft' | 'proposed' | 'committed';
 export interface ProductLine {
   id: string;
   name: string;
+  shortName: string;            // compact label for toolbar chips, batch names, e.g. "GNT", "KK"
   stageDefaults: StageDefault[];
   displayOrder: number;
 }

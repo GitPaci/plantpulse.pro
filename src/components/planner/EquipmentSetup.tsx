@@ -254,7 +254,7 @@ export default function EquipmentSetup({ open, onClose }: Props) {
     const newId = generateId('PL-');
     setDraftProductLines((prev) => [
       ...prev,
-      { id: newId, name: 'New Line', displayOrder: nextOrder, stageDefaults: [] },
+      { id: newId, name: 'New Line', shortName: 'NEW', displayOrder: nextOrder, stageDefaults: [] },
     ]);
     setEditingId(newId);
     setDirty(true);
@@ -809,21 +809,35 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                           </button>
                         </span>
                         {isEditing ? (
-                          <input
-                            type="text"
-                            value={pl.name}
-                            onChange={(e) => updateDraftProductLine(pl.id, { name: e.target.value })}
-                            className="pp-setup-input pp-setup-group-name-input"
-                            autoFocus
-                          />
+                          <>
+                            <input
+                              type="text"
+                              value={pl.name}
+                              onChange={(e) => updateDraftProductLine(pl.id, { name: e.target.value })}
+                              className="pp-setup-input pp-setup-group-name-input"
+                              placeholder="Full name"
+                              autoFocus
+                            />
+                            <input
+                              type="text"
+                              value={pl.shortName}
+                              onChange={(e) => updateDraftProductLine(pl.id, { shortName: e.target.value })}
+                              className="pp-setup-input"
+                              style={{ width: 64 }}
+                              placeholder="Short"
+                              maxLength={6}
+                              title="Short name for toolbar chips and batch labels"
+                            />
+                          </>
                         ) : (
                           <span
                             className="pp-setup-clickable"
-                            style={{ fontWeight: 500 }}
+                            style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}
                             onClick={() => setEditingId(pl.id)}
-                            title="Click to rename"
+                            title="Click to edit"
                           >
                             {pl.name}
+                            <span className="pp-setup-badge">{pl.shortName}</span>
                           </span>
                         )}
                         <span className="pp-setup-group-count">
