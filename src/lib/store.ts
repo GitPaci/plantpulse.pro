@@ -21,6 +21,7 @@ import {
   DEFAULT_PRODUCT_LINES,
   DEFAULT_EQUIPMENT_GROUPS,
   DEFAULT_STAGE_TYPE_DEFINITIONS,
+  DEFAULT_TURNAROUND_ACTIVITIES,
   generateDemoData,
 } from './demo-data';
 
@@ -122,7 +123,7 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   productLines: DEFAULT_PRODUCT_LINES,
   batchChains: [],
   stages: [],
-  turnaroundActivities: [],
+  turnaroundActivities: DEFAULT_TURNAROUND_ACTIVITIES,
   shutdownPeriods: [],
   stageTypeDefinitions: DEFAULT_STAGE_TYPE_DEFINITIONS,
   viewConfig: {

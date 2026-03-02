@@ -10,6 +10,7 @@ import type {
   MachineDisplayGroup,
   EquipmentGroup,
   StageTypeDefinition,
+  TurnaroundActivity,
 } from './types';
 
 // ─── Default equipment groups (user-configurable at runtime) ─────────
@@ -28,6 +29,31 @@ export const DEFAULT_STAGE_TYPE_DEFINITIONS: StageTypeDefinition[] = [
   { id: 'seed_n2',    name: 'Seed (n-2)',   shortName: 'n-2',  description: 'Early seed expansion',              displayOrder: 1 },
   { id: 'seed_n1',    name: 'Seed (n-1)',   shortName: 'n-1',  description: 'Late seed expansion',               displayOrder: 2 },
   { id: 'production', name: 'Production',   shortName: 'PROD', description: 'Main/production fermenter',         displayOrder: 3 },
+];
+
+// ─── Default turnaround activities per equipment group ──────────────────
+// Activities that occur between consecutive batches on the same vessel.
+// Durations scale with vessel size: inoculum < propagator < pre-fermenter < fermenter.
+
+export const DEFAULT_TURNAROUND_ACTIVITIES: TurnaroundActivity[] = [
+  // Inoculum — minimal turnaround (flask-scale)
+  { id: 'ta-ino-media',    name: 'Media Preparation & Inoculation', durationDays: 0, durationHours: 2, durationMinutes: 0, equipmentGroup: 'inoculum',      isDefault: true },
+
+  // Propagator (Seed n-2) — small vessel CIP/media/SIP cycle
+  { id: 'ta-pr-cip',       name: 'CIP',                durationDays: 0, durationHours: 1, durationMinutes: 0, equipmentGroup: 'propagator',    isDefault: true },
+  { id: 'ta-pr-media',     name: 'Media Preparation',  durationDays: 0, durationHours: 2, durationMinutes: 0, equipmentGroup: 'propagator',    isDefault: true },
+  { id: 'ta-pr-sip',       name: 'SIP',                durationDays: 0, durationHours: 1, durationMinutes: 0, equipmentGroup: 'propagator',    isDefault: true },
+
+  // Pre-fermenter (Seed n-1) — medium vessel CIP/media/SIP cycle
+  { id: 'ta-pf-cip',       name: 'CIP',                durationDays: 0, durationHours: 1, durationMinutes: 0, equipmentGroup: 'pre_fermenter', isDefault: true },
+  { id: 'ta-pf-media',     name: 'Media Preparation',  durationDays: 0, durationHours: 4, durationMinutes: 0, equipmentGroup: 'pre_fermenter', isDefault: true },
+  { id: 'ta-pf-sip',       name: 'SIP',                durationDays: 0, durationHours: 2, durationMinutes: 0, equipmentGroup: 'pre_fermenter', isDefault: true },
+
+  // Fermenter (Production) — large vessel full turnaround cycle + downstream transfer
+  { id: 'ta-f-cip',        name: 'CIP',                     durationDays: 0, durationHours: 1, durationMinutes: 0, equipmentGroup: 'fermenter',     isDefault: true },
+  { id: 'ta-f-media',      name: 'Media Preparation',       durationDays: 0, durationHours: 6, durationMinutes: 0, equipmentGroup: 'fermenter',     isDefault: true },
+  { id: 'ta-f-sip',        name: 'SIP',                     durationDays: 0, durationHours: 3, durationMinutes: 0, equipmentGroup: 'fermenter',     isDefault: true },
+  { id: 'ta-f-transfer',   name: 'Transfer to Downstream',  durationDays: 0, durationHours: 3, durationMinutes: 0, equipmentGroup: 'fermenter',     isDefault: true },
 ];
 
 // ─── Default machines (from VBA imena array) ───────────────────────────
