@@ -9,6 +9,7 @@ import type {
   ProductLine,
   MachineDisplayGroup,
   EquipmentGroup,
+  StageTypeDefinition,
 } from './types';
 
 // ─── Default equipment groups (user-configurable at runtime) ─────────
@@ -18,6 +19,15 @@ export const DEFAULT_EQUIPMENT_GROUPS: EquipmentGroup[] = [
   { id: 'propagator',     name: 'Propagator',     shortName: 'PR',   displayOrder: 1 },
   { id: 'pre_fermenter',  name: 'Pre-fermenter',  shortName: 'PF',   displayOrder: 2 },
   { id: 'fermenter',      name: 'Fermenter',      shortName: 'F',    displayOrder: 3 },
+];
+
+// ─── Default stage type definitions (biopharma literature nomenclature) ──
+
+export const DEFAULT_STAGE_TYPE_DEFINITIONS: StageTypeDefinition[] = [
+  { id: 'inoculum',   name: 'Inoculum',    shortName: 'INO',  description: 'Flask-scale inoculum preparation',  displayOrder: 0 },
+  { id: 'seed_n2',    name: 'Seed (n-2)',   shortName: 'n-2',  description: 'Early seed expansion',              displayOrder: 1 },
+  { id: 'seed_n1',    name: 'Seed (n-1)',   shortName: 'n-1',  description: 'Late seed expansion',               displayOrder: 2 },
+  { id: 'production', name: 'Production',   shortName: 'PROD', description: 'Main/production fermenter',         displayOrder: 3 },
 ];
 
 // ─── Default machines (from VBA imena array) ───────────────────────────
@@ -94,10 +104,10 @@ export const DEFAULT_PRODUCT_LINES: ProductLine[] = [
     name: 'Gentamicin',
     displayOrder: 1,
     stageDefaults: [
-      { stageType: 'inoculation', defaultDurationHours: 24, minDurationHours: 22, maxDurationHours: 26, machineGroup: 'inoculum' },
-      { stageType: 'propagation', defaultDurationHours: 48, minDurationHours: 43, maxDurationHours: 53, machineGroup: 'propagator' },
-      { stageType: 'pre_fermentation', defaultDurationHours: 55, minDurationHours: 50, maxDurationHours: 61, machineGroup: 'pre_fermenter' },
-      { stageType: 'fermentation', defaultDurationHours: 192, minDurationHours: 173, maxDurationHours: 211, machineGroup: 'fermenter' },
+      { stageType: 'inoculum', defaultDurationHours: 24, minDurationHours: 22, maxDurationHours: 26, machineGroup: 'inoculum' },
+      { stageType: 'seed_n2', defaultDurationHours: 48, minDurationHours: 43, maxDurationHours: 53, machineGroup: 'propagator' },
+      { stageType: 'seed_n1', defaultDurationHours: 55, minDurationHours: 50, maxDurationHours: 61, machineGroup: 'pre_fermenter' },
+      { stageType: 'production', defaultDurationHours: 192, minDurationHours: 173, maxDurationHours: 211, machineGroup: 'fermenter' },
     ],
   },
   {
@@ -105,10 +115,10 @@ export const DEFAULT_PRODUCT_LINES: ProductLine[] = [
     name: 'KK',
     displayOrder: 2,
     stageDefaults: [
-      { stageType: 'inoculation', defaultDurationHours: 24, minDurationHours: 22, maxDurationHours: 26, machineGroup: 'inoculum' },
-      { stageType: 'propagation', defaultDurationHours: 44, minDurationHours: 40, maxDurationHours: 48, machineGroup: 'propagator' },
-      { stageType: 'pre_fermentation', defaultDurationHours: 20, minDurationHours: 18, maxDurationHours: 22, machineGroup: 'pre_fermenter' },
-      { stageType: 'fermentation', defaultDurationHours: 192, minDurationHours: 173, maxDurationHours: 211, machineGroup: 'fermenter' },
+      { stageType: 'inoculum', defaultDurationHours: 24, minDurationHours: 22, maxDurationHours: 26, machineGroup: 'inoculum' },
+      { stageType: 'seed_n2', defaultDurationHours: 44, minDurationHours: 40, maxDurationHours: 48, machineGroup: 'propagator' },
+      { stageType: 'seed_n1', defaultDurationHours: 20, minDurationHours: 18, maxDurationHours: 22, machineGroup: 'pre_fermenter' },
+      { stageType: 'production', defaultDurationHours: 192, minDurationHours: 173, maxDurationHours: 211, machineGroup: 'fermenter' },
     ],
   },
 ];
@@ -185,7 +195,7 @@ export function generateDemoData(): {
           id: `s-${stageId++}`,
           machineId: 'BKK',
           batchChainId: chainId,
-          stageType: 'inoculation',
+          stageType: 'inoculum',
           startDatetime: inoStart,
           endDatetime: inoEnd,
           state: inoEnd < today ? 'completed' : inoStart < today ? 'active' : 'planned',
@@ -194,7 +204,7 @@ export function generateDemoData(): {
           id: `s-${stageId++}`,
           machineId: prMachine,
           batchChainId: chainId,
-          stageType: 'propagation',
+          stageType: 'seed_n2',
           startDatetime: prStart,
           endDatetime: prEnd,
           state: prEnd < today ? 'completed' : prStart < today ? 'active' : 'planned',
@@ -203,7 +213,7 @@ export function generateDemoData(): {
           id: `s-${stageId++}`,
           machineId: pfMachine,
           batchChainId: chainId,
-          stageType: 'pre_fermentation',
+          stageType: 'seed_n1',
           startDatetime: pfStart,
           endDatetime: pfEnd,
           state: pfEnd < today ? 'completed' : pfStart < today ? 'active' : 'planned',
@@ -212,7 +222,7 @@ export function generateDemoData(): {
           id: `s-${stageId++}`,
           machineId: fermenter,
           batchChainId: chainId,
-          stageType: 'fermentation',
+          stageType: 'production',
           startDatetime: fStart,
           endDatetime: fEnd,
           state: fEnd < today ? 'completed' : fStart < today ? 'active' : 'planned',
@@ -262,7 +272,7 @@ export function generateDemoData(): {
         id: `s-${stageId++}`,
         machineId: 'BGNT',
         batchChainId: chainId,
-        stageType: 'inoculation',
+        stageType: 'inoculum',
         startDatetime: inoStart,
         endDatetime: inoEnd,
         state: inoEnd < today ? 'completed' : 'active',
@@ -271,7 +281,7 @@ export function generateDemoData(): {
         id: `s-${stageId++}`,
         machineId: prMachine,
         batchChainId: chainId,
-        stageType: 'propagation',
+        stageType: 'seed_n2',
         startDatetime: prStart,
         endDatetime: prEnd,
         state: prEnd < today ? 'completed' : 'active',
@@ -280,7 +290,7 @@ export function generateDemoData(): {
         id: `s-${stageId++}`,
         machineId: pfMachine,
         batchChainId: chainId,
-        stageType: 'pre_fermentation',
+        stageType: 'seed_n1',
         startDatetime: pfStart,
         endDatetime: pfEnd,
         state: pfEnd < today ? 'completed' : 'active',
@@ -289,7 +299,7 @@ export function generateDemoData(): {
         id: `s-${stageId++}`,
         machineId: fermenter,
         batchChainId: chainId,
-        stageType: 'fermentation',
+        stageType: 'production',
         startDatetime: fStart,
         endDatetime: fEnd,
         state: fEnd < today ? 'completed' : 'active',

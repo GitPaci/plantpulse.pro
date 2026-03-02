@@ -12,6 +12,7 @@ import type {
   TurnaroundActivity,
   EquipmentGroup,
   ShutdownPeriod,
+  StageTypeDefinition,
 } from '@/lib/types';
 import { turnaroundTotalHours } from '@/lib/types';
 
@@ -32,21 +33,8 @@ function fromDateLocal(s: string): Date | null {
 
 // ─── Stage type display names ──────────────────────────────────────────
 
-// Default stage types — covers the 4 equipment groups in a typical seed train.
-// Users can add custom stage types via the Stage Defaults tab.
-const DEFAULT_STAGE_TYPES: { value: string; label: string }[] = [
-  { value: 'inoculation', label: 'Inoculation' },
-  { value: 'propagation', label: 'Propagation' },
-  { value: 'pre_fermentation', label: 'Pre-fermentation' },
-  { value: 'fermentation', label: 'Fermentation' },
-];
-
-const STAGE_TYPE_LABELS: Record<string, string> = Object.fromEntries(
-  DEFAULT_STAGE_TYPES.map((st) => [st.value, st.label])
-);
-
-function stageTypeLabel(st: string): string {
-  return STAGE_TYPE_LABELS[st] ?? st;
+function buildStageTypeLabels(defs: StageTypeDefinition[]): Record<string, string> {
+  return Object.fromEntries(defs.map((d) => [d.id, d.name]));
 }
 
 /** Format total hours as "Xd HH:MM" for readability */
@@ -60,7 +48,7 @@ function formatHoursAsDHM(totalHours: number): string {
 
 // ─── Component ─────────────────────────────────────────────────────────
 
-type Tab = 'stages' | 'turnaround' | 'shutdowns';
+type Tab = 'stageTypes' | 'stages' | 'turnaround' | 'shutdowns';
 
 export default function ProcessSetup({
   open,
@@ -74,13 +62,16 @@ export default function ProcessSetup({
   const storeTurnaroundActivities = usePlantPulseStore((s) => s.turnaroundActivities);
   const storeShutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
   const storeEquipmentGroups = usePlantPulseStore((s) => s.equipmentGroups);
+  const storeStageTypeDefinitions = usePlantPulseStore((s) => s.stageTypeDefinitions);
 
   const setProductLines = usePlantPulseStore((s) => s.setProductLines);
   const setTurnaroundActivities = usePlantPulseStore((s) => s.setTurnaroundActivities);
   const setShutdownPeriods = usePlantPulseStore((s) => s.setShutdownPeriods);
+  const setStageTypeDefinitions = usePlantPulseStore((s) => s.setStageTypeDefinitions);
 
   // Draft state
-  const [tab, setTab] = useState<Tab>('stages');
+  const [tab, setTab] = useState<Tab>('stageTypes');
+  const [draftStageTypes, setDraftStageTypes] = useState<StageTypeDefinition[]>([]);
   const [draftProductLines, setDraftProductLines] = useState<ProductLine[]>([]);
   const [draftActivities, setDraftActivities] = useState<TurnaroundActivity[]>([]);
   const [draftShutdowns, setDraftShutdowns] = useState<ShutdownPeriod[]>([]);
@@ -96,6 +87,7 @@ export default function ProcessSetup({
 
   useEffect(() => {
     if (open) {
+      setDraftStageTypes(storeStageTypeDefinitions.map((d) => ({ ...d })));
       setDraftProductLines(storeProductLines.map((pl) => ({
         ...pl,
         stageDefaults: pl.stageDefaults.map((sd) => ({ ...sd })),
@@ -109,7 +101,14 @@ export default function ProcessSetup({
       setDirty(false);
       setEditingShutdownId(null);
     }
-  }, [open, storeProductLines, storeTurnaroundActivities, storeShutdownPeriods]);
+  }, [open, storeStageTypeDefinitions, storeProductLines, storeTurnaroundActivities, storeShutdownPeriods]);
+
+  // Stage type labels derived from draft (for Stage Defaults dropdown)
+  const stageTypeLabels = useMemo(() => buildStageTypeLabels(draftStageTypes), [draftStageTypes]);
+  const sortedStageTypes = useMemo(
+    () => [...draftStageTypes].sort((a, b) => a.displayOrder - b.displayOrder),
+    [draftStageTypes]
+  );
 
   // ── Equipment group lookup ─────────────────────────────────────────
 
@@ -168,7 +167,7 @@ export default function ProcessSetup({
           ...pl,
           stageDefaults: [
             ...pl.stageDefaults,
-            { stageType: 'fermentation', defaultDurationHours: 48, minDurationHours: 43, maxDurationHours: 53, machineGroup: 'fermenter' },
+            { stageType: 'production', defaultDurationHours: 48, minDurationHours: 43, maxDurationHours: 53, machineGroup: 'fermenter' },
           ],
         };
       })
@@ -200,6 +199,49 @@ export default function ProcessSetup({
         return { ...pl, stageDefaults: arr };
       })
     );
+    setDirty(true);
+  }, []);
+
+  // ── Stage type definition helpers ─────────────────────────────────
+
+  const addStageType = useCallback(() => {
+    const maxOrder = draftStageTypes.reduce((mx, d) => Math.max(mx, d.displayOrder), -1);
+    const newDef: StageTypeDefinition = {
+      id: generateId('st-'),
+      name: '',
+      shortName: '',
+      description: '',
+      displayOrder: maxOrder + 1,
+    };
+    setDraftStageTypes((prev) => [...prev, newDef]);
+    setDirty(true);
+  }, [draftStageTypes]);
+
+  const updateStageType = useCallback(
+    (id: string, updates: Partial<Omit<StageTypeDefinition, 'id'>>) => {
+      setDraftStageTypes((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, ...updates } : d))
+      );
+      setDirty(true);
+    },
+    []
+  );
+
+  const deleteStageType = useCallback((id: string) => {
+    setDraftStageTypes((prev) => prev.filter((d) => d.id !== id));
+    setDirty(true);
+  }, []);
+
+  const moveStageType = useCallback((idx: number, dir: 'up' | 'down') => {
+    setDraftStageTypes((prev) => {
+      const sorted = [...prev].sort((a, b) => a.displayOrder - b.displayOrder);
+      const swap = dir === 'up' ? idx - 1 : idx + 1;
+      if (swap < 0 || swap >= sorted.length) return prev;
+      const tempOrder = sorted[idx].displayOrder;
+      sorted[idx] = { ...sorted[idx], displayOrder: sorted[swap].displayOrder };
+      sorted[swap] = { ...sorted[swap], displayOrder: tempOrder };
+      return sorted;
+    });
     setDirty(true);
   }, []);
 
@@ -277,6 +319,7 @@ export default function ProcessSetup({
   // ── Save ───────────────────────────────────────────────────────────
 
   function handleSave() {
+    setStageTypeDefinitions(draftStageTypes);
     setProductLines(draftProductLines);
     setTurnaroundActivities(draftActivities);
     setShutdownPeriods(draftShutdowns);
@@ -301,6 +344,12 @@ export default function ProcessSetup({
         {/* Tabs */}
         <div className="pp-modal-tabs">
           <button
+            className={`pp-modal-tab ${tab === 'stageTypes' ? 'active' : ''}`}
+            onClick={() => setTab('stageTypes')}
+          >
+            Stage Types
+          </button>
+          <button
             className={`pp-modal-tab ${tab === 'stages' ? 'active' : ''}`}
             onClick={() => setTab('stages')}
           >
@@ -322,6 +371,115 @@ export default function ProcessSetup({
 
         {/* Body */}
         <div className="pp-modal-body">
+          {/* ═══════ Stage Types tab ═══════ */}
+          {tab === 'stageTypes' && (
+            <div className="pp-process-stage-types">
+              <p className="pp-process-help">
+                Define the stage types used in your seed train. Each type maps to one step
+                in the upstream process (e.g. Inoculum → Seed n-2 → Seed n-1 → Production).
+              </p>
+
+              <div className="pp-setup-filter-bar">
+                <span className="text-xs text-[var(--pp-muted)]">
+                  {draftStageTypes.length} stage type{draftStageTypes.length !== 1 ? 's' : ''} defined
+                </span>
+                <button className="pp-setup-add-btn" onClick={addStageType}>
+                  + Stage Type
+                </button>
+              </div>
+
+              {sortedStageTypes.length === 0 && (
+                <div className="pp-setup-empty">
+                  No stage types defined. Click &ldquo;+ Stage Type&rdquo; to add one.
+                </div>
+              )}
+
+              {sortedStageTypes.length > 0 && (
+                <div className="pp-setup-list">
+                  <div className="pp-setup-list-header">
+                    <span className="pp-setup-col-order">#</span>
+                    <span className="pp-setup-col-name">Name</span>
+                    <span className="pp-process-stage-col-short">Short</span>
+                    <span className="pp-process-stage-col-desc">Description</span>
+                    <span className="pp-setup-col-actions">Actions</span>
+                  </div>
+
+                  {sortedStageTypes.map((st, idx) => (
+                    <div key={st.id} className="pp-setup-row-wrapper">
+                      <span className="pp-setup-col-order">
+                        <button
+                          className="pp-setup-move-btn"
+                          onClick={() => moveStageType(idx, 'up')}
+                          disabled={idx === 0}
+                          title="Move up"
+                        >
+                          &uarr;
+                        </button>
+                        <button
+                          className="pp-setup-move-btn"
+                          onClick={() => moveStageType(idx, 'down')}
+                          disabled={idx === sortedStageTypes.length - 1}
+                          title="Move down"
+                        >
+                          &darr;
+                        </button>
+                      </span>
+
+                      <span className="pp-setup-col-name">
+                        <input
+                          type="text"
+                          value={st.name}
+                          onChange={(e) => updateStageType(st.id, { name: e.target.value })}
+                          placeholder="e.g. Seed (n-2)"
+                          className="pp-setup-input"
+                          style={{ width: '100%' }}
+                        />
+                      </span>
+
+                      <span className="pp-process-stage-col-short">
+                        <input
+                          type="text"
+                          value={st.shortName}
+                          onChange={(e) => updateStageType(st.id, { shortName: e.target.value })}
+                          placeholder="e.g. n-2"
+                          className="pp-setup-input"
+                          style={{ width: '100%' }}
+                          maxLength={6}
+                        />
+                      </span>
+
+                      <span className="pp-process-stage-col-desc">
+                        <input
+                          type="text"
+                          value={st.description || ''}
+                          onChange={(e) => updateStageType(st.id, { description: e.target.value })}
+                          placeholder="Optional description"
+                          className="pp-setup-input"
+                          style={{ width: '100%' }}
+                        />
+                      </span>
+
+                      <span className="pp-setup-col-actions">
+                        <button
+                          className="pp-setup-action-btn pp-setup-delete-btn"
+                          onClick={() => deleteStageType(st.id)}
+                          title="Delete stage type"
+                        >
+                          Del
+                        </button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="pp-process-help" style={{ marginTop: 12, fontSize: 11, opacity: 0.7 }}>
+                Stage type IDs are auto-generated. Names appear in dropdowns throughout the app.
+                Short names are used on bar labels and filter chips.
+              </p>
+            </div>
+          )}
+
           {/* ═══════ Stage Defaults tab ═══════ */}
           {tab === 'stages' && (
             <div className="pp-process-stages">
@@ -397,9 +555,9 @@ export default function ProcessSetup({
                               }
                               className="pp-setup-select"
                             >
-                              {DEFAULT_STAGE_TYPES.map((st) => (
-                                <option key={st.value} value={st.value}>
-                                  {st.label}
+                              {sortedStageTypes.map((st) => (
+                                <option key={st.id} value={st.id}>
+                                  {st.name || st.id}
                                 </option>
                               ))}
                             </select>

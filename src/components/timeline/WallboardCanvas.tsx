@@ -389,8 +389,8 @@ function drawBatchBars(
       ctx.fillText(startHour, pos.left + 2, barY + BAR_HEIGHT / 2);
     }
 
-    // End hour label at right edge (fermenter stages only)
-    if (stage.stageType === 'fermentation' && pos.width > 40) {
+    // End hour label at right edge (production/fermenter stages only)
+    if (stage.stageType === 'production' && pos.width > 40) {
       const endHour = String(stage.endDatetime.getHours());
       ctx.font = '8px sans-serif';
       ctx.fillStyle = theme.barHourText;

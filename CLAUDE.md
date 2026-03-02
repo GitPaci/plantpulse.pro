@@ -301,9 +301,21 @@ interface ProductLine {
 }
 
 interface StageDefault {
-  stageType: string;      // e.g. "inoculation", "propagation", "pre_fermentation", "fermentation"
+  stageType: string;      // references StageTypeDefinition.id, e.g. "inoculum", "seed_n2", "seed_n1", "production"
   defaultDurationHours: number;
+  minDurationHours?: number;     // optional floor; defaults to target × 0.9
+  maxDurationHours?: number;     // optional ceiling; defaults to target × 1.1
   machineGroup: string;   // which machine group to pick from
+}
+
+// Stage type definition — user-configurable stage types for the seed train.
+// Literature-aligned defaults: Inoculum → Seed (n-2) → Seed (n-1) → Production
+interface StageTypeDefinition {
+  id: string;             // stable key, e.g. "inoculum", "seed_n2", "production"
+  name: string;           // display label, e.g. "Inoculum", "Seed (n-2)"
+  shortName: string;      // compact label for bars/chips, e.g. "INO", "n-2"
+  description?: string;   // optional note
+  displayOrder: number;   // controls dropdown and display sort order
 }
 
 // Machine unavailability window — excludes machine from planning while active.
@@ -336,7 +348,7 @@ interface Stage {
   id: string;
   machineId: string;
   batchChainId: string;
-  stageType: string;      // user-configurable, e.g. "inoculation", "propagation", "pre_fermentation", "fermentation"
+  stageType: string;      // references StageTypeDefinition.id, e.g. "inoculum", "seed_n2", "seed_n1", "production"
   startDatetime: Date;    // "nacep" equivalent
   endDatetime: Date;      // "precep" equivalent
   state: "planned" | "active" | "completed";
@@ -426,6 +438,7 @@ interface ShiftRotation {
 | *(no VBA equivalent)* | TurnaroundActivity — gap activities between batches (CIP/SIP/Cleaning) |
 | *(no VBA equivalent)* | ShutdownPeriod — plant-wide shutdown windows |
 | *(no VBA equivalent)* | MachineDowntime — per-machine unavailability windows |
+| *(no VBA equivalent)* | StageTypeDefinition — user-configurable stage types (Inoculum, Seed n-2, Seed n-1, Production) |
 
 ---
 
@@ -501,7 +514,7 @@ plantpulse.pro/
 │   │   │   ├── NewChainWizard.tsx
 │   │   │   ├── StageDetailPanel.tsx
 │   │   │   ├── EquipmentSetup.tsx  # Equipment Setup modal (3 tabs)
-│   │   │   └── ProcessSetup.tsx    # Process Setup modal (3 tabs)
+│   │   │   └── ProcessSetup.tsx    # Process Setup modal (4 tabs)
 │   │   ├── wallboard/           # Wallboard-specific components
 │   │   │   ├── TaskArrow.tsx
 │   │   │   └── MaintenanceMarker.tsx
@@ -548,9 +561,9 @@ npm run lint         # Run linter
 
 ### Build order (Phase 1–6 for Free MVP)
 
-1. **`lib/types.ts`** — Define all TypeScript interfaces (done: includes EquipmentGroup, MachineDowntime, TurnaroundActivity, ShutdownPeriod, MachineDisplayGroup; StageType changed from union to string for user-configurable stage types)
+1. **`lib/types.ts`** — Define all TypeScript interfaces (done: includes EquipmentGroup, MachineDowntime, TurnaroundActivity, ShutdownPeriod, MachineDisplayGroup, StageTypeDefinition; StageType is `string` referencing StageTypeDefinition.id)
 2. **`lib/excel-io.ts`** — Import from legacy `.xlsx` format + export
-3. **`lib/store.ts`** — Zustand store with CRUD for all entities (done: Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup, ShutdownPeriod + bulkShiftStages)
+3. **`lib/store.ts`** — Zustand store with CRUD for all entities (done: Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup, ShutdownPeriod, StageTypeDefinition + bulkShiftStages)
 4. **`lib/timeline-math.ts`** — Port the VBA pixel geometry functions
 5. **`lib/holidays.ts`** — Slovenian holidays + Gauss Easter
 6. **`lib/colors.ts`** — `seriesNumber mod 12` color palette
@@ -559,7 +572,7 @@ npm run lint         # Run linter
 9. **`app/wallboard/`** — Operator wallboard view (read-only + task confirm)
 10. **`lib/scheduling.ts`** + **`lib/seed-train.ts`** — Business rules engine
 11. **`components/planner/EquipmentSetup.tsx`** — Equipment Setup modal: Machines (with downtime), Equipment Groups, Product Lines (done)
-12. **`components/planner/ProcessSetup.tsx`** — Process Setup modal: Stage Defaults, Turnaround Activities, Shutdowns (done)
+12. **`components/planner/ProcessSetup.tsx`** — Process Setup modal: Stage Types, Stage Defaults, Turnaround Activities, Shutdowns (done)
 13. **`components/planner/`** — Interactive planning tools (ChainEditor, BulkShiftTool, NewChainWizard, StageDetailPanel)
 14. **`app/planner/`** — Planner view with draft editing
 
@@ -742,9 +755,9 @@ function backCalculateChain(
   return stages;
 }
 
-// Modern defaults (4-stage seed train):
-// GNT: inoculation 24h, propagation 48h, pre_fermentation 55h, fermentation (variable)
-// KK:  inoculation 24h, propagation 44h, pre_fermentation 20h, fermentation (variable)
+// Modern defaults (4-stage seed train, literature-aligned naming):
+// GNT: inoculum 24h, seed_n2 48h, seed_n1 55h, production (variable)
+// KK:  inoculum 24h, seed_n2 44h, seed_n1 20h, production (variable)
 
 ```
 
