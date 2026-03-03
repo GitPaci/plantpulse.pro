@@ -138,7 +138,7 @@ export default function EquipmentSetup({ open, onClose }: Props) {
       id: newId,
       name: newId,
       group: defaultGroup,
-      productLine: sortedProductLines[0]?.id,
+      productLine: undefined,
       displayOrder: nextOrder,
     };
     setDraftMachines((prev) => [...prev, newMachine]);
