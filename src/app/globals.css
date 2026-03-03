@@ -872,6 +872,30 @@ body {
   color: var(--pp-muted);
 }
 
+/* Section header — groups machines by equipment group */
+.pp-setup-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pp-muted);
+  background: var(--pp-surface);
+  border-bottom: 1px solid var(--pp-border);
+}
+
+.pp-setup-section-count {
+  font-size: 9px;
+  font-weight: 500;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--pp-border);
+  color: var(--pp-muted);
+}
+
 /* ─── Downtime indicator dot ──────────────────────────────────────────── */
 
 .pp-downtime-dot {
