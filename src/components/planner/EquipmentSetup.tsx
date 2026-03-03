@@ -306,7 +306,6 @@ export default function EquipmentSetup({ open, onClose }: Props) {
     setEquipmentGroups(draftEquipmentGroups);
     setProductLines(draftProductLines);
     setDirty(false);
-    onClose();
   }
 
   function handleCancel() {
