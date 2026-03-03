@@ -63,6 +63,8 @@ export default function ProcessSetup({
   const storeShutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
   const storeEquipmentGroups = usePlantPulseStore((s) => s.equipmentGroups);
   const storeStageTypeDefinitions = usePlantPulseStore((s) => s.stageTypeDefinitions);
+  const storeStages = usePlantPulseStore((s) => s.stages);
+  const storeBatchChains = usePlantPulseStore((s) => s.batchChains);
 
   const setProductLines = usePlantPulseStore((s) => s.setProductLines);
   const setTurnaroundActivities = usePlantPulseStore((s) => s.setTurnaroundActivities);
@@ -315,6 +317,32 @@ export default function ProcessSetup({
     if (activityGroupFilter === 'all') return draftActivities;
     return draftActivities.filter((a) => a.equipmentGroup === activityGroupFilter);
   }, [draftActivities, activityGroupFilter]);
+
+  // ── Shutdown conflict detection ───────────────────────────────────
+
+  const shutdownConflicts = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    const chainNameById: Record<string, string> = {};
+    for (const bc of storeBatchChains) {
+      chainNameById[bc.id] = bc.batchName;
+    }
+    for (const sd of draftShutdowns) {
+      const sdStart = sd.startDate.getTime();
+      const sdEnd = sd.endDate.getTime();
+      const overlapping = new Set<string>();
+      for (const stage of storeStages) {
+        const sStart = stage.startDatetime.getTime();
+        const sEnd = stage.endDatetime.getTime();
+        if (sStart < sdEnd && sEnd > sdStart) {
+          overlapping.add(chainNameById[stage.batchChainId] || stage.batchChainId);
+        }
+      }
+      if (overlapping.size > 0) {
+        map[sd.id] = [...overlapping].sort();
+      }
+    }
+    return map;
+  }, [draftShutdowns, storeStages, storeBatchChains]);
 
   // ── Save ───────────────────────────────────────────────────────────
 
@@ -827,6 +855,7 @@ export default function ProcessSetup({
                       Math.round((sd.endDate.getTime() - sd.startDate.getTime()) / (1000 * 60 * 60 * 24))
                     );
                     const isPast = sd.endDate < new Date();
+                    const conflicts = shutdownConflicts[sd.id];
 
                     return (
                       <div
@@ -850,7 +879,22 @@ export default function ProcessSetup({
                           {isPast && (
                             <span className="pp-process-shutdown-past-badge">Past</span>
                           )}
+                          {conflicts && (
+                            <span className="pp-process-shutdown-conflict-badge">
+                              {conflicts.length} conflict{conflicts.length !== 1 ? 's' : ''}
+                            </span>
+                          )}
                         </div>
+
+                        {conflicts && (
+                          <div className="pp-process-shutdown-warning">
+                            <span className="pp-process-shutdown-warning-icon">&#9888;</span>
+                            <span>
+                              {conflicts.length} batch{conflicts.length !== 1 ? 'es' : ''} overlap
+                              with this shutdown: {conflicts.join(', ')}
+                            </span>
+                          </div>
+                        )}
 
                         {isEditing && (
                           <div className="pp-process-shutdown-editor">
