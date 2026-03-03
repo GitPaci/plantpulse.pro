@@ -526,7 +526,7 @@ export default function ProcessSetup({
                 <div key={pl.id} className="pp-process-pl-card">
                   <div className="pp-process-pl-header">
                     <span className="pp-process-pl-name">{pl.name}</span>
-                    <span className="pp-process-pl-id">{pl.id}</span>
+                    <span className="pp-process-pl-id">{pl.shortName || pl.id}</span>
                     <button
                       className="pp-setup-add-btn"
                       onClick={() => addStageDefault(pl.id)}
