@@ -22,6 +22,7 @@ import {
   DEFAULT_EQUIPMENT_GROUPS,
   DEFAULT_STAGE_TYPE_DEFINITIONS,
   DEFAULT_TURNAROUND_ACTIVITIES,
+  DEFAULT_WALLBOARD_EQUIPMENT_GROUPS,
   generateDemoData,
 } from './demo-data';
 
@@ -45,12 +46,14 @@ interface PlantPulseState {
   turnaroundActivities: TurnaroundActivity[];
   shutdownPeriods: ShutdownPeriod[];
   stageTypeDefinitions: StageTypeDefinition[];
+  wallboardEquipmentGroups: string[];  // equipment group IDs visible on wallboard
   viewConfig: ViewConfig;
 
   // ── View actions ──────────────────────────────────────────────────
   setViewConfig: (config: Partial<ViewConfig>) => void;
   resetViewToToday: () => void;
   loadDemoData: () => void;
+  setWallboardEquipmentGroups: (groups: string[]) => void;
 
   // ── Stage CRUD ────────────────────────────────────────────────────
   setStages: (stages: Stage[]) => void;
@@ -126,6 +129,7 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   turnaroundActivities: DEFAULT_TURNAROUND_ACTIVITIES,
   shutdownPeriods: [],
   stageTypeDefinitions: DEFAULT_STAGE_TYPE_DEFINITIONS,
+  wallboardEquipmentGroups: DEFAULT_WALLBOARD_EQUIPMENT_GROUPS,
   viewConfig: {
     viewStart: subDays(startOfDay(new Date()), 4),
     numberOfDays: 21,
@@ -145,6 +149,8 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
         viewStart: subDays(startOfDay(new Date()), 4),
       },
     })),
+
+  setWallboardEquipmentGroups: (groups) => set({ wallboardEquipmentGroups: groups }),
 
   loadDemoData: () => {
     if (get().stages.length > 0) return; // already loaded
