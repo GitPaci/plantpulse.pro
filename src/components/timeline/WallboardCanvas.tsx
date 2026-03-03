@@ -17,7 +17,7 @@ import {
   getDate,
   getMonth,
 } from 'date-fns';
-import type { Machine, Stage, MachineDisplayGroup } from '@/lib/types';
+import type { Machine, Stage, MachineDisplayGroup, ShutdownPeriod } from '@/lib/types';
 
 // ─── Layout constants ───────────────────────────────────────────────────
 
@@ -52,6 +52,7 @@ interface CanvasTheme {
   dateWeekend: string;
   separator: string;
   headerBg: string;
+  shutdown: string;
   barBorder: string;
   barHourText: string;
 }
@@ -74,6 +75,7 @@ const DAY_THEME: CanvasTheme = {
   dateText: '#334155',
   dateWeekend: '#DC2626',
   separator: '#F1F5F9',
+  shutdown: 'rgba(120, 120, 140, 0.18)',
   headerBg: '#FFFFFF',
   barBorder: 'rgba(0,0,0,0.12)',
   barHourText: '#000000',
@@ -97,6 +99,7 @@ const NIGHT_THEME: CanvasTheme = {
   dateText: '#94a3b8',
   dateWeekend: '#f87171',
   separator: '#151d2e',
+  shutdown: 'rgba(100, 100, 130, 0.25)',
   headerBg: '#0c1021',
   barBorder: 'rgba(255,255,255,0.10)',
   barHourText: '#d1d5db',
@@ -177,10 +180,21 @@ function drawCalendarColumns(
   width: number,
   totalHeight: number,
   todayHighlight: boolean = true,
-  theme: CanvasTheme = DAY_THEME
+  theme: CanvasTheme = DAY_THEME,
+  shutdowns: ShutdownPeriod[] = []
 ) {
   const ppd = getPPD(width, LEFT_MARGIN, numDays);
   const today = startOfDay(new Date());
+
+  // Pre-compute shutdown day set for O(1) lookup per day column
+  const shutdownDays = new Set<number>();
+  for (const sd of shutdowns) {
+    const sdStart = startOfDay(sd.startDate).getTime();
+    const sdEnd = startOfDay(sd.endDate).getTime();
+    for (let t = sdStart; t <= sdEnd; t += 86400000) {
+      shutdownDays.add(t);
+    }
+  }
 
   for (let d = 0; d < numDays; d++) {
     const date = addDays(viewStart, d);
@@ -193,6 +207,28 @@ function drawCalendarColumns(
     } else if (isSaturday(date)) {
       ctx.fillStyle = theme.weekend;
       ctx.fillRect(x, TOP_MARGIN, ppd, totalHeight - TOP_MARGIN);
+    }
+
+    // Shutdown overlay — grey shade over affected days
+    if (shutdownDays.has(startOfDay(date).getTime())) {
+      ctx.fillStyle = theme.shutdown;
+      ctx.fillRect(x, TOP_MARGIN, ppd, totalHeight - TOP_MARGIN);
+
+      // Diagonal hatch pattern to distinguish from weekends
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, TOP_MARGIN, ppd, totalHeight - TOP_MARGIN);
+      ctx.clip();
+      ctx.strokeStyle = theme.shutdown;
+      ctx.lineWidth = 0.5;
+      const step = 8;
+      for (let i = -totalHeight; i < ppd + totalHeight; i += step) {
+        ctx.beginPath();
+        ctx.moveTo(x + i, TOP_MARGIN);
+        ctx.lineTo(x + i + totalHeight, TOP_MARGIN + totalHeight);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
     // Today highlight
@@ -510,6 +546,7 @@ export default function WallboardCanvas({
   const stages = usePlantPulseStore((s) => s.stages);
   const batchChains = usePlantPulseStore((s) => s.batchChains);
   const viewConfig = usePlantPulseStore((s) => s.viewConfig);
+  const shutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
   const loadDemoData = usePlantPulseStore((s) => s.loadDemoData);
 
   // Load demo data on mount
@@ -586,7 +623,7 @@ export default function WallboardCanvas({
 
     // Draw layers (back to front)
     drawRowBackgrounds(ctx, rows, dims.width, theme);
-    drawCalendarColumns(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, showTodayHighlight, theme);
+    drawCalendarColumns(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, showTodayHighlight, theme, shutdownPeriods);
     drawBatchBars(ctx, visibleStages, batchChainMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     if (showNowLineProp) {
       drawNowLine(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, theme);
@@ -596,7 +633,7 @@ export default function WallboardCanvas({
       drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     }
     drawDateHeader(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
-  }, [dims, rows, visibleStages, batchChainMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme]);
+  }, [dims, rows, visibleStages, batchChainMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods]);
 
   // Redraw on any change
   useEffect(() => {
