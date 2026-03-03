@@ -357,23 +357,45 @@ export default function EquipmentSetup({ open, onClose }: Props) {
     .filter((m) => filterGroup === 'all' || m.group === filterGroup)
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
-  // Build visual group sections: group machines by equipment group for section headers
+  // Build visual group sections: group machines by equipment group + product line
   const machinesSectioned = useMemo(() => {
-    const sections: { groupId: string; groupName: string; machines: Machine[] }[] = [];
-    let currentGroup = '';
+    const sectionMap = new Map<string, { groupId: string; groupName: string; lineName: string; machines: Machine[] }>();
+
+    // Build sections in equipment group display order, then product line display order
+    const eqGroupOrder: Record<string, number> = {};
+    for (const eg of sortedEqGroups) eqGroupOrder[eg.id] = eg.displayOrder;
+    const plOrder: Record<string, number> = {};
+    for (const pl of sortedProductLines) plOrder[pl.id] = pl.displayOrder;
+
     for (const m of filteredMachines) {
-      if (m.group !== currentGroup) {
-        currentGroup = m.group;
-        sections.push({
+      const lineKey = m.productLine || '__none__';
+      const key = `${m.group}::${lineKey}`;
+      if (!sectionMap.has(key)) {
+        const lineName = m.productLine
+          ? (draftProductLines.find((pl) => pl.id === m.productLine)?.shortName
+             || draftProductLines.find((pl) => pl.id === m.productLine)?.name
+             || m.productLine)
+          : 'Unassigned';
+        sectionMap.set(key, {
           groupId: m.group,
           groupName: eqGroupNameById[m.group] || m.group,
+          lineName,
           machines: [],
         });
       }
-      sections[sections.length - 1].machines.push(m);
+      sectionMap.get(key)!.machines.push(m);
     }
-    return sections;
-  }, [filteredMachines, eqGroupNameById]);
+
+    // Sort sections: by equipment group order, then by product line order
+    return [...sectionMap.values()].sort((a, b) => {
+      const ga = eqGroupOrder[a.groupId] ?? 999;
+      const gb = eqGroupOrder[b.groupId] ?? 999;
+      if (ga !== gb) return ga - gb;
+      const la = a.lineName === 'Unassigned' ? 999 : (plOrder[a.machines[0]?.productLine || ''] ?? 998);
+      const lb = b.lineName === 'Unassigned' ? 999 : (plOrder[b.machines[0]?.productLine || ''] ?? 998);
+      return la - lb;
+    });
+  }, [filteredMachines, eqGroupNameById, sortedEqGroups, sortedProductLines, draftProductLines]);
 
   // Count machines per equipment group for the badge
   const machineCountByEqGroup = useMemo(() => {
@@ -495,12 +517,14 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                 {filteredMachines.length === 0 && (
                   <div className="pp-setup-empty">No machines match the current filter.</div>
                 )}
-                {machinesSectioned.map((section) => (
-                  <div key={section.groupId}>
-                    {/* Section header — shown when viewing multiple groups */}
+                {machinesSectioned.map((section, sIdx) => (
+                  <div key={`${section.groupId}::${section.lineName}`}>
+                    {/* Section header — shown when viewing multiple sections */}
                     {machinesSectioned.length > 1 && (
                       <div className="pp-setup-section-header">
                         {section.groupName}
+                        <span className="pp-setup-section-separator">/</span>
+                        {section.lineName}
                         <span className="pp-setup-section-count">{section.machines.length}</span>
                       </div>
                     )}

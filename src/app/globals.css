@@ -896,6 +896,11 @@ body {
   color: var(--pp-muted);
 }
 
+.pp-setup-section-separator {
+  opacity: 0.4;
+  margin: 0 1px;
+}
+
 /* ─── Downtime indicator dot ──────────────────────────────────────────── */
 
 .pp-downtime-dot {
