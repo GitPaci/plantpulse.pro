@@ -43,7 +43,7 @@ function buildDisplayGroups(
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
-type Tab = 'machines' | 'equipmentGroups' | 'productLines';
+type Tab = 'machines' | 'equipmentGroups' | 'productLines' | 'wallboard';
 
 interface Props {
   open: boolean;
@@ -60,11 +60,14 @@ export default function EquipmentSetup({ open, onClose }: Props) {
   const setMachineGroups = usePlantPulseStore((s) => s.setMachineGroups);
   const setEquipmentGroups = usePlantPulseStore((s) => s.setEquipmentGroups);
   const setProductLines = usePlantPulseStore((s) => s.setProductLines);
+  const wallboardEquipmentGroups = usePlantPulseStore((s) => s.wallboardEquipmentGroups);
+  const setWallboardEquipmentGroups = usePlantPulseStore((s) => s.setWallboardEquipmentGroups);
 
   // Local draft state — changes are buffered here until Save
   const [draftMachines, setDraftMachines] = useState<Machine[]>([]);
   const [draftEquipmentGroups, setDraftEquipmentGroups] = useState<EquipmentGroup[]>([]);
   const [draftProductLines, setDraftProductLines] = useState<ProductLine[]>([]);
+  const [draftWallboardGroups, setDraftWallboardGroups] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<Tab>('machines');
   const [filterLine, setFilterLine] = useState<string>('all');
   const [filterGroup, setFilterGroup] = useState<string>('all');
@@ -101,10 +104,11 @@ export default function EquipmentSetup({ open, onClose }: Props) {
         ...pl,
         stageDefaults: pl.stageDefaults.map((sd) => ({ ...sd })),
       })));
+      setDraftWallboardGroups(new Set(wallboardEquipmentGroups));
       setEditingId(null);
       setDirty(false);
     }
-  }, [open, machines, equipmentGroups, productLines]);
+  }, [open, machines, equipmentGroups, productLines, wallboardEquipmentGroups]);
 
   // Close on Escape
   useEffect(() => {
@@ -333,6 +337,30 @@ export default function EquipmentSetup({ open, onClose }: Props) {
     setDirty(true);
   }
 
+  // ── Wallboard group toggle ─────────────────────────────────────────
+
+  function toggleWallboardGroup(groupId: string) {
+    setDraftWallboardGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+    setDirty(true);
+  }
+
+  // Machine count per equipment group for wallboard preview
+  const wallboardMachineCount = useMemo(() => {
+    let total = 0;
+    for (const m of draftMachines) {
+      if (draftWallboardGroups.has(m.group)) total++;
+    }
+    return total;
+  }, [draftMachines, draftWallboardGroups]);
+
   // ── Save / Cancel ──────────────────────────────────────────────────
 
   function handleSave() {
@@ -343,6 +371,7 @@ export default function EquipmentSetup({ open, onClose }: Props) {
     setMachineGroups(derivedGroups);
     setEquipmentGroups(draftEquipmentGroups);
     setProductLines(draftProductLines);
+    setWallboardEquipmentGroups([...draftWallboardGroups]);
     setDirty(false);
   }
 
@@ -468,6 +497,12 @@ export default function EquipmentSetup({ open, onClose }: Props) {
             onClick={() => { setActiveTab('productLines'); setEditingId(null); }}
           >
             Product Lines ({draftProductLines.length})
+          </button>
+          <button
+            className={`pp-modal-tab ${activeTab === 'wallboard' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('wallboard'); setEditingId(null); }}
+          >
+            Wallboard Display
           </button>
         </div>
 
@@ -1018,6 +1053,71 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                 )}
               </div>
             </>
+          )}
+
+          {/* ── Wallboard Display tab ──────────────────────────────── */}
+          {activeTab === 'wallboard' && (
+            <div className="pp-wallboard-tab">
+              <p className="pp-process-help">
+                Choose which equipment groups appear on the Wallboard.
+                The wallboard is focused on shopfloor shift handover — typically
+                lab-scale inoculum vessels are excluded.
+              </p>
+
+              <div className="pp-wallboard-summary">
+                {wallboardMachineCount} machine{wallboardMachineCount !== 1 ? 's' : ''} visible
+                &nbsp;&middot;&nbsp;
+                {draftWallboardGroups.size} of {draftEquipmentGroups.length} groups selected
+              </div>
+
+              <div className="pp-wallboard-group-list">
+                {sortedEqGroups.map((eg) => {
+                  const checked = draftWallboardGroups.has(eg.id);
+                  const groupMachines = draftMachines.filter((m) => m.group === eg.id);
+                  const machineNames = groupMachines
+                    .sort((a, b) => a.displayOrder - b.displayOrder)
+                    .map((m) => m.name);
+
+                  return (
+                    <label
+                      key={eg.id}
+                      className={`pp-wallboard-group-card ${checked ? 'selected' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleWallboardGroup(eg.id)}
+                        className="pp-wallboard-checkbox"
+                      />
+                      <div className="pp-wallboard-group-info">
+                        <span className="pp-wallboard-group-name">
+                          {eg.name}
+                          <span className="pp-setup-badge" style={{ marginLeft: 6 }}>{eg.shortName}</span>
+                        </span>
+                        <span className="pp-wallboard-group-machines">
+                          {groupMachines.length === 0
+                            ? 'No machines'
+                            : machineNames.length <= 6
+                              ? machineNames.join(', ')
+                              : `${machineNames.slice(0, 5).join(', ')} +${machineNames.length - 5} more`
+                          }
+                        </span>
+                      </div>
+                      <span className="pp-wallboard-group-count">
+                        {groupMachines.length}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {draftWallboardGroups.size === 0 && (
+                <div className="pp-process-shutdown-warning" style={{ marginTop: 8 }}>
+                  <span className="pp-process-shutdown-warning-icon">&#9888;</span>
+                  <span>No groups selected — the wallboard will be empty.</span>
+                </div>
+              )}
+            </div>
           )}
         </div>
 

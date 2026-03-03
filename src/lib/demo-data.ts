@@ -56,6 +56,12 @@ export const DEFAULT_TURNAROUND_ACTIVITIES: TurnaroundActivity[] = [
   { id: 'ta-f-transfer',   name: 'Transfer to Downstream',  durationDays: 0, durationHours: 3, durationMinutes: 0, equipmentGroup: 'fermenter',     isDefault: true },
 ];
 
+// ─── Default wallboard equipment groups (shopfloor focus, excludes inoculum) ─
+
+export const DEFAULT_WALLBOARD_EQUIPMENT_GROUPS: string[] = [
+  'propagator', 'pre_fermenter', 'fermenter',
+];
+
 // ─── Default machines (from VBA imena array) ───────────────────────────
 
 export const DEFAULT_MACHINES: Machine[] = [

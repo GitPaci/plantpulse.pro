@@ -12,6 +12,7 @@ import { SHIFT_TEAM_COLORS } from '@/lib/colors';
 import { useNightMode } from '@/lib/useNightMode';
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { addDays } from 'date-fns';
+import type { MachineDisplayGroup } from '@/lib/types';
 
 const TEAM_NAMES = ['Blue', 'Green', 'Red', 'Yellow'];
 
@@ -19,11 +20,28 @@ export default function WallboardPage() {
   const viewConfig = usePlantPulseStore((s) => s.viewConfig);
   const setViewConfig = usePlantPulseStore((s) => s.setViewConfig);
   const resetViewToToday = usePlantPulseStore((s) => s.resetViewToToday);
+  const machines = usePlantPulseStore((s) => s.machines);
+  const machineGroups = usePlantPulseStore((s) => s.machineGroups);
+  const wallboardEquipmentGroups = usePlantPulseStore((s) => s.wallboardEquipmentGroups);
 
   // Reset timeline to today on every mount (direct nav, reload, returning from another page)
   useEffect(() => {
     resetViewToToday();
   }, [resetViewToToday]);
+
+  // Filter machine groups to only show equipment groups selected in Wallboard Display settings
+  const wallboardGroups: MachineDisplayGroup[] = useMemo(() => {
+    const allowedSet = new Set(wallboardEquipmentGroups);
+    return machineGroups
+      .map((dg) => ({
+        ...dg,
+        machineIds: dg.machineIds.filter((id) => {
+          const m = machines.find((mx) => mx.id === id);
+          return m && allowedSet.has(m.group);
+        }),
+      }))
+      .filter((dg) => dg.machineIds.length > 0);
+  }, [machineGroups, machines, wallboardEquipmentGroups]);
 
   const [now, setNow] = useState(() => new Date());
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -212,7 +230,7 @@ export default function WallboardPage() {
 
       {/* Canvas fills remaining space */}
       <div className="flex-1 min-h-0">
-        <WallboardCanvas nightMode={nightMode} />
+        <WallboardCanvas nightMode={nightMode} customMachineGroups={wallboardGroups} />
       </div>
     </div>
   );
