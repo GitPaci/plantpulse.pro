@@ -67,6 +67,7 @@ export default function EquipmentSetup({ open, onClose }: Props) {
   const [draftProductLines, setDraftProductLines] = useState<ProductLine[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>('machines');
   const [filterLine, setFilterLine] = useState<string>('all');
+  const [filterGroup, setFilterGroup] = useState<string>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
 
@@ -128,18 +129,55 @@ export default function EquipmentSetup({ open, onClose }: Props) {
   );
 
   function addMachine() {
-    const nextOrder =
-      draftMachines.length > 0
-        ? Math.max(...draftMachines.map((m) => m.displayOrder)) + 1
-        : 1;
     const newId = generateId('M-');
-    const defaultGroup = sortedEqGroups[0]?.id ?? '';
+    // Inherit from active filters so the new machine lands in the right group
+    const targetGroup = filterGroup !== 'all' ? filterGroup : (sortedEqGroups[0]?.id ?? '');
+    const targetLine = filterLine !== 'all' && filterLine !== 'none' ? filterLine : undefined;
+
+    // Find siblings with same group + product line, insert right after them
+    const siblings = draftMachines
+      .filter((m) => m.group === targetGroup && m.productLine === targetLine)
+      .sort((a, b) => a.displayOrder - b.displayOrder);
+
+    let insertOrder: number;
+    if (siblings.length > 0) {
+      const lastSibling = siblings[siblings.length - 1];
+      // Find the next machine after the last sibling to insert between
+      const allSorted = [...draftMachines].sort((a, b) => a.displayOrder - b.displayOrder);
+      const lastIdx = allSorted.findIndex((m) => m.id === lastSibling.id);
+      if (lastIdx >= 0 && lastIdx < allSorted.length - 1) {
+        // Insert halfway between last sibling and the next machine
+        insertOrder = (lastSibling.displayOrder + allSorted[lastIdx + 1].displayOrder) / 2;
+      } else {
+        insertOrder = lastSibling.displayOrder + 1;
+      }
+    } else {
+      // No siblings — find machines in same group (any line) and insert after them
+      const groupSiblings = draftMachines
+        .filter((m) => m.group === targetGroup)
+        .sort((a, b) => a.displayOrder - b.displayOrder);
+      if (groupSiblings.length > 0) {
+        const last = groupSiblings[groupSiblings.length - 1];
+        const allSorted = [...draftMachines].sort((a, b) => a.displayOrder - b.displayOrder);
+        const lastIdx = allSorted.findIndex((m) => m.id === last.id);
+        if (lastIdx >= 0 && lastIdx < allSorted.length - 1) {
+          insertOrder = (last.displayOrder + allSorted[lastIdx + 1].displayOrder) / 2;
+        } else {
+          insertOrder = last.displayOrder + 1;
+        }
+      } else {
+        insertOrder = draftMachines.length > 0
+          ? Math.max(...draftMachines.map((m) => m.displayOrder)) + 1
+          : 1;
+      }
+    }
+
     const newMachine: Machine = {
       id: newId,
       name: newId,
-      group: defaultGroup,
-      productLine: undefined,
-      displayOrder: nextOrder,
+      group: targetGroup,
+      productLine: targetLine,
+      displayOrder: insertOrder,
     };
     setDraftMachines((prev) => [...prev, newMachine]);
     setEditingId(newId);
@@ -316,7 +354,26 @@ export default function EquipmentSetup({ open, onClose }: Props) {
 
   const filteredMachines = draftMachines
     .filter((m) => filterLine === 'all' || m.productLine === filterLine || (!m.productLine && filterLine === 'none'))
+    .filter((m) => filterGroup === 'all' || m.group === filterGroup)
     .sort((a, b) => a.displayOrder - b.displayOrder);
+
+  // Build visual group sections: group machines by equipment group for section headers
+  const machinesSectioned = useMemo(() => {
+    const sections: { groupId: string; groupName: string; machines: Machine[] }[] = [];
+    let currentGroup = '';
+    for (const m of filteredMachines) {
+      if (m.group !== currentGroup) {
+        currentGroup = m.group;
+        sections.push({
+          groupId: m.group,
+          groupName: eqGroupNameById[m.group] || m.group,
+          machines: [],
+        });
+      }
+      sections[sections.length - 1].machines.push(m);
+    }
+    return sections;
+  }, [filteredMachines, eqGroupNameById]);
 
   // Count machines per equipment group for the badge
   const machineCountByEqGroup = useMemo(() => {
@@ -398,7 +455,18 @@ export default function EquipmentSetup({ open, onClose }: Props) {
           {activeTab === 'machines' && (
             <>
               <div className="pp-setup-filter-bar">
-                <label className="pp-setup-filter-label">Product line:</label>
+                <label className="pp-setup-filter-label">Group:</label>
+                <select
+                  value={filterGroup}
+                  onChange={(e) => setFilterGroup(e.target.value)}
+                  className="pp-setup-select"
+                >
+                  <option value="all">All groups</option>
+                  {sortedEqGroups.map((eg) => (
+                    <option key={eg.id} value={eg.id}>{eg.name}</option>
+                  ))}
+                </select>
+                <label className="pp-setup-filter-label">Line:</label>
                 <select
                   value={filterLine}
                   onChange={(e) => setFilterLine(e.target.value)}
@@ -427,7 +495,16 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                 {filteredMachines.length === 0 && (
                   <div className="pp-setup-empty">No machines match the current filter.</div>
                 )}
-                {filteredMachines.map((m, idx) => {
+                {machinesSectioned.map((section) => (
+                  <div key={section.groupId}>
+                    {/* Section header — shown when viewing multiple groups */}
+                    {machinesSectioned.length > 1 && (
+                      <div className="pp-setup-section-header">
+                        {section.groupName}
+                        <span className="pp-setup-section-count">{section.machines.length}</span>
+                      </div>
+                    )}
+                    {section.machines.map((m, idx) => {
                   const isEditing = editingId === m.id;
                   const hasRelevantDowntime = hasMachineDowntime(m);
                   const isCurrentlyDown = isMachineUnavailable(m);
@@ -641,7 +718,9 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                     )}
                   </div>
                   );
-                })}
+                    })}
+                  </div>
+                ))}
               </div>
             </>
           )}
