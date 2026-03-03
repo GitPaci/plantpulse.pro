@@ -128,6 +128,7 @@ export const DEFAULT_PRODUCT_LINES: ProductLine[] = [
   {
     id: 'GNT',
     name: 'Gentamicin',
+    shortName: 'GNT',
     displayOrder: 1,
     stageDefaults: [
       { stageType: 'inoculum', defaultDurationHours: 24, minDurationHours: 22, maxDurationHours: 26, machineGroup: 'inoculum' },
@@ -139,6 +140,7 @@ export const DEFAULT_PRODUCT_LINES: ProductLine[] = [
   {
     id: 'KK',
     name: 'KK',
+    shortName: 'KK',
     displayOrder: 2,
     stageDefaults: [
       { stageType: 'inoculum', defaultDurationHours: 24, minDurationHours: 22, maxDurationHours: 26, machineGroup: 'inoculum' },
