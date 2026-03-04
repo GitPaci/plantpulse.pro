@@ -205,6 +205,11 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Configured per equipment group in Process Setup modal (Turnaround Activities tab)
 - Duration specified as days:hours:minutes; `turnaroundTotalHours()` computes effective gap for scheduling math
 - `isDefault` flag marks activities for auto-insertion during batch scheduling
+- **Pre-populated defaults** for all 4 equipment groups (11 activities total):
+  - Inoculum: Media Preparation & Inoculation (2h)
+  - Propagator: CIP (1h), Media Preparation (2h), SIP (1h)
+  - Pre-fermenter: CIP (1h), Media Preparation (4h), SIP (2h)
+  - Fermenter: CIP (1h), Media Preparation (6h), SIP (3h), Transfer to Downstream (3h)
 - Still pending: wiring into overlap detection engine (`lib/scheduling.ts`)
 
 #### 13. Shutdown periods (modern, no VBA equivalent)
@@ -212,6 +217,8 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Managed in Process Setup modal (Shutdowns tab)
 - Past shutdowns are visually dimmed; sorted by start date
 - Full CRUD in Zustand store (`add/update/deleteShutdownPeriod`)
+- **Conflict warnings**: amber banner in Shutdowns tab when a shutdown period overlaps planned batch stages (informational, not blocking); shows affected batch names and conflict count badge
+- **Calendar overlay**: shutdown days rendered on Wallboard canvas as grey fill + diagonal hatch pattern (8px step, clipped to column); theme-aware (day: `rgba(120,120,140,0.18)`, night: `rgba(100,100,130,0.25)`)
 
 #### 14. PDF export (modern, Schedule view only)
 - Client-side only: `html2canvas` captures the schedule `<canvas>` at 2× scale, `jsPDF` generates A4 landscape PDF
@@ -270,6 +277,22 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - **Print safety**: `@media print` CSS rule forces light theme
 - Implementation: `lib/useNightMode.ts` (hook) + `WallboardCanvas.tsx` (theme) + `app/wallboard/page.tsx` (toggles) + `globals.css` (`.wallboard-night-*` classes)
 
+#### 18. Wallboard equipment group filtering
+- Wallboard shows only equipment groups selected in Equipment Setup > Wallboard Display tab
+- Default: propagator, pre_fermenter, fermenter (excludes inoculum — not shift-managed on shopfloor)
+- State: `wallboardEquipmentGroups: string[]` in Zustand store with `setWallboardEquipmentGroups()` action
+- Filtering: `wallboard/page.tsx` builds `wallboardGroups` by filtering `machineGroups` against the allowed set, then passes via `customMachineGroups` prop to `WallboardCanvas`
+- Wallboard Display tab in Equipment Setup: checkbox card per equipment group with machine count preview, draft state pattern
+- Implementation: `app/wallboard/page.tsx` (filtering) + `EquipmentSetup.tsx` (Wallboard Display tab) + `store.ts` (state) + `demo-data.ts` (defaults)
+
+#### 19. Equipment Setup — machine grouping and smart insertion
+- **Equipment group filter**: dropdown in Machines tab to filter visible machines by equipment group (or "All")
+- **Section headers**: machines grouped by equipment group + product line composite key (e.g. "Pre-fermenter / Gentamicin") with count badges; visual separators between sections
+- **Smart insertion**: new machines inherit the active filter's equipment group and product line; inserted after siblings using fractional `displayOrder` (midpoint between last sibling and next machine)
+- New machine default product line is "None" (unassigned)
+- Save button keeps modal open (matches Process Setup behavior)
+- CSS: `.pp-setup-section-header`, `.pp-setup-section-count`, `.pp-setup-section-separator` in `globals.css`
+
 ---
 
 ## Target Data Model (Modern)
@@ -296,6 +319,7 @@ interface EquipmentGroup {
 interface ProductLine {
   id: string;             // user-defined, e.g. "GNT", "KK", "API-X"
   name: string;           // display name, e.g. "Gentamicin", "KK Line"
+  shortName: string;      // compact label for chips/headers, e.g. "GNT", "KK"
   stageDefaults: StageDefault[];  // ordered seed train template
   displayOrder: number;
 }
@@ -513,7 +537,7 @@ plantpulse.pro/
 │   │   │   ├── BulkShiftTool.tsx
 │   │   │   ├── NewChainWizard.tsx
 │   │   │   ├── StageDetailPanel.tsx
-│   │   │   ├── EquipmentSetup.tsx  # Equipment Setup modal (3 tabs)
+│   │   │   ├── EquipmentSetup.tsx  # Equipment Setup modal (4 tabs)
 │   │   │   └── ProcessSetup.tsx    # Process Setup modal (4 tabs)
 │   │   ├── wallboard/           # Wallboard-specific components
 │   │   │   ├── TaskArrow.tsx
@@ -524,7 +548,7 @@ plantpulse.pro/
 │   ├── settings/
 │   │   └── PrintSettings.tsx    # Print Settings modal (localStorage-persisted)
 │   ├── lib/
-│   │   ├── store.ts             # Zustand store — CRUD for all entities (Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup, ShutdownPeriod)
+│   │   ├── store.ts             # Zustand store — CRUD for all entities (Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup, ShutdownPeriod, StageTypeDefinition) + wallboardEquipmentGroups
 │   │   ├── excel-io.ts          # SheetJS import/export
 │   │   ├── timeline-math.ts     # Pixel geometry (ported from VBA)
 │   │   ├── scheduling.ts        # Overlap detection, auto-scheduling, bulk shift
@@ -571,7 +595,7 @@ npm run lint         # Run linter
 8. **`components/timeline/`** — Core timeline renderer
 9. **`app/wallboard/`** — Operator wallboard view (read-only + task confirm)
 10. **`lib/scheduling.ts`** + **`lib/seed-train.ts`** — Business rules engine
-11. **`components/planner/EquipmentSetup.tsx`** — Equipment Setup modal: Machines (with downtime), Equipment Groups, Product Lines (done)
+11. **`components/planner/EquipmentSetup.tsx`** — Equipment Setup modal: Machines (with downtime, section headers, smart insertion), Equipment Groups, Product Lines (with shortName), Wallboard Display (done)
 12. **`components/planner/ProcessSetup.tsx`** — Process Setup modal: Stage Types, Stage Defaults, Turnaround Activities, Shutdowns (done)
 13. **`components/planner/`** — Interactive planning tools (ChainEditor, BulkShiftTool, NewChainWizard, StageDetailPanel)
 14. **`app/planner/`** — Planner view with draft editing

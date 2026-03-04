@@ -13,10 +13,11 @@ Phases 8-12 are Enterprise-only.
 - Configure Vitest + Testing Library
 - Define TypeScript interfaces (`src/lib/types.ts`), including ProductLine, StageDefault
   - `StageType` is `string` (user-configurable, not a fixed union)
-  - Default stage types: inoculation, propagation, pre_fermentation, fermentation
+  - `StageTypeDefinition` interface: id, name, shortName, description, displayOrder
+  - Default stage types (literature-aligned): inoculum (INO), seed_n2 (n-2), seed_n1 (n-1), production (PROD)
 - Define default facility config (product lines, machines, stage durations)
   - GNT + KK as demo defaults, but all user-configurable at runtime
-  - 4-stage seed train: inoculation (24h) → propagation → pre-fermentation → fermentation
+  - 4-stage seed train: inoculum (24h) → seed_n2 → seed_n1 → production
   - Users can add/rename/remove product lines, machines, stage types, and stage durations
 - Set up Vercel project + connect plantpulse.pro domain
 - Define edition adapter interfaces (conceptual):
@@ -54,6 +55,8 @@ Phases 8-12 are Enterprise-only.
   - **Turnaround activity CRUD** (implemented): add, update, delete
   - **Equipment group CRUD** (implemented): add, update, delete
   - **Shutdown period CRUD** (implemented): add, update, delete
+  - **Stage type definition CRUD** (implemented): add, update, delete — literature-aligned defaults (inoculum, seed_n2, seed_n1, production)
+  - **Wallboard equipment groups** (implemented): `wallboardEquipmentGroups: string[]` + `setWallboardEquipmentGroups()` — configurable subset of equipment groups shown on Wallboard
   - **Bulk shift** (implemented): `bulkShiftStages(stageIds[], deltaHours)` shifts selected stages
   - Task confirmation actions
   - No persistence (state resets on page reload)
@@ -114,6 +117,15 @@ Phases 8-12 are Enterprise-only.
     - Only affects Wallboard page; Schedule, Planner, and PDF export always use day theme
     - `@media print` CSS rule prevents night styles from leaking into print output
     - Hook: `lib/useNightMode.ts`; CSS: `.wallboard-night-*` classes in `globals.css`
+  - **Equipment group filtering** (implemented):
+    - Wallboard shows only equipment groups selected in Equipment Setup > Wallboard Display tab
+    - Default: propagator, pre_fermenter, fermenter (excludes inoculum, which is not shift-managed)
+    - Filtering done via `wallboardEquipmentGroups` store state + `customMachineGroups` prop on WallboardCanvas
+    - Configurable at runtime without code changes
+  - **Shutdown calendar overlay** (implemented):
+    - Shutdown periods render as grey diagonal-hatch columns on the wallboard canvas
+    - Theme-aware: day mode uses `rgba(120,120,140,0.18)`, night mode uses `rgba(100,100,130,0.25)`
+    - Diagonal hatch pattern drawn via Canvas clipping + 8px-step line pattern
 - `components/wallboard/TaskArrow.tsx` — Task markers:
   - Planned: red indicator, clickable
   - Done: green + checkmark
@@ -171,27 +183,39 @@ Phases 8-12 are Enterprise-only.
 - `components/planner/BulkShiftTool.tsx` — Shift multiple batches by N hours (pending)
 - `components/planner/StageDetailPanel.tsx` — Side panel editor (pending)
 - **Equipment Setup modal** (implemented):
-  - `components/planner/EquipmentSetup.tsx` — full CRUD modal for facility equipment
+  - `components/planner/EquipmentSetup.tsx` — full CRUD modal for facility equipment (4 tabs)
   - **Machines tab**: inline editing of name, equipment group, product line assignment, display order (up/down reorder), add/delete
     - **Machine downtime**: yellow dot indicator per machine; click to define an unavailability window (start date, optional end date, optional reason)
     - Active downtime = solid yellow dot; upcoming/scheduled = outlined yellow dot; past (ended) = no indicator
     - Machines with active downtime are excluded from the scheduling engine via `isMachineUnavailable()`
+    - **Equipment group filter**: dropdown to filter machine list by equipment group (or "All")
+    - **Section headers**: machines grouped by equipment group + product line composite key (e.g. "Pre-fermenter / Gentamicin") with count badges
+    - **Smart insertion**: new machines inherit the active filter's equipment group and product line; inserted after siblings with fractional `displayOrder` midpoint
+    - New machine default product line is "None" (unassigned)
   - **Equipment Groups tab**: CRUD for equipment group types (propagator, pre-fermenter, fermenter, inoculum, etc.) — fully user-configurable, no longer hardcoded
   - **Product Lines tab** (was "Display Groups"): shows machines grouped by product line, read-only machine list per line, add/rename/reorder/delete product lines
+    - **Short name** field: editable per product line (e.g. "GNT", "KK") — displayed in Process Setup Stage Defaults tab header and used in toolbar chips / batch labels
     - Display groups are auto-derived from product line assignments on Save via `buildDisplayGroups()`
     - No manual machine-to-group checkbox grid — assignment is driven by the machine's product line in the Machines tab
-  - Product line filter: dropdown to show machines by product line or unassigned
+  - **Wallboard Display tab**: configure which equipment groups appear on the Wallboard page
+    - Checkbox card per equipment group with machine count preview
+    - Default: propagator, pre_fermenter, fermenter (excludes inoculum — not shift-managed)
+    - Supports the Wallboard's focus on shopfloor operations and shift handover
+    - Changes persisted via `wallboardEquipmentGroups` store state
   - Draft state pattern: all changes buffered in local state, applied to Zustand store on Save only
+  - Save button keeps modal open (matches Process Setup behavior)
   - Unsaved changes indicator in footer
   - Reusable modal CSS (`pp-modal-*` classes in `globals.css`) shared by all setup modals
   - Wired to Planner sidebar via "Equipment Setup" tool button
 - **Process Setup modal** (implemented):
-  - `components/planner/ProcessSetup.tsx` — three-tab modal for process configuration
-  - **Stage Defaults tab**: per product line, edit default duration and equipment group for each stage type; add/remove/reorder stages in the seed train template
-  - **Turnaround Activities tab**: CRUD for CIP/SIP/Cleaning activities per equipment group; d:h:m duration picker with total-hours readout; "default" checkbox for auto-insertion during scheduling; equipment group filter
-  - **Shutdowns tab**: CRUD for plant shutdown periods with name, date range, reason; click-to-expand editor; past shutdowns dimmed; sorted by start date
+  - `components/planner/ProcessSetup.tsx` — four-tab modal for process configuration
+  - **Stage Types tab**: full CRUD for `StageTypeDefinition` entities — name, short name, description, display order (reorder up/down); literature-aligned defaults: Inoculum (INO), Seed n-2 (n-2), Seed n-1 (n-1), Production (PROD)
+  - **Stage Defaults tab**: per product line (header shows `shortName || id`), edit default duration and equipment group for each stage type; stage type dropdown dynamically populated from user-defined stage types; add/remove/reorder stages in the seed train template
+  - **Turnaround Activities tab**: CRUD for CIP/SIP/Cleaning activities per equipment group; d:h:m duration picker with total-hours readout; "default" checkbox for auto-insertion during scheduling; equipment group filter; pre-populated defaults for all 4 equipment groups (inoculum 2h media, propagator CIP/media/SIP, pre-fermenter CIP/media/SIP, fermenter CIP/media/SIP/transfer)
+  - **Shutdowns tab**: CRUD for plant shutdown periods with name, date range, reason; click-to-expand editor; past shutdowns dimmed; sorted by start date; **conflict warnings**: amber banner when shutdown overlaps planned batches (informational, not blocking) showing affected batch names and count badge
   - `ShutdownPeriod` type defined in `lib/types.ts`; full store CRUD in `lib/store.ts`
   - `TurnaroundActivity` type defined in `lib/types.ts` with d:h:m duration fields
+  - `StageTypeDefinition` type defined in `lib/types.ts`; full store CRUD in `lib/store.ts`
   - Draft state pattern: all changes buffered locally, applied to Zustand store on Save
   - Wired to Planner sidebar via "Process Setup" tool button
 - Shift Schedule modal (pending):

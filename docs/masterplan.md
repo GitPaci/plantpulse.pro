@@ -95,10 +95,12 @@ Multi-role users are allowed:
 ## Core Views (Lenses)
 
 - **Manufacturing Wallboard (Operator view)**
-  - Dynamic now-centered range: 4 days back + today + 2--3 weeks forward
+  - Dynamic now-centered range: 4 days back + today + 2-3 weeks forward
   - Shift ownership band at top (secondary layer)
   - Bars + tasks + maintenance acknowledgements
   - Night View: dark, high-contrast TV-optimized mode (toggle or auto-switch at 22:00/05:00 local)
+  - Equipment group filtering: configurable via Equipment Setup > Wallboard Display tab (default: propagators, pre-fermenters, fermenters — excludes inoculum)
+  - Shutdown overlay: grey diagonal-hatch columns on calendar days where plant shutdowns are planned
 
 - **Planner View (modern UrediPlan)**
   - Interactive schedule editor in drafts
@@ -138,9 +140,15 @@ Multi-role users are allowed:
 ## Core Data Model (Conceptual)
 
 - **Product Line** (user-configurable)
-  - id, name, stage_defaults (ordered seed train template with default durations), display_order
+  - id, name, short_name, stage_defaults (ordered seed train template with default durations), display_order
   - Users can add/rename/remove product lines to match their facility
   - GNT and KK are legacy defaults used in demo data, not hardcoded
+
+- **Stage Type Definition** (user-configurable)
+  - id, name, short_name, description, display_order
+  - Literature-aligned defaults: Inoculum (INO), Seed n-2 (n-2), Seed n-1 (n-1), Production (PROD)
+  - Used by Stage Defaults dropdown and stage bar labels throughout the app
+  - Full CRUD in Process Setup modal > Stage Types tab
 
 - **Equipment Group** (user-configurable)
   - id, name, short_name, display_order
