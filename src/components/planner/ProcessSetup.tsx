@@ -434,68 +434,70 @@ export default function ProcessSetup({
 
                   {sortedStageTypes.map((st, idx) => (
                     <div key={st.id} className="pp-setup-row-wrapper">
-                      <span className="pp-setup-col-order">
-                        <button
-                          className="pp-setup-move-btn"
-                          onClick={() => moveStageType(idx, 'up')}
-                          disabled={idx === 0}
-                          title="Move up"
-                        >
-                          &uarr;
-                        </button>
-                        <button
-                          className="pp-setup-move-btn"
-                          onClick={() => moveStageType(idx, 'down')}
-                          disabled={idx === sortedStageTypes.length - 1}
-                          title="Move down"
-                        >
-                          &darr;
-                        </button>
-                      </span>
+                      <div className="pp-setup-row">
+                        <span className="pp-setup-col-order">
+                          <button
+                            className="pp-setup-move-btn"
+                            onClick={() => moveStageType(idx, 'up')}
+                            disabled={idx === 0}
+                            title="Move up"
+                          >
+                            &uarr;
+                          </button>
+                          <button
+                            className="pp-setup-move-btn"
+                            onClick={() => moveStageType(idx, 'down')}
+                            disabled={idx === sortedStageTypes.length - 1}
+                            title="Move down"
+                          >
+                            &darr;
+                          </button>
+                        </span>
 
-                      <span className="pp-setup-col-name">
-                        <input
-                          type="text"
-                          value={st.name}
-                          onChange={(e) => updateStageType(st.id, { name: e.target.value })}
-                          placeholder="e.g. Seed (n-2)"
-                          className="pp-setup-input"
-                          style={{ width: '100%' }}
-                        />
-                      </span>
+                        <span className="pp-setup-col-name">
+                          <input
+                            type="text"
+                            value={st.name}
+                            onChange={(e) => updateStageType(st.id, { name: e.target.value })}
+                            placeholder="e.g. Seed (n-2)"
+                            className="pp-setup-input"
+                            style={{ width: '100%' }}
+                          />
+                        </span>
 
-                      <span className="pp-process-stage-col-short">
-                        <input
-                          type="text"
-                          value={st.shortName}
-                          onChange={(e) => updateStageType(st.id, { shortName: e.target.value })}
-                          placeholder="e.g. n-2"
-                          className="pp-setup-input"
-                          style={{ width: '100%' }}
-                          maxLength={6}
-                        />
-                      </span>
+                        <span className="pp-process-stage-col-short">
+                          <input
+                            type="text"
+                            value={st.shortName}
+                            onChange={(e) => updateStageType(st.id, { shortName: e.target.value })}
+                            placeholder="e.g. n-2"
+                            className="pp-setup-input"
+                            style={{ width: '100%' }}
+                            maxLength={6}
+                          />
+                        </span>
 
-                      <span className="pp-process-stage-col-desc">
-                        <input
-                          type="text"
-                          value={st.description || ''}
-                          onChange={(e) => updateStageType(st.id, { description: e.target.value })}
-                          placeholder="Optional description"
-                          className="pp-setup-input"
-                          style={{ width: '100%' }}
-                        />
-                      </span>
+                        <span className="pp-process-stage-col-desc">
+                          <input
+                            type="text"
+                            value={st.description || ''}
+                            onChange={(e) => updateStageType(st.id, { description: e.target.value })}
+                            placeholder="Optional description"
+                            className="pp-setup-input"
+                            style={{ width: '100%' }}
+                          />
+                        </span>
 
-                      <span className="pp-setup-col-actions">
-                        <button
-                          className="pp-setup-action-btn pp-setup-delete-btn"
-                          onClick={() => deleteStageType(st.id)}
-                          title="Delete stage type"
-                        >
-                          Del
-                        </button>
-                      </span>
+                        <span className="pp-setup-col-actions" style={{ width: 48 }}>
+                          <button
+                            className="pp-setup-action-btn pp-setup-delete-btn"
+                            onClick={() => deleteStageType(st.id)}
+                            title="Delete stage type"
+                          >
+                            Del
+                          </button>
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>
