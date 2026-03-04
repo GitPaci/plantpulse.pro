@@ -1100,6 +1100,18 @@ export default function ProcessSetup({
                     />
                     <span>Custom reset date</span>
                   </label>
+                  <label className="pp-naming-radio">
+                    <input
+                      type="radio"
+                      name="resetMode"
+                      checked={draftNaming.counterResetMode === 'none'}
+                      onChange={() => {
+                        setDraftNaming((p) => ({ ...p, counterResetMode: 'none' }));
+                        setDirty(true);
+                      }}
+                    />
+                    <span>No reset — continuous numbering from set start</span>
+                  </label>
                 </div>
 
                 {draftNaming.counterResetMode === 'custom' && (
@@ -1149,6 +1161,7 @@ export default function ProcessSetup({
                     label="All lines"
                     rule={draftNaming.sharedRule}
                     onChange={(field, value) => updateNamingRule(null, field, value)}
+                    showNextNumber={draftNaming.counterResetMode === 'none'}
                   />
                 )}
 
@@ -1162,6 +1175,7 @@ export default function ProcessSetup({
                           label={pl.shortName || pl.name}
                           rule={rule}
                           onChange={(field, value) => updateNamingRule(pl.id, field, value)}
+                          showNextNumber={draftNaming.counterResetMode === 'none'}
                         />
                       );
                     })}
@@ -1231,13 +1245,16 @@ function NamingRuleEditor({
   label,
   rule,
   onChange,
+  showNextNumber,
 }: {
   label: string;
   rule: BatchNamingRule;
   onChange: (field: keyof BatchNamingRule, value: string | number) => void;
+  showNextNumber?: boolean;
 }) {
-  const preview = batchNamePreview(rule, rule.startNumber);
-  const previewNext = batchNamePreview(rule, rule.startNumber + 1);
+  const previewFrom = showNextNumber ? (rule.nextNumber ?? rule.startNumber) : rule.startNumber;
+  const preview = batchNamePreview(rule, previewFrom);
+  const previewNext = batchNamePreview(rule, previewFrom + 1);
 
   return (
     <div className="pp-naming-rule-card">
@@ -1254,17 +1271,31 @@ function NamingRuleEditor({
             style={{ width: 96 }}
           />
         </div>
-        <div className="pp-naming-field">
-          <label className="pp-process-field-label">Start #</label>
-          <input
-            type="number"
-            min={0}
-            value={rule.startNumber}
-            onChange={(e) => onChange('startNumber', Math.max(0, Number(e.target.value) || 0))}
-            className="pp-setup-input"
-            style={{ width: 64 }}
-          />
-        </div>
+        {showNextNumber ? (
+          <div className="pp-naming-field">
+            <label className="pp-process-field-label">Next #</label>
+            <input
+              type="number"
+              min={0}
+              value={rule.nextNumber ?? rule.startNumber}
+              onChange={(e) => onChange('nextNumber', Math.max(0, Number(e.target.value) || 0))}
+              className="pp-setup-input"
+              style={{ width: 72 }}
+            />
+          </div>
+        ) : (
+          <div className="pp-naming-field">
+            <label className="pp-process-field-label">Start #</label>
+            <input
+              type="number"
+              min={0}
+              value={rule.startNumber}
+              onChange={(e) => onChange('startNumber', Math.max(0, Number(e.target.value) || 0))}
+              className="pp-setup-input"
+              style={{ width: 64 }}
+            />
+          </div>
+        )}
         <div className="pp-naming-field">
           <label className="pp-process-field-label">Digits</label>
           <input
