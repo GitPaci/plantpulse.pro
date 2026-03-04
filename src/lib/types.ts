@@ -175,10 +175,11 @@ export interface ShutdownPeriod {
 // Per-line naming rule (prefix, suffix, padding).
 // The final production stage sets the batch name; upstream stages inherit it.
 export interface BatchNamingRule {
-  prefix: string;           // e.g. "GNT-", "KK-"
+  prefix: string;           // optional prefix, e.g. "GNT-", "KK-" (may be empty)
   suffix: string;           // optional suffix appended after the counter
   startNumber: number;      // first counter value after reset (default 1)
   padDigits: number;        // zero-padding width, e.g. 3 → "001"
+  step: number;             // counter increment per batch (default 1)
   nextNumber?: number;      // current counter (used when counterResetMode === 'none')
 }
 
@@ -196,4 +197,12 @@ export interface BatchNamingConfig {
 export function batchNamePreview(rule: BatchNamingRule, counter: number): string {
   const num = String(counter).padStart(rule.padDigits, '0');
   return `${rule.prefix}${num}${rule.suffix}`;
+}
+
+/** Build a sequence of preview batch names showing the step pattern. */
+export function batchNamePreviewSequence(rule: BatchNamingRule, startCounter: number, count: number): string[] {
+  const step = rule.step || 1;
+  return Array.from({ length: count }, (_, i) =>
+    batchNamePreview(rule, startCounter + i * step)
+  );
 }
