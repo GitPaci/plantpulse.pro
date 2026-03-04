@@ -9,7 +9,6 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import Navigation from '@/components/ui/Navigation';
 import WallboardCanvas from '@/components/timeline/WallboardCanvas';
 import { usePlantPulseStore } from '@/lib/store';
-import { INOCULUM_GROUP } from '@/lib/demo-data';
 import { exportSchedulePdf } from '@/utils/exportSchedulePdf';
 import PrintSettings from '@/settings/PrintSettings';
 import {
@@ -71,10 +70,23 @@ export default function SchedulePage() {
     });
   }, [currentMonth, setViewConfig]);
 
+  // Dynamically compute inoculum display group from store machines
+  // (not hardcoded, so it reflects Equipment Setup changes immediately)
+  const inoculumGroup = useMemo(() => ({
+    id: 'Inoculum',
+    name: 'Inoculum',
+    machineIds: machines
+      .filter((m) => m.group === 'inoculum')
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .map((m) => m.id),
+  }), [machines]);
+
   // Schedule view includes Inoculum group (not in default store groups)
   const scheduleMachineGroups = useMemo(
-    () => [INOCULUM_GROUP, ...machineGroups],
-    [machineGroups]
+    () => inoculumGroup.machineIds.length > 0
+      ? [inoculumGroup, ...machineGroups]
+      : machineGroups,
+    [inoculumGroup, machineGroups]
   );
 
   // No specific filters selected = show all equipment
