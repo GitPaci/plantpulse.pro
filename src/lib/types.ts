@@ -169,3 +169,30 @@ export interface ShutdownPeriod {
   endDate: Date;
   reason?: string;         // optional note
 }
+
+// ── Batch naming / nomenclature ──────────────────────────────────────
+
+// Per-line naming rule (prefix, suffix, padding).
+// The final production stage sets the batch name; upstream stages inherit it.
+export interface BatchNamingRule {
+  prefix: string;           // e.g. "GNT-", "KK-"
+  suffix: string;           // optional suffix appended after the counter
+  startNumber: number;      // first counter value after reset (default 1)
+  padDigits: number;        // zero-padding width, e.g. 3 → "001"
+}
+
+// Top-level naming configuration stored in the Zustand store.
+export interface BatchNamingConfig {
+  mode: 'shared' | 'per_product_line';          // one rule for all lines vs. one per line
+  sharedRule: BatchNamingRule;                   // used when mode === 'shared'
+  productLineRules: Record<string, BatchNamingRule>; // keyed by ProductLine.id, used when mode === 'per_product_line'
+  counterResetMode: 'annual' | 'custom';        // when counter resets
+  counterResetMonth: number;                     // 1-12 (default 1 = January)
+  counterResetDay: number;                       // 1-31 (default 1)
+}
+
+/** Build a preview batch name from a naming rule and a sample counter value. */
+export function batchNamePreview(rule: BatchNamingRule, counter: number): string {
+  const num = String(counter).padStart(rule.padDigits, '0');
+  return `${rule.prefix}${num}${rule.suffix}`;
+}

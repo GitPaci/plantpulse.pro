@@ -14,6 +14,7 @@ import type {
   EquipmentGroup,
   ShutdownPeriod,
   StageTypeDefinition,
+  BatchNamingConfig,
 } from './types';
 import {
   DEFAULT_MACHINES,
@@ -23,6 +24,7 @@ import {
   DEFAULT_STAGE_TYPE_DEFINITIONS,
   DEFAULT_TURNAROUND_ACTIVITIES,
   DEFAULT_WALLBOARD_EQUIPMENT_GROUPS,
+  DEFAULT_BATCH_NAMING_CONFIG,
   generateDemoData,
 } from './demo-data';
 
@@ -47,6 +49,7 @@ interface PlantPulseState {
   shutdownPeriods: ShutdownPeriod[];
   stageTypeDefinitions: StageTypeDefinition[];
   wallboardEquipmentGroups: string[];  // equipment group IDs visible on wallboard
+  batchNamingConfig: BatchNamingConfig;
   viewConfig: ViewConfig;
 
   // ── View actions ──────────────────────────────────────────────────
@@ -115,6 +118,9 @@ interface PlantPulseState {
   addStageTypeDefinition: (def: StageTypeDefinition) => void;
   updateStageTypeDefinition: (id: string, updates: Partial<Omit<StageTypeDefinition, 'id'>>) => void;
   deleteStageTypeDefinition: (id: string) => void;
+
+  // ── Batch naming config ─────────────────────────────────────────
+  setBatchNamingConfig: (config: BatchNamingConfig) => void;
 }
 
 // ─── Store ─────────────────────────────────────────────────────────────
@@ -130,6 +136,7 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   shutdownPeriods: [],
   stageTypeDefinitions: DEFAULT_STAGE_TYPE_DEFINITIONS,
   wallboardEquipmentGroups: DEFAULT_WALLBOARD_EQUIPMENT_GROUPS,
+  batchNamingConfig: DEFAULT_BATCH_NAMING_CONFIG,
   viewConfig: {
     viewStart: subDays(startOfDay(new Date()), 4),
     numberOfDays: 21,
@@ -359,4 +366,8 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
     set((state) => ({
       stageTypeDefinitions: state.stageTypeDefinitions.filter((d) => d.id !== id),
     })),
+
+  // ── Batch naming config ─────────────────────────────────────────
+
+  setBatchNamingConfig: (config) => set({ batchNamingConfig: config }),
 }));
