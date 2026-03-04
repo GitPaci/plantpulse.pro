@@ -25,10 +25,10 @@ export const DEFAULT_EQUIPMENT_GROUPS: EquipmentGroup[] = [
 // ─── Default stage type definitions (biopharma literature nomenclature) ──
 
 export const DEFAULT_STAGE_TYPE_DEFINITIONS: StageTypeDefinition[] = [
-  { id: 'inoculum',   name: 'Inoculum',    shortName: 'INO',  description: 'Flask-scale inoculum preparation',  displayOrder: 0 },
-  { id: 'seed_n2',    name: 'Seed (n-2)',   shortName: 'n-2',  description: 'Early seed expansion',              displayOrder: 1 },
-  { id: 'seed_n1',    name: 'Seed (n-1)',   shortName: 'n-1',  description: 'Late seed expansion',               displayOrder: 2 },
-  { id: 'production', name: 'Production',   shortName: 'PROD', description: 'Main/production fermenter',         displayOrder: 3 },
+  { id: 'inoculum',   name: 'Inoculum',    shortName: 'INO',  description: 'Flask-scale inoculum preparation',  count: 1, displayOrder: 0 },
+  { id: 'seed_n2',    name: 'Seed (n-2)',   shortName: 'n-2',  description: 'Early seed expansion',              count: 1, displayOrder: 1 },
+  { id: 'seed_n1',    name: 'Seed (n-1)',   shortName: 'n-1',  description: 'Late seed expansion',               count: 1, displayOrder: 2 },
+  { id: 'production', name: 'Production',   shortName: 'PROD', description: 'Main/production fermenter',         count: 1, displayOrder: 3 },
 ];
 
 // ─── Default turnaround activities per equipment group ──────────────────

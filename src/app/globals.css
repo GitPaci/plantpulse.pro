@@ -1266,6 +1266,11 @@ body {
   flex-shrink: 0;
 }
 
+.pp-process-stage-col-count {
+  width: 52px;
+  flex-shrink: 0;
+}
+
 .pp-process-stage-col-desc {
   flex: 2;
   min-width: 100px;

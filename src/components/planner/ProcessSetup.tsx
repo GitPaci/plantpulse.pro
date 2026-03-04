@@ -213,6 +213,7 @@ export default function ProcessSetup({
       name: '',
       shortName: '',
       description: '',
+      count: 1,
       displayOrder: maxOrder + 1,
     };
     setDraftStageTypes((prev) => [...prev, newDef]);
@@ -428,6 +429,7 @@ export default function ProcessSetup({
                     <span className="pp-setup-col-order">#</span>
                     <span className="pp-setup-col-name">Name</span>
                     <span className="pp-process-stage-col-short">Short</span>
+                    <span className="pp-process-stage-col-count">Count</span>
                     <span className="pp-process-stage-col-desc">Description</span>
                     <span className="pp-setup-col-actions">Actions</span>
                   </div>
@@ -474,6 +476,19 @@ export default function ProcessSetup({
                             className="pp-setup-input"
                             style={{ width: '100%' }}
                             maxLength={6}
+                          />
+                        </span>
+
+                        <span className="pp-process-stage-col-count">
+                          <input
+                            type="number"
+                            min={1}
+                            max={99}
+                            value={st.count ?? 1}
+                            onChange={(e) => updateStageType(st.id, { count: Math.max(1, Number(e.target.value) || 1) })}
+                            className="pp-setup-input"
+                            style={{ width: '100%' }}
+                            title="Instances per batch chain"
                           />
                         </span>
 
