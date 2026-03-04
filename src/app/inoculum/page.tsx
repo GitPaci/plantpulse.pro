@@ -70,18 +70,28 @@ export default function SchedulePage() {
     });
   }, [currentMonth, setViewConfig]);
 
-  // Dynamically compute inoculum display group from store machines
-  // (not hardcoded, so it reflects Equipment Setup changes immediately)
+  // Collect machine IDs already present in store's product-line display groups
+  const machineIdsInGroups = useMemo(() => {
+    const ids = new Set<string>();
+    for (const g of machineGroups) {
+      for (const id of g.machineIds) ids.add(id);
+    }
+    return ids;
+  }, [machineGroups]);
+
+  // Dynamically compute inoculum display group from store machines,
+  // but only include machines NOT already in a product-line display group
+  // (avoids duplicate rows when inoculum machines have a product line assigned)
   const inoculumGroup = useMemo(() => ({
     id: 'Inoculum',
     name: 'Inoculum',
     machineIds: machines
-      .filter((m) => m.group === 'inoculum')
+      .filter((m) => m.group === 'inoculum' && !machineIdsInGroups.has(m.id))
       .sort((a, b) => a.displayOrder - b.displayOrder)
       .map((m) => m.id),
-  }), [machines]);
+  }), [machines, machineIdsInGroups]);
 
-  // Schedule view includes Inoculum group (not in default store groups)
+  // Schedule view includes Inoculum group only if there are orphan inoculum machines
   const scheduleMachineGroups = useMemo(
     () => inoculumGroup.machineIds.length > 0
       ? [inoculumGroup, ...machineGroups]
