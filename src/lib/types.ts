@@ -179,6 +179,7 @@ export interface BatchNamingRule {
   suffix: string;           // optional suffix appended after the counter
   startNumber: number;      // first counter value after reset (default 1)
   padDigits: number;        // zero-padding width, e.g. 3 → "001"
+  nextNumber?: number;      // current counter (used when counterResetMode === 'none')
 }
 
 // Top-level naming configuration stored in the Zustand store.
@@ -186,7 +187,7 @@ export interface BatchNamingConfig {
   mode: 'shared' | 'per_product_line';          // one rule for all lines vs. one per line
   sharedRule: BatchNamingRule;                   // used when mode === 'shared'
   productLineRules: Record<string, BatchNamingRule>; // keyed by ProductLine.id, used when mode === 'per_product_line'
-  counterResetMode: 'annual' | 'custom';        // when counter resets
+  counterResetMode: 'annual' | 'custom' | 'none';  // when counter resets (none = continuous)
   counterResetMonth: number;                     // 1-12 (default 1 = January)
   counterResetDay: number;                       // 1-31 (default 1)
 }
