@@ -24,6 +24,7 @@ export interface StageTypeDefinition {
   name: string;          // display label, e.g. "Inoculum", "Seed (n-2)"
   shortName: string;     // compact label for bars/chips, e.g. "INO", "n-2"
   description?: string;  // optional note
+  count: number;         // instances per batch chain (e.g. 2 if two inoculum vessels per chain)
   displayOrder: number;  // controls dropdown and display sort order
 }
 
