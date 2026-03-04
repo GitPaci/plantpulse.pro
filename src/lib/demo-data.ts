@@ -11,6 +11,7 @@ import type {
   EquipmentGroup,
   StageTypeDefinition,
   TurnaroundActivity,
+  BatchNamingConfig,
 } from './types';
 
 // ─── Default equipment groups (user-configurable at runtime) ─────────
@@ -61,6 +62,20 @@ export const DEFAULT_TURNAROUND_ACTIVITIES: TurnaroundActivity[] = [
 export const DEFAULT_WALLBOARD_EQUIPMENT_GROUPS: string[] = [
   'propagator', 'pre_fermenter', 'fermenter',
 ];
+
+// ─── Default batch naming configuration ──────────────────────────────────
+
+export const DEFAULT_BATCH_NAMING_CONFIG: BatchNamingConfig = {
+  mode: 'per_product_line',
+  sharedRule: { prefix: 'B-', suffix: '', startNumber: 1, padDigits: 3 },
+  productLineRules: {
+    GNT: { prefix: 'GNT-', suffix: '', startNumber: 1, padDigits: 3 },
+    KK:  { prefix: 'KK-',  suffix: '', startNumber: 1, padDigits: 3 },
+  },
+  counterResetMode: 'annual',
+  counterResetMonth: 1,
+  counterResetDay: 1,
+};
 
 // ─── Default machines (from VBA imena array) ───────────────────────────
 

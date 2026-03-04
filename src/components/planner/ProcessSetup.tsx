@@ -13,8 +13,10 @@ import type {
   EquipmentGroup,
   ShutdownPeriod,
   StageTypeDefinition,
+  BatchNamingConfig,
+  BatchNamingRule,
 } from '@/lib/types';
-import { turnaroundTotalHours } from '@/lib/types';
+import { turnaroundTotalHours, batchNamePreview } from '@/lib/types';
 
 // ─── Date helpers ──────────────────────────────────────────────────────
 
@@ -48,7 +50,14 @@ function formatHoursAsDHM(totalHours: number): string {
 
 // ─── Component ─────────────────────────────────────────────────────────
 
-type Tab = 'stageTypes' | 'stages' | 'turnaround' | 'shutdowns';
+type Tab = 'stageTypes' | 'stages' | 'turnaround' | 'shutdowns' | 'naming';
+
+const DEFAULT_NAMING_RULE: BatchNamingRule = {
+  prefix: '',
+  suffix: '',
+  startNumber: 1,
+  padDigits: 3,
+};
 
 export default function ProcessSetup({
   open,
@@ -66,10 +75,13 @@ export default function ProcessSetup({
   const storeStages = usePlantPulseStore((s) => s.stages);
   const storeBatchChains = usePlantPulseStore((s) => s.batchChains);
 
+  const storeBatchNamingConfig = usePlantPulseStore((s) => s.batchNamingConfig);
+
   const setProductLines = usePlantPulseStore((s) => s.setProductLines);
   const setTurnaroundActivities = usePlantPulseStore((s) => s.setTurnaroundActivities);
   const setShutdownPeriods = usePlantPulseStore((s) => s.setShutdownPeriods);
   const setStageTypeDefinitions = usePlantPulseStore((s) => s.setStageTypeDefinitions);
+  const setBatchNamingConfig = usePlantPulseStore((s) => s.setBatchNamingConfig);
 
   // Draft state
   const [tab, setTab] = useState<Tab>('stageTypes');
@@ -77,6 +89,7 @@ export default function ProcessSetup({
   const [draftProductLines, setDraftProductLines] = useState<ProductLine[]>([]);
   const [draftActivities, setDraftActivities] = useState<TurnaroundActivity[]>([]);
   const [draftShutdowns, setDraftShutdowns] = useState<ShutdownPeriod[]>([]);
+  const [draftNaming, setDraftNaming] = useState<BatchNamingConfig>(() => ({ ...storeBatchNamingConfig }));
   const [dirty, setDirty] = useState(false);
 
   // Turnaround activity filter
@@ -100,10 +113,17 @@ export default function ProcessSetup({
         startDate: new Date(s.startDate),
         endDate: new Date(s.endDate),
       })));
+      setDraftNaming({
+        ...storeBatchNamingConfig,
+        sharedRule: { ...storeBatchNamingConfig.sharedRule },
+        productLineRules: Object.fromEntries(
+          Object.entries(storeBatchNamingConfig.productLineRules).map(([k, v]) => [k, { ...v }])
+        ),
+      });
       setDirty(false);
       setEditingShutdownId(null);
     }
-  }, [open, storeStageTypeDefinitions, storeProductLines, storeTurnaroundActivities, storeShutdownPeriods]);
+  }, [open, storeStageTypeDefinitions, storeProductLines, storeTurnaroundActivities, storeShutdownPeriods, storeBatchNamingConfig]);
 
   // Stage type labels derived from draft (for Stage Defaults dropdown)
   const stageTypeLabels = useMemo(() => buildStageTypeLabels(draftStageTypes), [draftStageTypes]);
@@ -352,8 +372,34 @@ export default function ProcessSetup({
     setProductLines(draftProductLines);
     setTurnaroundActivities(draftActivities);
     setShutdownPeriods(draftShutdowns);
+    setBatchNamingConfig(draftNaming);
     setDirty(false);
   }
+
+  // ── Naming helpers ──────────────────────────────────────────────────
+
+  function updateNamingRule(
+    lineId: string | null,
+    field: keyof BatchNamingRule,
+    value: string | number,
+  ) {
+    setDraftNaming((prev) => {
+      if (lineId === null) {
+        // shared rule
+        const rule = { ...prev.sharedRule, [field]: value };
+        return { ...prev, sharedRule: rule };
+      }
+      const rules = { ...prev.productLineRules };
+      rules[lineId] = { ...(rules[lineId] || DEFAULT_NAMING_RULE), [field]: value };
+      return { ...prev, productLineRules: rules };
+    });
+    setDirty(true);
+  }
+
+  const MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
 
   // ── Render ─────────────────────────────────────────────────────────
 
@@ -395,6 +441,12 @@ export default function ProcessSetup({
             onClick={() => setTab('shutdowns')}
           >
             Shutdowns
+          </button>
+          <button
+            className={`pp-modal-tab ${tab === 'naming' ? 'active' : ''}`}
+            onClick={() => setTab('naming')}
+          >
+            Naming
           </button>
         </div>
 
@@ -980,6 +1032,176 @@ export default function ProcessSetup({
               </div>
             </div>
           )}
+
+          {/* ═══════ Naming tab ═══════ */}
+          {tab === 'naming' && (
+            <div className="pp-process-naming">
+              <p className="pp-process-help">
+                Configure how batch names are generated. The final production stage sets the
+                batch name; upstream stages in the chain inherit it.
+              </p>
+
+              {/* Mode selector: shared vs per product line */}
+              <div className="pp-naming-section">
+                <label className="pp-process-field-label">Naming scope</label>
+                <div className="pp-naming-mode-options">
+                  <label className="pp-naming-radio">
+                    <input
+                      type="radio"
+                      name="namingMode"
+                      checked={draftNaming.mode === 'shared'}
+                      onChange={() => {
+                        setDraftNaming((p) => ({ ...p, mode: 'shared' }));
+                        setDirty(true);
+                      }}
+                    />
+                    <span>Same naming for all product lines</span>
+                  </label>
+                  <label className="pp-naming-radio">
+                    <input
+                      type="radio"
+                      name="namingMode"
+                      checked={draftNaming.mode === 'per_product_line'}
+                      onChange={() => {
+                        setDraftNaming((p) => ({ ...p, mode: 'per_product_line' }));
+                        setDirty(true);
+                      }}
+                    />
+                    <span>Each product line has its own nomenclature</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Counter reset */}
+              <div className="pp-naming-section">
+                <label className="pp-process-field-label">Counter reset</label>
+                <div className="pp-naming-mode-options">
+                  <label className="pp-naming-radio">
+                    <input
+                      type="radio"
+                      name="resetMode"
+                      checked={draftNaming.counterResetMode === 'annual'}
+                      onChange={() => {
+                        setDraftNaming((p) => ({ ...p, counterResetMode: 'annual', counterResetMonth: 1, counterResetDay: 1 }));
+                        setDirty(true);
+                      }}
+                    />
+                    <span>Annual reset (1st January)</span>
+                  </label>
+                  <label className="pp-naming-radio">
+                    <input
+                      type="radio"
+                      name="resetMode"
+                      checked={draftNaming.counterResetMode === 'custom'}
+                      onChange={() => {
+                        setDraftNaming((p) => ({ ...p, counterResetMode: 'custom' }));
+                        setDirty(true);
+                      }}
+                    />
+                    <span>Custom reset date</span>
+                  </label>
+                </div>
+
+                {draftNaming.counterResetMode === 'custom' && (
+                  <div className="pp-naming-reset-date">
+                    <div className="pp-naming-field">
+                      <label className="pp-process-field-label">Month</label>
+                      <select
+                        value={draftNaming.counterResetMonth}
+                        onChange={(e) => {
+                          setDraftNaming((p) => ({ ...p, counterResetMonth: Number(e.target.value) }));
+                          setDirty(true);
+                        }}
+                        className="pp-setup-select"
+                      >
+                        {MONTH_NAMES.map((name, i) => (
+                          <option key={i} value={i + 1}>{name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="pp-naming-field">
+                      <label className="pp-process-field-label">Day</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={draftNaming.counterResetDay}
+                        onChange={(e) => {
+                          setDraftNaming((p) => ({ ...p, counterResetDay: Math.max(1, Math.min(31, Number(e.target.value) || 1)) }));
+                          setDirty(true);
+                        }}
+                        className="pp-setup-input"
+                        style={{ width: 64 }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Naming rules */}
+              <div className="pp-naming-section">
+                <label className="pp-process-field-label">
+                  {draftNaming.mode === 'shared' ? 'Batch name pattern' : 'Batch name patterns per product line'}
+                </label>
+
+                {draftNaming.mode === 'shared' && (
+                  <NamingRuleEditor
+                    label="All lines"
+                    rule={draftNaming.sharedRule}
+                    onChange={(field, value) => updateNamingRule(null, field, value)}
+                  />
+                )}
+
+                {draftNaming.mode === 'per_product_line' && (
+                  <div className="pp-naming-rules-list">
+                    {draftProductLines.map((pl) => {
+                      const rule = draftNaming.productLineRules[pl.id] || DEFAULT_NAMING_RULE;
+                      return (
+                        <NamingRuleEditor
+                          key={pl.id}
+                          label={pl.shortName || pl.name}
+                          rule={rule}
+                          onChange={(field, value) => updateNamingRule(pl.id, field, value)}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Inheritance note */}
+              <div className="pp-naming-section">
+                <div className="pp-naming-info">
+                  <span className="pp-naming-info-icon">&#9432;</span>
+                  <span>
+                    The <strong>final stage</strong> (production) sets the batch name.
+                    Upstream stages in the chain inherit it automatically.
+                  </span>
+                </div>
+              </div>
+
+              {/* ERP integration CTA */}
+              <div className="pp-naming-section">
+                <div className="pp-naming-erp-cta">
+                  <div className="pp-naming-erp-header">
+                    <span className="pp-naming-erp-icon">&#x1F517;</span>
+                    <span className="pp-naming-erp-title">ERP Batch Number Sync</span>
+                    <span className="pp-naming-erp-badge">Enterprise</span>
+                  </div>
+                  <p className="pp-naming-erp-desc">
+                    Connect batch numbers directly to your ERP system (SAP, Oracle, etc.)
+                    for automatic synchronization — no manual entry, no mismatches.
+                  </p>
+                  <a
+                    href="mailto:hello@plantpulse.pro?subject=ERP%20Integration%20Inquiry"
+                    className="pp-naming-erp-link"
+                  >
+                    Ask for a quote &rarr; hello@plantpulse.pro
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -998,6 +1220,77 @@ export default function ProcessSetup({
             Save
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Naming rule editor sub-component ───────────────────────────────
+
+function NamingRuleEditor({
+  label,
+  rule,
+  onChange,
+}: {
+  label: string;
+  rule: BatchNamingRule;
+  onChange: (field: keyof BatchNamingRule, value: string | number) => void;
+}) {
+  const preview = batchNamePreview(rule, rule.startNumber);
+  const previewNext = batchNamePreview(rule, rule.startNumber + 1);
+
+  return (
+    <div className="pp-naming-rule-card">
+      <div className="pp-naming-rule-label">{label}</div>
+      <div className="pp-naming-rule-fields">
+        <div className="pp-naming-field">
+          <label className="pp-process-field-label">Prefix</label>
+          <input
+            type="text"
+            value={rule.prefix}
+            onChange={(e) => onChange('prefix', e.target.value)}
+            placeholder="e.g. GNT-"
+            className="pp-setup-input"
+            style={{ width: 96 }}
+          />
+        </div>
+        <div className="pp-naming-field">
+          <label className="pp-process-field-label">Start #</label>
+          <input
+            type="number"
+            min={0}
+            value={rule.startNumber}
+            onChange={(e) => onChange('startNumber', Math.max(0, Number(e.target.value) || 0))}
+            className="pp-setup-input"
+            style={{ width: 64 }}
+          />
+        </div>
+        <div className="pp-naming-field">
+          <label className="pp-process-field-label">Digits</label>
+          <input
+            type="number"
+            min={1}
+            max={8}
+            value={rule.padDigits}
+            onChange={(e) => onChange('padDigits', Math.max(1, Math.min(8, Number(e.target.value) || 1)))}
+            className="pp-setup-input"
+            style={{ width: 52 }}
+          />
+        </div>
+        <div className="pp-naming-field">
+          <label className="pp-process-field-label">Suffix</label>
+          <input
+            type="text"
+            value={rule.suffix}
+            onChange={(e) => onChange('suffix', e.target.value)}
+            placeholder="optional"
+            className="pp-setup-input"
+            style={{ width: 80 }}
+          />
+        </div>
+      </div>
+      <div className="pp-naming-rule-preview">
+        Preview: <code>{preview}</code>, <code>{previewNext}</code>, &hellip;
       </div>
     </div>
   );

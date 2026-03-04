@@ -1522,3 +1522,170 @@ body {
   justify-content: flex-end;
   padding-top: 4px;
 }
+
+/* ── Naming tab ────────────────────────────────────────────────── */
+
+.pp-process-naming {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pp-naming-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pp-naming-mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pp-naming-radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--pp-pharma);
+  cursor: pointer;
+}
+
+.pp-naming-radio input[type="radio"] {
+  margin: 0;
+  accent-color: var(--pp-pharma);
+}
+
+.pp-naming-reset-date {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 4px;
+  padding-left: 24px;
+}
+
+.pp-naming-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pp-naming-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pp-naming-rule-card {
+  border: 1px solid var(--pp-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--pp-surface);
+}
+
+.pp-naming-rule-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pp-pharma);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 6px;
+}
+
+.pp-naming-rule-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pp-naming-rule-preview {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--pp-muted);
+}
+
+.pp-naming-rule-preview code {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--pp-pharma);
+  font-weight: 600;
+}
+
+.pp-naming-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--pp-muted);
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.12);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.pp-naming-info-icon {
+  font-size: 14px;
+  color: #3b82f6;
+  flex-shrink: 0;
+}
+
+.pp-naming-erp-cta {
+  border: 1px dashed var(--pp-border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.03), rgba(168, 85, 247, 0.03));
+}
+
+.pp-naming-erp-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.pp-naming-erp-icon {
+  font-size: 16px;
+}
+
+.pp-naming-erp-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pp-pharma);
+}
+
+.pp-naming-erp-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.pp-naming-erp-desc {
+  font-size: 12px;
+  color: var(--pp-muted);
+  margin: 0 0 8px 0;
+  line-height: 1.5;
+}
+
+.pp-naming-erp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6366f1;
+  text-decoration: none;
+}
+
+.pp-naming-erp-link:hover {
+  text-decoration: underline;
+}
