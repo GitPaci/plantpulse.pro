@@ -16,7 +16,7 @@ import type {
   BatchNamingConfig,
   BatchNamingRule,
 } from '@/lib/types';
-import { turnaroundTotalHours, batchNamePreview } from '@/lib/types';
+import { turnaroundTotalHours, batchNamePreviewSequence } from '@/lib/types';
 
 // ─── Date helpers ──────────────────────────────────────────────────────
 
@@ -57,6 +57,7 @@ const DEFAULT_NAMING_RULE: BatchNamingRule = {
   suffix: '',
   startNumber: 1,
   padDigits: 3,
+  step: 1,
 };
 
 export default function ProcessSetup({
@@ -1253,8 +1254,7 @@ function NamingRuleEditor({
   showNextNumber?: boolean;
 }) {
   const previewFrom = showNextNumber ? (rule.nextNumber ?? rule.startNumber) : rule.startNumber;
-  const preview = batchNamePreview(rule, previewFrom);
-  const previewNext = batchNamePreview(rule, previewFrom + 1);
+  const previews = batchNamePreviewSequence(rule, previewFrom, 3);
 
   return (
     <div className="pp-naming-rule-card">
@@ -1266,7 +1266,7 @@ function NamingRuleEditor({
             type="text"
             value={rule.prefix}
             onChange={(e) => onChange('prefix', e.target.value)}
-            placeholder="e.g. GNT-"
+            placeholder="optional"
             className="pp-setup-input"
             style={{ width: 96 }}
           />
@@ -1297,6 +1297,18 @@ function NamingRuleEditor({
           </div>
         )}
         <div className="pp-naming-field">
+          <label className="pp-process-field-label">Step</label>
+          <input
+            type="number"
+            min={1}
+            max={100}
+            value={rule.step || 1}
+            onChange={(e) => onChange('step', Math.max(1, Number(e.target.value) || 1))}
+            className="pp-setup-input"
+            style={{ width: 52 }}
+          />
+        </div>
+        <div className="pp-naming-field">
           <label className="pp-process-field-label">Digits</label>
           <input
             type="number"
@@ -1321,7 +1333,7 @@ function NamingRuleEditor({
         </div>
       </div>
       <div className="pp-naming-rule-preview">
-        Preview: <code>{preview}</code>, <code>{previewNext}</code>, &hellip;
+        Preview: {previews.map((p, i) => (<span key={i}>{i > 0 && ', '}<code>{p}</code></span>))}, &hellip;
       </div>
     </div>
   );

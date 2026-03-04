@@ -67,10 +67,10 @@ export const DEFAULT_WALLBOARD_EQUIPMENT_GROUPS: string[] = [
 
 export const DEFAULT_BATCH_NAMING_CONFIG: BatchNamingConfig = {
   mode: 'per_product_line',
-  sharedRule: { prefix: 'B-', suffix: '', startNumber: 1, padDigits: 3 },
+  sharedRule: { prefix: 'B-', suffix: '', startNumber: 1, padDigits: 3, step: 1 },
   productLineRules: {
-    GNT: { prefix: 'GNT-', suffix: '', startNumber: 1, padDigits: 3 },
-    KK:  { prefix: 'KK-',  suffix: '', startNumber: 1, padDigits: 3 },
+    GNT: { prefix: 'GNT-', suffix: '', startNumber: 1, padDigits: 3, step: 1 },
+    KK:  { prefix: 'KK-',  suffix: '', startNumber: 1, padDigits: 3, step: 1 },
   },
   counterResetMode: 'annual',
   counterResetMonth: 1,
