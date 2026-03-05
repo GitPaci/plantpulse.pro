@@ -111,6 +111,7 @@ Multi-role users are allowed:
 - **Schedule View**
   - Whole month, weekends highlighted, staffing windows enforced
   - Equipment group filter toolbar with multi-select toggle buttons
+  - Inoculum group computed dynamically from store (not hardcoded); deduplicates machines already in product-line display groups
   - Button order (left → right): Inoculum, Propagators (PR), Pre-fermenters (PF), Fermenters (F), All Equipment
   - Multiple groups can be active simultaneously (e.g. PR + PF shows both)
   - "All Equipment" acts as reset: clears all selections, shows everything
@@ -145,10 +146,11 @@ Multi-role users are allowed:
   - GNT and KK are legacy defaults used in demo data, not hardcoded
 
 - **Stage Type Definition** (user-configurable)
-  - id, name, short_name, description, display_order
+  - id, name, short_name, description, count, display_order
+  - `count`: instances per batch chain (e.g. 2 if two inoculum vessels per chain, default 1)
   - Literature-aligned defaults: Inoculum (INO), Seed n-2 (n-2), Seed n-1 (n-1), Production (PROD)
   - Used by Stage Defaults dropdown and stage bar labels throughout the app
-  - Full CRUD in Process Setup modal > Stage Types tab
+  - Full CRUD in Process Setup modal > Stage Types tab (compact single-row layout)
 
 - **Equipment Group** (user-configurable)
   - id, name, short_name, display_order
@@ -183,6 +185,14 @@ Multi-role users are allowed:
   - name, start_date, end_date, reason (optional)
   - Plant-wide shutdown windows managed in Process Setup modal
   - Past shutdowns visually dimmed; new batches can still cross shutdown boundaries (with visual indication)
+
+- **Batch Naming Config** (user-configurable)
+  - mode: shared (one rule for all lines) or per_product_line
+  - Per-rule fields: prefix (optional), suffix, start_number, pad_digits, step (counter increment)
+  - Counter reset: annual (1st Jan), custom date, or none (continuous numbering)
+  - Configured in Process Setup modal > Naming tab
+  - Final production stage sets batch name; upstream stages inherit
+  - ERP batch number sync available in Enterprise edition
 
 - **Machine Display Group** (auto-derived)
   - name, machine_ids

@@ -13,7 +13,7 @@ Phases 8-12 are Enterprise-only.
 - Configure Vitest + Testing Library
 - Define TypeScript interfaces (`src/lib/types.ts`), including ProductLine, StageDefault
   - `StageType` is `string` (user-configurable, not a fixed union)
-  - `StageTypeDefinition` interface: id, name, shortName, description, displayOrder
+  - `StageTypeDefinition` interface: id, name, shortName, description, count, displayOrder
   - Default stage types (literature-aligned): inoculum (INO), seed_n2 (n-2), seed_n1 (n-1), production (PROD)
 - Define default facility config (product lines, machines, stage durations)
   - GNT + KK as demo defaults, but all user-configurable at runtime
@@ -55,7 +55,8 @@ Phases 8-12 are Enterprise-only.
   - **Turnaround activity CRUD** (implemented): add, update, delete
   - **Equipment group CRUD** (implemented): add, update, delete
   - **Shutdown period CRUD** (implemented): add, update, delete
-  - **Stage type definition CRUD** (implemented): add, update, delete — literature-aligned defaults (inoculum, seed_n2, seed_n1, production)
+  - **Stage type definition CRUD** (implemented): add, update, delete — literature-aligned defaults (inoculum, seed_n2, seed_n1, production); includes count field (instances per batch chain)
+  - **Batch naming config** (implemented): `batchNamingConfig: BatchNamingConfig` + `setBatchNamingConfig()` — configures batch name generation rules (prefix, suffix, step, counter reset, per-line or shared)
   - **Wallboard equipment groups** (implemented): `wallboardEquipmentGroups: string[]` + `setWallboardEquipmentGroups()` — configurable subset of equipment groups shown on Wallboard
   - **Bulk shift** (implemented): `bulkShiftStages(stageIds[], deltaHours)` shifts selected stages
   - Task confirmation actions
@@ -144,7 +145,7 @@ Phases 8-12 are Enterprise-only.
   - "All Equipment" acts as reset (clears all selections, shows everything)
   - Empty selection defaults to showing all equipment
   - Filtering affects visible equipment rows and events; hidden equipment does not render
-  - Includes Inoculum group (BKK, BGNT) not shown in other views
+  - Includes Inoculum group dynamically computed from store (not hardcoded); deduplicates machines already present in product-line display groups to prevent duplicate rows
   - Reuses `WallboardCanvas` with `customMachineGroups` for filtered display
   - **PDF export** (implemented):
     - "Export PDF" button + gear icon for Print Settings in toolbar
@@ -208,11 +209,13 @@ Phases 8-12 are Enterprise-only.
   - Reusable modal CSS (`pp-modal-*` classes in `globals.css`) shared by all setup modals
   - Wired to Planner sidebar via "Equipment Setup" tool button
 - **Process Setup modal** (implemented):
-  - `components/planner/ProcessSetup.tsx` — four-tab modal for process configuration
-  - **Stage Types tab**: full CRUD for `StageTypeDefinition` entities — name, short name, description, display order (reorder up/down); literature-aligned defaults: Inoculum (INO), Seed n-2 (n-2), Seed n-1 (n-1), Production (PROD)
+  - `components/planner/ProcessSetup.tsx` — five-tab modal for process configuration
+  - **Stage Types tab**: full CRUD for `StageTypeDefinition` entities — name, short name, count (instances per batch chain), description, display order (reorder up/down); compact single-row layout; literature-aligned defaults: Inoculum (INO), Seed n-2 (n-2), Seed n-1 (n-1), Production (PROD)
   - **Stage Defaults tab**: per product line (header shows `shortName || id`), edit default duration and equipment group for each stage type; stage type dropdown dynamically populated from user-defined stage types; add/remove/reorder stages in the seed train template
   - **Turnaround Activities tab**: CRUD for CIP/SIP/Cleaning activities per equipment group; d:h:m duration picker with total-hours readout; "default" checkbox for auto-insertion during scheduling; equipment group filter; pre-populated defaults for all 4 equipment groups (inoculum 2h media, propagator CIP/media/SIP, pre-fermenter CIP/media/SIP, fermenter CIP/media/SIP/transfer)
   - **Shutdowns tab**: CRUD for plant shutdown periods with name, date range, reason; click-to-expand editor; past shutdowns dimmed; sorted by start date; **conflict warnings**: amber banner when shutdown overlaps planned batches (informational, not blocking) showing affected batch names and count badge
+  - **Naming tab**: batch nomenclature rules — naming scope (shared or per-product-line), counter reset (annual / custom date / none = continuous), per-rule config: prefix (optional), start number, step (counter increment, default 1), pad digits, suffix; live preview showing 3 example names; inheritance info note (production stage sets name, upstream inherits); ERP integration CTA (Enterprise, mailto hello@plantpulse.pro)
+  - `BatchNamingRule` and `BatchNamingConfig` types defined in `lib/types.ts`; `batchNamePreview()` and `batchNamePreviewSequence()` utility functions
   - `ShutdownPeriod` type defined in `lib/types.ts`; full store CRUD in `lib/store.ts`
   - `TurnaroundActivity` type defined in `lib/types.ts` with d:h:m duration fields
   - `StageTypeDefinition` type defined in `lib/types.ts`; full store CRUD in `lib/store.ts`

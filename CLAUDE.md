@@ -293,6 +293,31 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Save button keeps modal open (matches Process Setup behavior)
 - CSS: `.pp-setup-section-header`, `.pp-setup-section-count`, `.pp-setup-section-separator` in `globals.css`
 
+#### 20. Process Setup — Stage Types compact layout and count field
+- Stage Types tab columns (#, Name, Short, Count, Description, Actions) rendered in a single horizontal row using `pp-setup-row` flex wrapper inside `pp-setup-row-wrapper`
+- **Count field**: `StageTypeDefinition.count` (number) — instances per batch chain (e.g. 2 if two inoculum vessels per chain); min 1, max 99
+- CSS: `.pp-process-stage-col-count` (52px width) in `globals.css`
+
+#### 21. Process Setup — Naming tab (batch nomenclature)
+- 5th tab in Process Setup modal for configuring batch name generation rules
+- **Naming scope**: shared (one rule for all product lines) or per-product-line (each line has its own rule)
+- **BatchNamingRule**: prefix (optional), suffix (optional), startNumber, padDigits, step (counter increment, default 1), nextNumber (for continuous mode)
+- **Counter reset modes**: annual (1st January), custom date (month + day picker), or none (continuous numbering from set start)
+- When "no reset" is selected, each rule shows a "Next #" field instead of "Start #"
+- **Live preview**: shows 3 example batch names using the configured rule and step (e.g. `010`, `011`, `012` or `GNT-001`, `GNT-002`, `GNT-003`)
+- **Inheritance note**: final production stage sets the batch name; upstream stages inherit automatically
+- **ERP CTA**: enterprise-locked section with mailto link to hello@plantpulse.pro for ERP batch number sync
+- State: `batchNamingConfig: BatchNamingConfig` in Zustand store with `setBatchNamingConfig()` action
+- Default: per_product_line mode, annual reset, GNT- and KK- prefixes, 3-digit padding, step 1
+- Implementation: `components/planner/ProcessSetup.tsx` (Naming tab + NamingRuleEditor sub-component)
+- CSS: `.pp-process-naming`, `.pp-naming-section`, `.pp-naming-mode-options`, `.pp-naming-radio`, `.pp-naming-reset-date`, `.pp-naming-field`, `.pp-naming-rules-list`, `.pp-naming-rule-card`, `.pp-naming-rule-label`, `.pp-naming-rule-fields`, `.pp-naming-rule-preview`, `.pp-naming-info`, `.pp-naming-erp-cta` in `globals.css`
+
+#### 22. Schedule view — dynamic inoculum group
+- Schedule view (`app/inoculum/page.tsx`) now computes inoculum equipment group dynamically from the Zustand store instead of using a static constant
+- Machines are filtered by `group === 'inoculum'` and exclude any machines already present in product-line display groups (prevents duplicate rows)
+- `machineIdsInGroups` useMemo tracks all machine IDs already in `buildDisplayGroups()` output
+- Inoculum group only prepended to schedule machine groups when it has non-empty machineIds
+
 ---
 
 ## Target Data Model (Modern)
@@ -339,6 +364,7 @@ interface StageTypeDefinition {
   name: string;           // display label, e.g. "Inoculum", "Seed (n-2)"
   shortName: string;      // compact label for bars/chips, e.g. "INO", "n-2"
   description?: string;   // optional note
+  count: number;          // instances per batch chain (e.g. 2 if two inoculum vessels per chain)
   displayOrder: number;   // controls dropdown and display sort order
 }
 
@@ -434,6 +460,27 @@ interface ShutdownPeriod {
   reason?: string;         // optional note
 }
 
+// Per-line naming rule — configures how batch names are generated.
+// The final production stage sets the batch name; upstream stages inherit it.
+interface BatchNamingRule {
+  prefix: string;           // optional prefix, e.g. "GNT-", "KK-" (may be empty)
+  suffix: string;           // optional suffix appended after the counter
+  startNumber: number;      // first counter value after reset (default 1)
+  padDigits: number;        // zero-padding width, e.g. 3 → "001"
+  step: number;             // counter increment per batch (default 1)
+  nextNumber?: number;      // current counter (used when counterResetMode === 'none')
+}
+
+// Top-level naming configuration stored in the Zustand store.
+interface BatchNamingConfig {
+  mode: 'shared' | 'per_product_line';          // one rule for all lines vs. one per line
+  sharedRule: BatchNamingRule;                   // used when mode === 'shared'
+  productLineRules: Record<string, BatchNamingRule>; // keyed by ProductLine.id
+  counterResetMode: 'annual' | 'custom' | 'none';  // when counter resets
+  counterResetMonth: number;                     // 1-12 (default 1 = January)
+  counterResetDay: number;                       // 1-31 (default 1)
+}
+
 interface ShiftRotation {
   teams: string[];        // 4 team names
   shiftLengthHours: 12;
@@ -462,7 +509,8 @@ interface ShiftRotation {
 | *(no VBA equivalent)* | TurnaroundActivity — gap activities between batches (CIP/SIP/Cleaning) |
 | *(no VBA equivalent)* | ShutdownPeriod — plant-wide shutdown windows |
 | *(no VBA equivalent)* | MachineDowntime — per-machine unavailability windows |
-| *(no VBA equivalent)* | StageTypeDefinition — user-configurable stage types (Inoculum, Seed n-2, Seed n-1, Production) |
+| *(no VBA equivalent)* | StageTypeDefinition — user-configurable stage types (Inoculum, Seed n-2, Seed n-1, Production) with count per chain |
+| *(no VBA equivalent)* | BatchNamingConfig — batch nomenclature rules (prefix, suffix, step, counter reset, per-line or shared) |
 
 ---
 
@@ -538,7 +586,7 @@ plantpulse.pro/
 │   │   │   ├── NewChainWizard.tsx
 │   │   │   ├── StageDetailPanel.tsx
 │   │   │   ├── EquipmentSetup.tsx  # Equipment Setup modal (4 tabs)
-│   │   │   └── ProcessSetup.tsx    # Process Setup modal (4 tabs)
+│   │   │   └── ProcessSetup.tsx    # Process Setup modal (5 tabs)
 │   │   ├── wallboard/           # Wallboard-specific components
 │   │   │   ├── TaskArrow.tsx
 │   │   │   └── MaintenanceMarker.tsx
@@ -548,7 +596,7 @@ plantpulse.pro/
 │   ├── settings/
 │   │   └── PrintSettings.tsx    # Print Settings modal (localStorage-persisted)
 │   ├── lib/
-│   │   ├── store.ts             # Zustand store — CRUD for all entities (Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup, ShutdownPeriod, StageTypeDefinition) + wallboardEquipmentGroups
+│   │   ├── store.ts             # Zustand store — CRUD for all entities (Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup, ShutdownPeriod, StageTypeDefinition, BatchNamingConfig) + wallboardEquipmentGroups
 │   │   ├── excel-io.ts          # SheetJS import/export
 │   │   ├── timeline-math.ts     # Pixel geometry (ported from VBA)
 │   │   ├── scheduling.ts        # Overlap detection, auto-scheduling, bulk shift
@@ -585,9 +633,9 @@ npm run lint         # Run linter
 
 ### Build order (Phase 1–6 for Free MVP)
 
-1. **`lib/types.ts`** — Define all TypeScript interfaces (done: includes EquipmentGroup, MachineDowntime, TurnaroundActivity, ShutdownPeriod, MachineDisplayGroup, StageTypeDefinition; StageType is `string` referencing StageTypeDefinition.id)
+1. **`lib/types.ts`** — Define all TypeScript interfaces (done: includes EquipmentGroup, MachineDowntime, TurnaroundActivity, ShutdownPeriod, MachineDisplayGroup, StageTypeDefinition, BatchNamingRule, BatchNamingConfig; StageType is `string` referencing StageTypeDefinition.id)
 2. **`lib/excel-io.ts`** — Import from legacy `.xlsx` format + export
-3. **`lib/store.ts`** — Zustand store with CRUD for all entities (done: Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup, ShutdownPeriod, StageTypeDefinition + bulkShiftStages)
+3. **`lib/store.ts`** — Zustand store with CRUD for all entities (done: Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup, ShutdownPeriod, StageTypeDefinition, BatchNamingConfig + bulkShiftStages)
 4. **`lib/timeline-math.ts`** — Port the VBA pixel geometry functions
 5. **`lib/holidays.ts`** — Slovenian holidays + Gauss Easter
 6. **`lib/colors.ts`** — `seriesNumber mod 12` color palette
@@ -596,7 +644,7 @@ npm run lint         # Run linter
 9. **`app/wallboard/`** — Operator wallboard view (read-only + task confirm)
 10. **`lib/scheduling.ts`** + **`lib/seed-train.ts`** — Business rules engine
 11. **`components/planner/EquipmentSetup.tsx`** — Equipment Setup modal: Machines (with downtime, section headers, smart insertion), Equipment Groups, Product Lines (with shortName), Wallboard Display (done)
-12. **`components/planner/ProcessSetup.tsx`** — Process Setup modal: Stage Types, Stage Defaults, Turnaround Activities, Shutdowns (done)
+12. **`components/planner/ProcessSetup.tsx`** — Process Setup modal: Stage Types (with count), Stage Defaults, Turnaround Activities, Shutdowns, Naming (done)
 13. **`components/planner/`** — Interactive planning tools (ChainEditor, BulkShiftTool, NewChainWizard, StageDetailPanel)
 14. **`app/planner/`** — Planner view with draft editing
 
