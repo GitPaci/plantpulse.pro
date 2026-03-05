@@ -63,7 +63,7 @@ export default function WallboardDisplaySettings({ open, onClose }: Props) {
   return (
     <div className="pp-modal-backdrop" onClick={onClose}>
       <div
-        className="pp-modal-container"
+        className="pp-modal"
         style={{ maxWidth: 520, width: '90vw' }}
         onClick={(e) => e.stopPropagation()}
       >
