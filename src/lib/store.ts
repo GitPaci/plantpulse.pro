@@ -48,6 +48,8 @@ interface PlantPulseState {
   turnaroundActivities: TurnaroundActivity[];
   shutdownPeriods: ShutdownPeriod[];
   stageTypeDefinitions: StageTypeDefinition[];
+  stageTypesMode: 'shared' | 'per_product_line';  // shared = one global list; per_product_line = separate lists
+  productLineStageTypes: Record<string, StageTypeDefinition[]>;  // keyed by ProductLine.id
   wallboardEquipmentGroups: string[];  // equipment group IDs visible on wallboard
   batchNamingConfig: BatchNamingConfig;
   viewConfig: ViewConfig;
@@ -118,6 +120,8 @@ interface PlantPulseState {
   addStageTypeDefinition: (def: StageTypeDefinition) => void;
   updateStageTypeDefinition: (id: string, updates: Partial<Omit<StageTypeDefinition, 'id'>>) => void;
   deleteStageTypeDefinition: (id: string) => void;
+  setStageTypesMode: (mode: 'shared' | 'per_product_line') => void;
+  setProductLineStageTypes: (types: Record<string, StageTypeDefinition[]>) => void;
 
   // ── Batch naming config ─────────────────────────────────────────
   setBatchNamingConfig: (config: BatchNamingConfig) => void;
@@ -135,6 +139,8 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   turnaroundActivities: DEFAULT_TURNAROUND_ACTIVITIES,
   shutdownPeriods: [],
   stageTypeDefinitions: DEFAULT_STAGE_TYPE_DEFINITIONS,
+  stageTypesMode: 'shared' as const,
+  productLineStageTypes: {} as Record<string, StageTypeDefinition[]>,
   wallboardEquipmentGroups: DEFAULT_WALLBOARD_EQUIPMENT_GROUPS,
   batchNamingConfig: DEFAULT_BATCH_NAMING_CONFIG,
   viewConfig: {
@@ -366,6 +372,9 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
     set((state) => ({
       stageTypeDefinitions: state.stageTypeDefinitions.filter((d) => d.id !== id),
     })),
+
+  setStageTypesMode: (mode) => set({ stageTypesMode: mode }),
+  setProductLineStageTypes: (types) => set({ productLineStageTypes: types }),
 
   // ── Batch naming config ─────────────────────────────────────────
 
