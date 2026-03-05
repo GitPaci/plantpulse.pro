@@ -60,6 +60,115 @@ const DEFAULT_NAMING_RULE: BatchNamingRule = {
   step: 1,
 };
 
+// ─── Reusable stage type table (shared between global and per-product-line modes)
+
+function StageTypeTable({
+  items,
+  onUpdate,
+  onDelete,
+  onMove,
+}: {
+  items: StageTypeDefinition[];
+  onUpdate: (id: string, updates: Partial<Omit<StageTypeDefinition, 'id'>>) => void;
+  onDelete: (id: string) => void;
+  onMove: (idx: number, dir: 'up' | 'down') => void;
+}) {
+  return (
+    <div className="pp-setup-list">
+      <div className="pp-setup-list-header">
+        <span className="pp-setup-col-order">#</span>
+        <span className="pp-setup-col-name">Name</span>
+        <span className="pp-process-stage-col-short">Short</span>
+        <span className="pp-process-stage-col-count">Count</span>
+        <span className="pp-process-stage-col-desc">Description</span>
+        <span className="pp-setup-col-actions">Actions</span>
+      </div>
+
+      {items.map((st, idx) => (
+        <div key={st.id} className="pp-setup-row-wrapper">
+          <div className="pp-setup-row">
+            <span className="pp-setup-col-order">
+              <button
+                className="pp-setup-move-btn"
+                onClick={() => onMove(idx, 'up')}
+                disabled={idx === 0}
+                title="Move up"
+              >
+                &uarr;
+              </button>
+              <button
+                className="pp-setup-move-btn"
+                onClick={() => onMove(idx, 'down')}
+                disabled={idx === items.length - 1}
+                title="Move down"
+              >
+                &darr;
+              </button>
+            </span>
+
+            <span className="pp-setup-col-name">
+              <input
+                type="text"
+                value={st.name}
+                onChange={(e) => onUpdate(st.id, { name: e.target.value })}
+                placeholder="e.g. Seed (n-2)"
+                className="pp-setup-input"
+                style={{ width: '100%' }}
+              />
+            </span>
+
+            <span className="pp-process-stage-col-short">
+              <input
+                type="text"
+                value={st.shortName}
+                onChange={(e) => onUpdate(st.id, { shortName: e.target.value })}
+                placeholder="e.g. n-2"
+                className="pp-setup-input"
+                style={{ width: '100%' }}
+                maxLength={6}
+              />
+            </span>
+
+            <span className="pp-process-stage-col-count">
+              <input
+                type="number"
+                min={1}
+                max={99}
+                value={st.count ?? 1}
+                onChange={(e) => onUpdate(st.id, { count: Math.max(1, Number(e.target.value) || 1) })}
+                className="pp-setup-input"
+                style={{ width: '100%' }}
+                title="Instances per batch chain"
+              />
+            </span>
+
+            <span className="pp-process-stage-col-desc">
+              <input
+                type="text"
+                value={st.description || ''}
+                onChange={(e) => onUpdate(st.id, { description: e.target.value })}
+                placeholder="Optional description"
+                className="pp-setup-input"
+                style={{ width: '100%' }}
+              />
+            </span>
+
+            <span className="pp-setup-col-actions" style={{ width: 48 }}>
+              <button
+                className="pp-setup-action-btn pp-setup-delete-btn"
+                onClick={() => onDelete(st.id)}
+                title="Delete stage type"
+              >
+                Del
+              </button>
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ProcessSetup({
   open,
   onClose,
@@ -73,6 +182,8 @@ export default function ProcessSetup({
   const storeShutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
   const storeEquipmentGroups = usePlantPulseStore((s) => s.equipmentGroups);
   const storeStageTypeDefinitions = usePlantPulseStore((s) => s.stageTypeDefinitions);
+  const storeStageTypesMode = usePlantPulseStore((s) => s.stageTypesMode);
+  const storeProductLineStageTypes = usePlantPulseStore((s) => s.productLineStageTypes);
   const storeStages = usePlantPulseStore((s) => s.stages);
   const storeBatchChains = usePlantPulseStore((s) => s.batchChains);
 
@@ -82,11 +193,15 @@ export default function ProcessSetup({
   const setTurnaroundActivities = usePlantPulseStore((s) => s.setTurnaroundActivities);
   const setShutdownPeriods = usePlantPulseStore((s) => s.setShutdownPeriods);
   const setStageTypeDefinitions = usePlantPulseStore((s) => s.setStageTypeDefinitions);
+  const setStageTypesMode = usePlantPulseStore((s) => s.setStageTypesMode);
+  const setProductLineStageTypes = usePlantPulseStore((s) => s.setProductLineStageTypes);
   const setBatchNamingConfig = usePlantPulseStore((s) => s.setBatchNamingConfig);
 
   // Draft state
   const [tab, setTab] = useState<Tab>('stageTypes');
   const [draftStageTypes, setDraftStageTypes] = useState<StageTypeDefinition[]>([]);
+  const [draftStageTypesMode, setDraftStageTypesMode] = useState<'shared' | 'per_product_line'>('shared');
+  const [draftPLStageTypes, setDraftPLStageTypes] = useState<Record<string, StageTypeDefinition[]>>({});
   const [draftProductLines, setDraftProductLines] = useState<ProductLine[]>([]);
   const [draftActivities, setDraftActivities] = useState<TurnaroundActivity[]>([]);
   const [draftShutdowns, setDraftShutdowns] = useState<ShutdownPeriod[]>([]);
@@ -104,6 +219,15 @@ export default function ProcessSetup({
   useEffect(() => {
     if (open) {
       setDraftStageTypes(storeStageTypeDefinitions.map((d) => ({ ...d })));
+      setDraftStageTypesMode(storeStageTypesMode);
+      setDraftPLStageTypes(
+        Object.fromEntries(
+          Object.entries(storeProductLineStageTypes).map(([k, arr]) => [
+            k,
+            arr.map((d) => ({ ...d })),
+          ])
+        )
+      );
       setDraftProductLines(storeProductLines.map((pl) => ({
         ...pl,
         stageDefaults: pl.stageDefaults.map((sd) => ({ ...sd })),
@@ -124,7 +248,7 @@ export default function ProcessSetup({
       setDirty(false);
       setEditingShutdownId(null);
     }
-  }, [open, storeStageTypeDefinitions, storeProductLines, storeTurnaroundActivities, storeShutdownPeriods, storeBatchNamingConfig]);
+  }, [open, storeStageTypeDefinitions, storeStageTypesMode, storeProductLineStageTypes, storeProductLines, storeTurnaroundActivities, storeShutdownPeriods, storeBatchNamingConfig]);
 
   // Stage type labels derived from draft (for Stage Defaults dropdown)
   const stageTypeLabels = useMemo(() => buildStageTypeLabels(draftStageTypes), [draftStageTypes]);
@@ -269,6 +393,84 @@ export default function ProcessSetup({
     setDirty(true);
   }, []);
 
+  // ── Stage types mode toggle ──────────────────────────────────────────
+
+  const handleStageTypesModeChange = useCallback(
+    (newMode: 'shared' | 'per_product_line') => {
+      if (newMode === draftStageTypesMode) return;
+      if (newMode === 'per_product_line') {
+        // Copy global stage types as initial template for each product line
+        const perLine: Record<string, StageTypeDefinition[]> = {};
+        for (const pl of draftProductLines) {
+          // Only seed from global if this line has no existing data
+          if (!draftPLStageTypes[pl.id] || draftPLStageTypes[pl.id].length === 0) {
+            perLine[pl.id] = draftStageTypes.map((d) => ({
+              ...d,
+              id: generateId('st-'),  // new IDs to avoid collisions across lines
+            }));
+          } else {
+            perLine[pl.id] = draftPLStageTypes[pl.id];
+          }
+        }
+        setDraftPLStageTypes(perLine);
+      }
+      setDraftStageTypesMode(newMode);
+      setDirty(true);
+    },
+    [draftStageTypesMode, draftStageTypes, draftProductLines, draftPLStageTypes]
+  );
+
+  // ── Per-product-line stage type helpers ──────────────────────────────
+
+  const addPLStageType = useCallback((plId: string) => {
+    setDraftPLStageTypes((prev) => {
+      const arr = prev[plId] || [];
+      const maxOrder = arr.reduce((mx, d) => Math.max(mx, d.displayOrder), -1);
+      const newDef: StageTypeDefinition = {
+        id: generateId('st-'),
+        name: '',
+        shortName: '',
+        description: '',
+        count: 1,
+        displayOrder: maxOrder + 1,
+      };
+      return { ...prev, [plId]: [...arr, newDef] };
+    });
+    setDirty(true);
+  }, []);
+
+  const updatePLStageType = useCallback(
+    (plId: string, stId: string, updates: Partial<Omit<StageTypeDefinition, 'id'>>) => {
+      setDraftPLStageTypes((prev) => ({
+        ...prev,
+        [plId]: (prev[plId] || []).map((d) => (d.id === stId ? { ...d, ...updates } : d)),
+      }));
+      setDirty(true);
+    },
+    []
+  );
+
+  const deletePLStageType = useCallback((plId: string, stId: string) => {
+    setDraftPLStageTypes((prev) => ({
+      ...prev,
+      [plId]: (prev[plId] || []).filter((d) => d.id !== stId),
+    }));
+    setDirty(true);
+  }, []);
+
+  const movePLStageType = useCallback((plId: string, idx: number, dir: 'up' | 'down') => {
+    setDraftPLStageTypes((prev) => {
+      const sorted = [...(prev[plId] || [])].sort((a, b) => a.displayOrder - b.displayOrder);
+      const swap = dir === 'up' ? idx - 1 : idx + 1;
+      if (swap < 0 || swap >= sorted.length) return prev;
+      const tempOrder = sorted[idx].displayOrder;
+      sorted[idx] = { ...sorted[idx], displayOrder: sorted[swap].displayOrder };
+      sorted[swap] = { ...sorted[swap], displayOrder: tempOrder };
+      return { ...prev, [plId]: sorted };
+    });
+    setDirty(true);
+  }, []);
+
   // ── Turnaround activity helpers ────────────────────────────────────
 
   const addActivity = useCallback(() => {
@@ -370,6 +572,8 @@ export default function ProcessSetup({
 
   function handleSave() {
     setStageTypeDefinitions(draftStageTypes);
+    setStageTypesMode(draftStageTypesMode);
+    setProductLineStageTypes(draftPLStageTypes);
     setProductLines(draftProductLines);
     setTurnaroundActivities(draftActivities);
     setShutdownPeriods(draftShutdowns);
@@ -461,114 +665,109 @@ export default function ProcessSetup({
                 in the upstream process (e.g. Inoculum → Seed n-2 → Seed n-1 → Production).
               </p>
 
-              <div className="pp-setup-filter-bar">
-                <span className="text-xs text-[var(--pp-muted)]">
-                  {draftStageTypes.length} stage type{draftStageTypes.length !== 1 ? 's' : ''} defined
-                </span>
-                <button className="pp-setup-add-btn" onClick={addStageType}>
-                  + Stage Type
-                </button>
+              {/* Scope toggle */}
+              <div className="pp-stage-scope-toggle">
+                <label className={`pp-stage-scope-option${draftStageTypesMode === 'shared' ? ' selected' : ''}`}>
+                  <input
+                    type="radio"
+                    name="stageTypesMode"
+                    value="shared"
+                    checked={draftStageTypesMode === 'shared'}
+                    onChange={() => handleStageTypesModeChange('shared')}
+                  />
+                  <span>Same stage types for all product lines</span>
+                </label>
+                <label className={`pp-stage-scope-option${draftStageTypesMode === 'per_product_line' ? ' selected' : ''}`}>
+                  <input
+                    type="radio"
+                    name="stageTypesMode"
+                    value="per_product_line"
+                    checked={draftStageTypesMode === 'per_product_line'}
+                    onChange={() => handleStageTypesModeChange('per_product_line')}
+                  />
+                  <span>Each product line has its own stage types</span>
+                </label>
               </div>
 
-              {sortedStageTypes.length === 0 && (
-                <div className="pp-setup-empty">
-                  No stage types defined. Click &ldquo;+ Stage Type&rdquo; to add one.
-                </div>
-              )}
-
-              {sortedStageTypes.length > 0 && (
-                <div className="pp-setup-list">
-                  <div className="pp-setup-list-header">
-                    <span className="pp-setup-col-order">#</span>
-                    <span className="pp-setup-col-name">Name</span>
-                    <span className="pp-process-stage-col-short">Short</span>
-                    <span className="pp-process-stage-col-count">Count</span>
-                    <span className="pp-process-stage-col-desc">Description</span>
-                    <span className="pp-setup-col-actions">Actions</span>
+              {/* ── Shared (global) mode ── */}
+              {draftStageTypesMode === 'shared' && (
+                <>
+                  <div className="pp-setup-filter-bar">
+                    <span className="text-xs text-[var(--pp-muted)]">
+                      {draftStageTypes.length} stage type{draftStageTypes.length !== 1 ? 's' : ''} defined
+                    </span>
+                    <button className="pp-setup-add-btn" onClick={addStageType}>
+                      + Stage Type
+                    </button>
                   </div>
 
-                  {sortedStageTypes.map((st, idx) => (
-                    <div key={st.id} className="pp-setup-row-wrapper">
-                      <div className="pp-setup-row">
-                        <span className="pp-setup-col-order">
-                          <button
-                            className="pp-setup-move-btn"
-                            onClick={() => moveStageType(idx, 'up')}
-                            disabled={idx === 0}
-                            title="Move up"
-                          >
-                            &uarr;
-                          </button>
-                          <button
-                            className="pp-setup-move-btn"
-                            onClick={() => moveStageType(idx, 'down')}
-                            disabled={idx === sortedStageTypes.length - 1}
-                            title="Move down"
-                          >
-                            &darr;
-                          </button>
-                        </span>
-
-                        <span className="pp-setup-col-name">
-                          <input
-                            type="text"
-                            value={st.name}
-                            onChange={(e) => updateStageType(st.id, { name: e.target.value })}
-                            placeholder="e.g. Seed (n-2)"
-                            className="pp-setup-input"
-                            style={{ width: '100%' }}
-                          />
-                        </span>
-
-                        <span className="pp-process-stage-col-short">
-                          <input
-                            type="text"
-                            value={st.shortName}
-                            onChange={(e) => updateStageType(st.id, { shortName: e.target.value })}
-                            placeholder="e.g. n-2"
-                            className="pp-setup-input"
-                            style={{ width: '100%' }}
-                            maxLength={6}
-                          />
-                        </span>
-
-                        <span className="pp-process-stage-col-count">
-                          <input
-                            type="number"
-                            min={1}
-                            max={99}
-                            value={st.count ?? 1}
-                            onChange={(e) => updateStageType(st.id, { count: Math.max(1, Number(e.target.value) || 1) })}
-                            className="pp-setup-input"
-                            style={{ width: '100%' }}
-                            title="Instances per batch chain"
-                          />
-                        </span>
-
-                        <span className="pp-process-stage-col-desc">
-                          <input
-                            type="text"
-                            value={st.description || ''}
-                            onChange={(e) => updateStageType(st.id, { description: e.target.value })}
-                            placeholder="Optional description"
-                            className="pp-setup-input"
-                            style={{ width: '100%' }}
-                          />
-                        </span>
-
-                        <span className="pp-setup-col-actions" style={{ width: 48 }}>
-                          <button
-                            className="pp-setup-action-btn pp-setup-delete-btn"
-                            onClick={() => deleteStageType(st.id)}
-                            title="Delete stage type"
-                          >
-                            Del
-                          </button>
-                        </span>
-                      </div>
+                  {sortedStageTypes.length === 0 && (
+                    <div className="pp-setup-empty">
+                      No stage types defined. Click &ldquo;+ Stage Type&rdquo; to add one.
                     </div>
-                  ))}
-                </div>
+                  )}
+
+                  {sortedStageTypes.length > 0 && (
+                    <StageTypeTable
+                      items={sortedStageTypes}
+                      onUpdate={(id, u) => updateStageType(id, u)}
+                      onDelete={(id) => deleteStageType(id)}
+                      onMove={(idx, dir) => moveStageType(idx, dir)}
+                    />
+                  )}
+                </>
+              )}
+
+              {/* ── Per-product-line mode ── */}
+              {draftStageTypesMode === 'per_product_line' && (
+                <>
+                  {draftProductLines.length === 0 && (
+                    <div className="pp-setup-empty">
+                      No product lines defined. Add product lines in Equipment Setup first.
+                    </div>
+                  )}
+                  {[...draftProductLines]
+                    .sort((a, b) => a.displayOrder - b.displayOrder)
+                    .map((pl) => {
+                      const plTypes = [...(draftPLStageTypes[pl.id] || [])].sort(
+                        (a, b) => a.displayOrder - b.displayOrder
+                      );
+                      return (
+                        <div key={pl.id} className="pp-stage-pl-section">
+                          <div className="pp-stage-pl-header">
+                            <span className="pp-stage-pl-name">
+                              {pl.name}
+                              <span className="pp-setup-badge" style={{ marginLeft: 6 }}>{pl.shortName}</span>
+                            </span>
+                            <span className="text-xs text-[var(--pp-muted)]">
+                              {plTypes.length} stage type{plTypes.length !== 1 ? 's' : ''}
+                            </span>
+                            <button
+                              className="pp-setup-add-btn"
+                              onClick={() => addPLStageType(pl.id)}
+                            >
+                              + Stage Type
+                            </button>
+                          </div>
+
+                          {plTypes.length === 0 && (
+                            <div className="pp-setup-empty" style={{ margin: '4px 0 8px' }}>
+                              No stage types. Click &ldquo;+ Stage Type&rdquo; to add one.
+                            </div>
+                          )}
+
+                          {plTypes.length > 0 && (
+                            <StageTypeTable
+                              items={plTypes}
+                              onUpdate={(id, u) => updatePLStageType(pl.id, id, u)}
+                              onDelete={(id) => deletePLStageType(pl.id, id)}
+                              onMove={(idx, dir) => movePLStageType(pl.id, idx, dir)}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                </>
               )}
 
               <p className="pp-process-help" style={{ marginTop: 12, fontSize: 11, opacity: 0.7 }}>

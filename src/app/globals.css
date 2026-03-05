@@ -1276,6 +1276,68 @@ body {
   min-width: 100px;
 }
 
+/* ── Stage Types scope toggle ────────────────────────────────── */
+
+.pp-stage-scope-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--pp-border);
+  border-radius: 8px;
+  background: var(--pp-surface);
+}
+
+.pp-stage-scope-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--pp-text);
+  transition: background 0.12s;
+}
+.pp-stage-scope-option:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+.pp-stage-scope-option.selected {
+  color: var(--pp-pharma);
+  font-weight: 500;
+}
+.pp-stage-scope-option input[type="radio"] {
+  accent-color: var(--pp-pharma);
+  margin: 0;
+}
+
+/* ── Per-product-line stage type sections ──────────────────────── */
+
+.pp-stage-pl-section {
+  border: 1px solid var(--pp-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+
+.pp-stage-pl-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--pp-border);
+}
+
+.pp-stage-pl-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pp-pharma);
+  flex: 1;
+}
+
 /* ── Turnaround Activities tab ───────────────────────────────── */
 
 .pp-process-turnaround {
