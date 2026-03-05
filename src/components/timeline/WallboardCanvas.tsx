@@ -17,7 +17,19 @@ import {
   getDate,
   getMonth,
 } from 'date-fns';
-import type { Machine, Stage, MachineDisplayGroup, ShutdownPeriod } from '@/lib/types';
+import type { Machine, Stage, MachineDisplayGroup, ShutdownPeriod, BatchChain, BatchNamingConfig } from '@/lib/types';
+import { batchNamePreview } from '@/lib/types';
+
+// ─── Batch naming helper ────────────────────────────────────────────────
+
+/** Generate the display label for a batch chain using the naming config. */
+function buildBatchLabel(chain: BatchChain, config: BatchNamingConfig): string {
+  const rule =
+    config.mode === 'per_product_line' && chain.productLine
+      ? config.productLineRules[chain.productLine] ?? config.sharedRule
+      : config.sharedRule;
+  return batchNamePreview(rule, chain.seriesNumber);
+}
 
 // ─── Layout constants ───────────────────────────────────────────────────
 
@@ -369,7 +381,8 @@ function drawMachineLabels(
 function drawBatchBars(
   ctx: CanvasRenderingContext2D,
   stages: Stage[],
-  batchChainMap: Map<string, number>,
+  batchSeriesMap: Map<string, number>,
+  batchLabelMap: Map<string, string>,
   rows: RowInfo[],
   viewStart: Date,
   numDays: number,
@@ -397,7 +410,8 @@ function drawBatchBars(
 
     if (pos.offScreen) continue;
 
-    const seriesNum = batchChainMap.get(stage.batchChainId) ?? 0;
+    const seriesNum = batchSeriesMap.get(stage.batchChainId) ?? 0;
+    const label = batchLabelMap.get(stage.batchChainId) ?? String(seriesNum);
     const isFuture = stage.startDatetime > now;
     const barY = row.y + BAR_Y_PAD;
 
@@ -435,9 +449,8 @@ function drawBatchBars(
       ctx.fillText(endHour, pos.left + pos.width - 2, barY + BAR_HEIGHT / 2);
     }
 
-    // Series number label — centered in bar
+    // Batch name label — centered in bar
     if (pos.width > 20) {
-      const label = String(seriesNum);
       ctx.font = '9px sans-serif';
       const textW = ctx.measureText(label).width;
       const labelW = textW + 8;
@@ -547,6 +560,7 @@ export default function WallboardCanvas({
   const batchChains = usePlantPulseStore((s) => s.batchChains);
   const viewConfig = usePlantPulseStore((s) => s.viewConfig);
   const shutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
+  const batchNamingConfig = usePlantPulseStore((s) => s.batchNamingConfig);
   const loadDemoData = usePlantPulseStore((s) => s.loadDemoData);
 
   // Load demo data on mount
@@ -577,10 +591,12 @@ export default function WallboardCanvas({
     : baseGroups;
   const rows = buildRowLayout(machines, groups);
 
-  // Build batch chain series number map
-  const batchChainMap = new Map<string, number>();
+  // Build batch chain maps: series number (for color) and display label (from naming config)
+  const batchSeriesMap = new Map<string, number>();
+  const batchLabelMap = new Map<string, string>();
   for (const chain of batchChains) {
-    batchChainMap.set(chain.id, chain.seriesNumber);
+    batchSeriesMap.set(chain.id, chain.seriesNumber);
+    batchLabelMap.set(chain.id, buildBatchLabel(chain, batchNamingConfig));
   }
 
   // Filter stages to visible machines
@@ -624,7 +640,7 @@ export default function WallboardCanvas({
     // Draw layers (back to front)
     drawRowBackgrounds(ctx, rows, dims.width, theme);
     drawCalendarColumns(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, showTodayHighlight, theme, shutdownPeriods);
-    drawBatchBars(ctx, visibleStages, batchChainMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
+    drawBatchBars(ctx, visibleStages, batchSeriesMap, batchLabelMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     if (showNowLineProp) {
       drawNowLine(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, theme);
     }
@@ -633,7 +649,7 @@ export default function WallboardCanvas({
       drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     }
     drawDateHeader(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
-  }, [dims, rows, visibleStages, batchChainMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods]);
+  }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods]);
 
   // Redraw on any change
   useEffect(() => {
