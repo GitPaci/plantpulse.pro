@@ -222,6 +222,14 @@ export default function ProcessSetup({
     affectedLines: string[]; // product line names that have matching stage defaults
   } | null>(null);
 
+  // Confirmation dialog for per-PL → shared mode switch
+  const [modeSwitchConfirm, setModeSwitchConfirm] = useState<{
+    identical: boolean;                    // true if all PLs have same structure
+    templatePlId: string;                  // selected (or auto-selected) template PL
+    productLines: { id: string; name: string; shortName: string }[];
+    lostDefaultsInfo: string[];            // PL names that will lose stage defaults data
+  } | null>(null);
+
   // ── Load draft from store on open ─────────────────────────────────
 
   useEffect(() => {
@@ -256,6 +264,7 @@ export default function ProcessSetup({
       setDirty(false);
       setEditingShutdownId(null);
       setDeleteConfirm(null);
+      setModeSwitchConfirm(null);
     }
   }, [open, storeStageTypeDefinitions, storeStageTypesMode, storeProductLineStageTypes, storeProductLines, storeTurnaroundActivities, storeShutdownPeriods, storeBatchNamingConfig]);
 
@@ -542,25 +551,38 @@ export default function ProcessSetup({
 
   // ── Stage types mode toggle ──────────────────────────────────────────
 
+  // Compare two PL stage-type lists by structure (order, name, shortName, count)
+  const arePLStageTypesIdentical = useCallback(
+    (plIds: string[]): boolean => {
+      if (plIds.length <= 1) return true;
+      const serialize = (types: StageTypeDefinition[]) =>
+        [...types]
+          .sort((a, b) => a.displayOrder - b.displayOrder)
+          .map((t) => `${t.name}|${t.shortName}|${t.count}`)
+          .join(';;');
+      const first = serialize(draftPLStageTypes[plIds[0]] || []);
+      return plIds.every((id) => serialize(draftPLStageTypes[id] || []) === first);
+    },
+    [draftPLStageTypes]
+  );
+
   const handleStageTypesModeChange = useCallback(
     (newMode: 'shared' | 'per_product_line') => {
       if (newMode === draftStageTypesMode) return;
+
       if (newMode === 'per_product_line') {
-        // Copy global stage types as initial template for each product line.
-        // When generating new IDs, remap stageDefaults references to match.
+        // Shared → per-PL: copy global stage types as template for each PL
         const perLine: Record<string, StageTypeDefinition[]> = {};
         const updatedProductLines = [...draftProductLines];
         for (let pi = 0; pi < updatedProductLines.length; pi++) {
           const pl = updatedProductLines[pi];
-          // Only seed from global if this line has no existing per-line data
           if (!draftPLStageTypes[pl.id] || draftPLStageTypes[pl.id].length === 0) {
-            const idMap: Record<string, string> = {}; // oldId → newId
+            const idMap: Record<string, string> = {};
             perLine[pl.id] = draftStageTypes.map((d) => {
               const newId = generateId('st-');
               idMap[d.id] = newId;
               return { ...d, id: newId };
             });
-            // Remap stageDefaults to use new IDs
             updatedProductLines[pi] = {
               ...pl,
               stageDefaults: pl.stageDefaults.map((sd) => ({
@@ -574,11 +596,127 @@ export default function ProcessSetup({
         }
         setDraftPLStageTypes(perLine);
         setDraftProductLines(updatedProductLines);
+        setDraftStageTypesMode(newMode);
+        setDirty(true);
+        return;
       }
-      setDraftStageTypesMode(newMode);
+
+      // Per-PL → shared: need validation
+      const plIds = draftProductLines.map((pl) => pl.id);
+      if (plIds.length === 0) {
+        // No product lines — just switch mode, keep existing shared types
+        setDraftStageTypesMode(newMode);
+        setDirty(true);
+        return;
+      }
+
+      const identical = arePLStageTypesIdentical(plIds);
+      const firstPlId = plIds[0];
+
+      // Check which PLs would lose stage defaults data during conversion
+      const lostDefaultsInfo: string[] = [];
+      if (!identical) {
+        // In non-identical case, any PL not used as template may lose data
+        for (const pl of draftProductLines) {
+          if (pl.stageDefaults.length > 0) {
+            lostDefaultsInfo.push(pl.name);
+          }
+        }
+      }
+
+      if (identical && plIds.length === 1) {
+        // Single PL or identical — safe to convert directly
+        applyModeSwitchToShared(firstPlId);
+        return;
+      }
+
+      // Show confirmation dialog — user picks template PL
+      setModeSwitchConfirm({
+        identical,
+        templatePlId: firstPlId,
+        productLines: draftProductLines.map((pl) => ({ id: pl.id, name: pl.name, shortName: pl.shortName })),
+        lostDefaultsInfo,
+      });
+    },
+    [draftStageTypesMode, draftStageTypes, draftProductLines, draftPLStageTypes, arePLStageTypesIdentical]
+  );
+
+  // Apply the per-PL → shared conversion using the selected template PL
+  const applyModeSwitchToShared = useCallback(
+    (templatePlId: string) => {
+      const templateTypes = [...(draftPLStageTypes[templatePlId] || [])].sort(
+        (a, b) => a.displayOrder - b.displayOrder
+      );
+
+      // Build global stage types from template (with fresh IDs for the shared list)
+      const idMap: Record<string, string> = {}; // templatePL-id → new shared id
+      const globalTypes: StageTypeDefinition[] = templateTypes.map((t, idx) => {
+        const newId = generateId('st-');
+        idMap[t.id] = newId;
+        return { ...t, id: newId, displayOrder: idx };
+      });
+
+      // Build a name-based mapping for non-template PLs so we can remap their
+      // stage defaults to the new global IDs where a matching stage type exists.
+      // Key: (name|shortName|count) → global ID
+      const structureToGlobalId: Record<string, string> = {};
+      for (const gt of globalTypes) {
+        const key = `${gt.name}|${gt.shortName}|${gt.count}`;
+        structureToGlobalId[key] = gt.id;
+      }
+
+      // Update product lines: remap stageDefaults to use new global IDs.
+      // For the template PL, use direct idMap. For others, match by structure;
+      // remove defaults whose stage type has no match in the global list.
+      const updatedProductLines = draftProductLines.map((pl) => {
+        if (pl.id === templatePlId) {
+          return {
+            ...pl,
+            stageDefaults: pl.stageDefaults.map((sd) => ({
+              ...sd,
+              stageType: idMap[sd.stageType] || sd.stageType,
+            })),
+          };
+        }
+        // Non-template PL: remap by matching per-PL type structure → global ID
+        const plTypes = draftPLStageTypes[pl.id] || [];
+        const plIdToGlobalId: Record<string, string> = {};
+        for (const pt of plTypes) {
+          const key = `${pt.name}|${pt.shortName}|${pt.count}`;
+          if (structureToGlobalId[key]) {
+            plIdToGlobalId[pt.id] = structureToGlobalId[key];
+          }
+        }
+
+        // Keep only defaults that map to a global stage type
+        const remappedDefaults = pl.stageDefaults
+          .map((sd) => {
+            const globalId = plIdToGlobalId[sd.stageType];
+            if (!globalId) return null; // stage type not in global list → remove
+            return { ...sd, stageType: globalId };
+          })
+          .filter((sd): sd is StageDefault => sd !== null);
+
+        // Add defaults for any global types this PL didn't have yet
+        const coveredGlobalIds = new Set(remappedDefaults.map((sd) => sd.stageType));
+        for (const gt of globalTypes) {
+          if (!coveredGlobalIds.has(gt.id)) {
+            remappedDefaults.push(
+              buildPrefillDefault(gt.id, gt.displayOrder, remappedDefaults, globalTypes)
+            );
+          }
+        }
+
+        return { ...pl, stageDefaults: remappedDefaults };
+      });
+
+      setDraftStageTypes(globalTypes);
+      setDraftProductLines(updatedProductLines);
+      setDraftStageTypesMode('shared');
+      setModeSwitchConfirm(null);
       setDirty(true);
     },
-    [draftStageTypesMode, draftStageTypes, draftProductLines, draftPLStageTypes]
+    [draftPLStageTypes, draftProductLines, buildPrefillDefault]
   );
 
   // ── Per-product-line stage type helpers ──────────────────────────────
@@ -1673,6 +1811,96 @@ export default function ProcessSetup({
                 onClick={confirmDeleteStageType}
               >
                 Delete Stage Type &amp; Defaults
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mode switch (per-PL → shared) confirmation dialog ─── */}
+      {modeSwitchConfirm && (
+        <div className="pp-confirm-backdrop" onClick={() => setModeSwitchConfirm(null)}>
+          <div
+            className="pp-confirm-dialog"
+            role="alertdialog"
+            aria-labelledby="pp-modeswitch-title"
+            aria-describedby="pp-modeswitch-desc"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 480 }}
+          >
+            <h3 id="pp-modeswitch-title" className="pp-confirm-title">
+              {modeSwitchConfirm.identical
+                ? 'Switch to Shared Stage Types?'
+                : 'Stage Types Differ Between Product Lines'}
+            </h3>
+
+            {modeSwitchConfirm.identical ? (
+              <p id="pp-modeswitch-desc" className="pp-confirm-desc">
+                All product lines share the same stage type structure.
+                They will be merged into a single global list.
+              </p>
+            ) : (
+              <>
+                <p id="pp-modeswitch-desc" className="pp-confirm-desc">
+                  The stage type configurations differ between product lines (different names,
+                  order, or counts). Choose which product line to use as the template for the
+                  global stage type list. The other product lines will adopt this structure.
+                </p>
+                <div style={{ margin: '12px 0' }}>
+                  <label className="pp-confirm-desc" style={{ fontWeight: 500, display: 'block', marginBottom: 6 }}>
+                    Use as template:
+                  </label>
+                  <select
+                    className="pp-setup-select"
+                    style={{ width: '100%' }}
+                    value={modeSwitchConfirm.templatePlId}
+                    onChange={(e) =>
+                      setModeSwitchConfirm((prev) => prev ? { ...prev, templatePlId: e.target.value } : null)
+                    }
+                  >
+                    {modeSwitchConfirm.productLines.map((pl) => {
+                      const count = (draftPLStageTypes[pl.id] || []).length;
+                      return (
+                        <option key={pl.id} value={pl.id}>
+                          {pl.name} ({pl.shortName}) — {count} stage type{count !== 1 ? 's' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </>
+            )}
+
+            <p className="pp-confirm-warning">
+              {modeSwitchConfirm.identical
+                ? 'Per-product-line stage type customizations will be discarded.'
+                : <>
+                    Stage types not present in the selected template will be removed.
+                    {modeSwitchConfirm.lostDefaultsInfo.length > 0 && (
+                      <>
+                        {' '}Stage Defaults data (Target, Min, Max, Equipment Group) may be
+                        lost for:{' '}
+                        <strong>{modeSwitchConfirm.lostDefaultsInfo.join(', ')}</strong>.
+                      </>
+                    )}
+                  </>
+              }
+              {' '}This cannot be undone.
+            </p>
+
+            <div className="pp-confirm-actions">
+              <button
+                className="pp-modal-btn pp-modal-btn-secondary"
+                onClick={() => setModeSwitchConfirm(null)}
+                autoFocus
+              >
+                Cancel
+              </button>
+              <button
+                className="pp-modal-btn pp-confirm-delete-btn"
+                onClick={() => applyModeSwitchToShared(modeSwitchConfirm.templatePlId)}
+              >
+                Switch to Shared
               </button>
             </div>
           </div>
