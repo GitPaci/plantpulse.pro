@@ -214,6 +214,14 @@ export default function ProcessSetup({
   // Shutdown editing
   const [editingShutdownId, setEditingShutdownId] = useState<string | null>(null);
 
+  // Confirmation dialog for stage type deletion
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    stageTypeId: string;
+    stageTypeName: string;
+    productLineId?: string;  // undefined = shared/global
+    affectedLines: string[]; // product line names that have matching stage defaults
+  } | null>(null);
+
   // ── Load draft from store on open ─────────────────────────────────
 
   useEffect(() => {
@@ -247,6 +255,7 @@ export default function ProcessSetup({
       });
       setDirty(false);
       setEditingShutdownId(null);
+      setDeleteConfirm(null);
     }
   }, [open, storeStageTypeDefinitions, storeStageTypesMode, storeProductLineStageTypes, storeProductLines, storeTurnaroundActivities, storeShutdownPeriods, storeBatchNamingConfig]);
 
@@ -351,19 +360,79 @@ export default function ProcessSetup({
 
   // ── Stage type definition helpers ─────────────────────────────────
 
+  // Helper: build a smart-prefilled StageDefault for a newly inserted stage type.
+  // Looks at the stage's position (by displayOrder) among existing defaults and
+  // copies duration/group from the nearest neighbor.
+  const buildPrefillDefault = useCallback(
+    (
+      newStageId: string,
+      newDisplayOrder: number,
+      existingDefaults: StageDefault[],
+      stageTypesForContext?: StageTypeDefinition[],
+    ): StageDefault => {
+      const fallback: StageDefault = {
+        stageType: newStageId,
+        defaultDurationHours: 24,
+        minDurationHours: 22,
+        maxDurationHours: 26,
+        machineGroup: storeEquipmentGroups[0]?.id || 'fermenter',
+      };
+      if (existingDefaults.length === 0) return fallback;
+
+      // Use provided types or fall back to global draft
+      const types = stageTypesForContext || draftStageTypes;
+      const sortedTypes = [...types].sort((a, b) => a.displayOrder - b.displayOrder);
+      const insertPos = sortedTypes.filter((t) => t.displayOrder < newDisplayOrder).length;
+
+      // Find the default row for the previous stage (if any)
+      const prevType = insertPos > 0 ? sortedTypes[insertPos - 1] : null;
+      const nextType = insertPos < sortedTypes.length ? sortedTypes[insertPos] : null;
+
+      const prevDefault = prevType
+        ? existingDefaults.find((sd) => sd.stageType === prevType.id)
+        : null;
+      const nextDefault = nextType
+        ? existingDefaults.find((sd) => sd.stageType === nextType.id)
+        : null;
+
+      const source = prevDefault || nextDefault;
+      if (!source) return fallback;
+
+      return {
+        stageType: newStageId,
+        defaultDurationHours: source.defaultDurationHours,
+        minDurationHours: source.minDurationHours,
+        maxDurationHours: source.maxDurationHours,
+        machineGroup: source.machineGroup,
+      };
+    },
+    [draftStageTypes, storeEquipmentGroups]
+  );
+
   const addStageType = useCallback(() => {
     const maxOrder = draftStageTypes.reduce((mx, d) => Math.max(mx, d.displayOrder), -1);
+    const newId = generateId('st-');
+    const newDisplayOrder = maxOrder + 1;
     const newDef: StageTypeDefinition = {
-      id: generateId('st-'),
+      id: newId,
       name: '',
       shortName: '',
       description: '',
       count: 1,
-      displayOrder: maxOrder + 1,
+      displayOrder: newDisplayOrder,
     };
     setDraftStageTypes((prev) => [...prev, newDef]);
+
+    // Auto-add a corresponding StageDefault row for each product line
+    setDraftProductLines((prev) =>
+      prev.map((pl) => {
+        const newDefault = buildPrefillDefault(newId, newDisplayOrder, pl.stageDefaults);
+        return { ...pl, stageDefaults: [...pl.stageDefaults, newDefault] };
+      })
+    );
+
     setDirty(true);
-  }, [draftStageTypes]);
+  }, [draftStageTypes, buildPrefillDefault]);
 
   const updateStageType = useCallback(
     (id: string, updates: Partial<Omit<StageTypeDefinition, 'id'>>) => {
@@ -375,10 +444,65 @@ export default function ProcessSetup({
     []
   );
 
-  const deleteStageType = useCallback((id: string) => {
-    setDraftStageTypes((prev) => prev.filter((d) => d.id !== id));
+  // Stage type deletion — requires confirmation when stage defaults would be lost
+  const requestDeleteStageType = useCallback(
+    (id: string) => {
+      const stType = draftStageTypes.find((d) => d.id === id);
+      const affectedLines = draftProductLines
+        .filter((pl) => pl.stageDefaults.some((sd) => sd.stageType === id))
+        .map((pl) => pl.name);
+
+      if (affectedLines.length === 0) {
+        // No stage defaults reference this type — delete immediately
+        setDraftStageTypes((prev) => prev.filter((d) => d.id !== id));
+        setDirty(true);
+        return;
+      }
+
+      // Show confirmation dialog
+      setDeleteConfirm({
+        stageTypeId: id,
+        stageTypeName: stType?.name || id,
+        affectedLines,
+      });
+    },
+    [draftStageTypes, draftProductLines]
+  );
+
+  const confirmDeleteStageType = useCallback(() => {
+    if (!deleteConfirm) return;
+    const { stageTypeId, productLineId } = deleteConfirm;
+
+    if (productLineId) {
+      // Per-product-line mode: delete stage type from that line's list
+      setDraftPLStageTypes((prev) => ({
+        ...prev,
+        [productLineId]: (prev[productLineId] || []).filter((d) => d.id !== stageTypeId),
+      }));
+      // Remove matching stage default only from that product line
+      setDraftProductLines((prev) =>
+        prev.map((pl) => {
+          if (pl.id !== productLineId) return pl;
+          return {
+            ...pl,
+            stageDefaults: pl.stageDefaults.filter((sd) => sd.stageType !== stageTypeId),
+          };
+        })
+      );
+    } else {
+      // Shared mode: delete stage type and cascade-remove from ALL product lines
+      setDraftStageTypes((prev) => prev.filter((d) => d.id !== stageTypeId));
+      setDraftProductLines((prev) =>
+        prev.map((pl) => ({
+          ...pl,
+          stageDefaults: pl.stageDefaults.filter((sd) => sd.stageType !== stageTypeId),
+        }))
+      );
+    }
+
+    setDeleteConfirm(null);
     setDirty(true);
-  }, []);
+  }, [deleteConfirm]);
 
   const moveStageType = useCallback((idx: number, dir: 'up' | 'down') => {
     setDraftStageTypes((prev) => {
@@ -423,21 +547,38 @@ export default function ProcessSetup({
   // ── Per-product-line stage type helpers ──────────────────────────────
 
   const addPLStageType = useCallback((plId: string) => {
-    setDraftPLStageTypes((prev) => {
-      const arr = prev[plId] || [];
-      const maxOrder = arr.reduce((mx, d) => Math.max(mx, d.displayOrder), -1);
-      const newDef: StageTypeDefinition = {
-        id: generateId('st-'),
-        name: '',
-        shortName: '',
-        description: '',
-        count: 1,
-        displayOrder: maxOrder + 1,
-      };
-      return { ...prev, [plId]: [...arr, newDef] };
-    });
+    const arr = draftPLStageTypes[plId] || [];
+    const maxOrder = arr.reduce((mx, d) => Math.max(mx, d.displayOrder), -1);
+    const newId = generateId('st-');
+    const newDisplayOrder = maxOrder + 1;
+    const newDef: StageTypeDefinition = {
+      id: newId,
+      name: '',
+      shortName: '',
+      description: '',
+      count: 1,
+      displayOrder: newDisplayOrder,
+    };
+    setDraftPLStageTypes((prev) => ({
+      ...prev,
+      [plId]: [...(prev[plId] || []), newDef],
+    }));
+
+    // Auto-add stage default for this product line only
+    const pl = draftProductLines.find((p) => p.id === plId);
+    if (pl) {
+      const plTypes = draftPLStageTypes[plId] || [];
+      const newDefault = buildPrefillDefault(newId, newDisplayOrder, pl.stageDefaults, plTypes);
+      setDraftProductLines((prev) =>
+        prev.map((p) => {
+          if (p.id !== plId) return p;
+          return { ...p, stageDefaults: [...p.stageDefaults, newDefault] };
+        })
+      );
+    }
+
     setDirty(true);
-  }, []);
+  }, [draftPLStageTypes, draftProductLines, buildPrefillDefault]);
 
   const updatePLStageType = useCallback(
     (plId: string, stId: string, updates: Partial<Omit<StageTypeDefinition, 'id'>>) => {
@@ -450,13 +591,28 @@ export default function ProcessSetup({
     []
   );
 
-  const deletePLStageType = useCallback((plId: string, stId: string) => {
-    setDraftPLStageTypes((prev) => ({
-      ...prev,
-      [plId]: (prev[plId] || []).filter((d) => d.id !== stId),
-    }));
-    setDirty(true);
-  }, []);
+  const requestDeletePLStageType = useCallback((plId: string, stId: string) => {
+    const pl = draftProductLines.find((p) => p.id === plId);
+    const stType = (draftPLStageTypes[plId] || []).find((d) => d.id === stId);
+    const hasDefaults = pl?.stageDefaults.some((sd) => sd.stageType === stId) ?? false;
+
+    if (!hasDefaults) {
+      // No stage defaults reference this type — delete immediately
+      setDraftPLStageTypes((prev) => ({
+        ...prev,
+        [plId]: (prev[plId] || []).filter((d) => d.id !== stId),
+      }));
+      setDirty(true);
+      return;
+    }
+
+    setDeleteConfirm({
+      stageTypeId: stId,
+      stageTypeName: stType?.name || stId,
+      productLineId: plId,
+      affectedLines: [pl?.name || plId],
+    });
+  }, [draftProductLines, draftPLStageTypes]);
 
   const movePLStageType = useCallback((plId: string, idx: number, dir: 'up' | 'down') => {
     setDraftPLStageTypes((prev) => {
@@ -711,7 +867,7 @@ export default function ProcessSetup({
                     <StageTypeTable
                       items={sortedStageTypes}
                       onUpdate={(id, u) => updateStageType(id, u)}
-                      onDelete={(id) => deleteStageType(id)}
+                      onDelete={(id) => requestDeleteStageType(id)}
                       onMove={(idx, dir) => moveStageType(idx, dir)}
                     />
                   )}
@@ -760,7 +916,7 @@ export default function ProcessSetup({
                             <StageTypeTable
                               items={plTypes}
                               onUpdate={(id, u) => updatePLStageType(pl.id, id, u)}
-                              onDelete={(id) => deletePLStageType(pl.id, id)}
+                              onDelete={(id) => requestDeletePLStageType(pl.id, id)}
                               onMove={(idx, dir) => movePLStageType(pl.id, idx, dir)}
                             />
                           )}
@@ -1435,6 +1591,53 @@ export default function ProcessSetup({
           </button>
         </div>
       </div>
+
+      {/* ── Stage type deletion confirmation dialog ─── */}
+      {deleteConfirm && (
+        <div className="pp-confirm-backdrop" onClick={() => setDeleteConfirm(null)}>
+          <div
+            className="pp-confirm-dialog"
+            role="alertdialog"
+            aria-labelledby="pp-confirm-title"
+            aria-describedby="pp-confirm-desc"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="pp-confirm-title" className="pp-confirm-title">
+              Delete Stage Type?
+            </h3>
+            <p id="pp-confirm-desc" className="pp-confirm-desc">
+              Deleting <strong>{deleteConfirm.stageTypeName || 'this stage type'}</strong> will
+              also remove its duration defaults from{' '}
+              {deleteConfirm.affectedLines.length === 1
+                ? <strong>{deleteConfirm.affectedLines[0]}</strong>
+                : <>
+                    <strong>{deleteConfirm.affectedLines.length} product line{deleteConfirm.affectedLines.length !== 1 ? 's' : ''}</strong>
+                    {' '}({deleteConfirm.affectedLines.join(', ')})
+                  </>
+              }.
+            </p>
+            <p className="pp-confirm-warning">
+              Stage duration defaults (Target, Min, Max, Equipment Group) for this stage type
+              will be permanently lost for all affected product lines. This cannot be undone.
+            </p>
+            <div className="pp-confirm-actions">
+              <button
+                className="pp-modal-btn pp-modal-btn-secondary"
+                onClick={() => setDeleteConfirm(null)}
+                autoFocus
+              >
+                Cancel
+              </button>
+              <button
+                className="pp-modal-btn pp-confirm-delete-btn"
+                onClick={confirmDeleteStageType}
+              >
+                Delete Stage Type &amp; Defaults
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
