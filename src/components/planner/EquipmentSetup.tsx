@@ -6,8 +6,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlantPulseStore, generateId } from '@/lib/store';
-import type { Machine, MachineDisplayGroup, EquipmentGroup, MachineDowntime, ProductLine } from '@/lib/types';
-import { isMachineUnavailable, hasMachineDowntime } from '@/lib/types';
+import type { Machine, MachineDisplayGroup, EquipmentGroup, MachineDowntime, ProductLine, RecurringDowntimeRule, RecurrenceType } from '@/lib/types';
+import { isMachineUnavailable, hasMachineDowntime, isRecurringRuleExpired } from '@/lib/types';
 
 // ─── Date helpers for datetime-local inputs ────────────────────────────
 
@@ -20,6 +20,11 @@ function fromDatetimeLocal(s: string): Date | null {
   if (!s) return null;
   const d = new Date(s);
   return isNaN(d.getTime()) ? null : d;
+}
+
+function toDateLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 // ─── Auto-derive display groups from product lines + machine assignments ─
@@ -237,6 +242,61 @@ export default function EquipmentSetup({ open, onClose }: Props) {
     value: Date | string | undefined
   ) {
     setMachineDowntime(id, { ...current, [field]: value });
+  }
+
+  // ── Recurring downtime editing ─────────────────────────────────────
+
+  function addRecurringRule(machineId: string) {
+    const now = new Date();
+    const rule: RecurringDowntimeRule = {
+      id: generateId('rd-'),
+      recurrenceType: 'weekly',
+      dayOfWeek: 5, // Friday
+      startHour: 8,
+      startMinute: 0,
+      durationHours: 4,
+      startDate: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+      reason: '',
+    };
+    setDraftMachines((prev) =>
+      prev.map((m) => {
+        if (m.id !== machineId) return m;
+        return { ...m, recurringDowntime: [...(m.recurringDowntime || []), rule] };
+      })
+    );
+    setDirty(true);
+  }
+
+  function removeRecurringRule(machineId: string, ruleId: string) {
+    setDraftMachines((prev) =>
+      prev.map((m) => {
+        if (m.id !== machineId) return m;
+        return {
+          ...m,
+          recurringDowntime: (m.recurringDowntime || []).filter((r) => r.id !== ruleId),
+        };
+      })
+    );
+    setDirty(true);
+  }
+
+  function updateRecurringRule(
+    machineId: string,
+    ruleId: string,
+    updates: Partial<RecurringDowntimeRule>
+  ) {
+    setDraftMachines((prev) =>
+      prev.map((m) => {
+        if (m.id !== machineId) return m;
+        return {
+          ...m,
+          recurringDowntime: (m.recurringDowntime || []).map((r) =>
+            r.id === ruleId ? { ...r, ...updates } : r
+          ),
+        };
+      })
+    );
+    setDirty(true);
   }
 
   // ── Equipment group editing ────────────────────────────────────────
@@ -567,10 +627,11 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                   const isEditing = editingId === m.id;
                   const hasRelevantDowntime = hasMachineDowntime(m);
                   const isCurrentlyDown = isMachineUnavailable(m);
+                  const recurringCount = (m.recurringDowntime || []).length;
                   const downtimeTitle = hasRelevantDowntime
                     ? isCurrentlyDown
-                      ? `Unavailable${m.downtime?.reason ? ': ' + m.downtime.reason : ''}`
-                      : `Downtime scheduled${m.downtime?.reason ? ': ' + m.downtime.reason : ''}`
+                      ? `Unavailable${m.downtime?.reason ? ': ' + m.downtime.reason : ''}${recurringCount ? ` (+${recurringCount} recurring rule${recurringCount > 1 ? 's' : ''})` : ''}`
+                      : `Downtime scheduled${m.downtime?.reason ? ': ' + m.downtime.reason : ''}${recurringCount ? ` (+${recurringCount} recurring rule${recurringCount > 1 ? 's' : ''})` : ''}`
                     : undefined;
 
                   return (
@@ -697,8 +758,9 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                     {/* Downtime editor — shown when editing this machine */}
                     {isEditing && (
                       <div className="pp-downtime-panel">
+                        {/* ── One-time unavailability ── */}
                         <div className="pp-downtime-header">
-                          <span className="pp-downtime-label">Unavailability</span>
+                          <span className="pp-downtime-label">One-time Unavailability</span>
                           {!m.downtime ? (
                             <button
                               className="pp-setup-add-btn pp-downtime-add-btn"
@@ -773,6 +835,197 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                             </div>
                           </div>
                         )}
+
+                        {/* ── Recurring unavailability ── */}
+                        <div className="pp-downtime-header" style={{ marginTop: 10 }}>
+                          <span className="pp-downtime-label">Recurring Unavailability</span>
+                          <button
+                            className="pp-setup-add-btn pp-downtime-add-btn"
+                            onClick={() => addRecurringRule(m.id)}
+                          >
+                            + Add rule
+                          </button>
+                        </div>
+
+                        {(m.recurringDowntime || []).length === 0 && (
+                          <div className="pp-downtime-recurring-empty">
+                            No recurring rules. Add one for scheduled maintenance blocks.
+                          </div>
+                        )}
+
+                        {(m.recurringDowntime || []).map((rule) => {
+                          const expired = isRecurringRuleExpired(rule);
+                          return (
+                            <div
+                              key={rule.id}
+                              className={`pp-downtime-recurring-card${expired ? ' expired' : ''}`}
+                            >
+                              <div className="pp-downtime-recurring-row">
+                                <div className="pp-downtime-field">
+                                  <label className="pp-downtime-field-label">Repeats</label>
+                                  <select
+                                    value={rule.recurrenceType}
+                                    onChange={(e) =>
+                                      updateRecurringRule(m.id, rule.id, {
+                                        recurrenceType: e.target.value as RecurrenceType,
+                                        ...(e.target.value === 'weekly' ? { dayOfWeek: 5 } : { dayOfMonth: 1 }),
+                                      })
+                                    }
+                                    className="pp-setup-select pp-downtime-select"
+                                  >
+                                    <option value="weekly">Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                  </select>
+                                </div>
+
+                                {rule.recurrenceType === 'weekly' && (
+                                  <div className="pp-downtime-field">
+                                    <label className="pp-downtime-field-label">Day</label>
+                                    <select
+                                      value={rule.dayOfWeek ?? 5}
+                                      onChange={(e) =>
+                                        updateRecurringRule(m.id, rule.id, { dayOfWeek: Number(e.target.value) })
+                                      }
+                                      className="pp-setup-select pp-downtime-select"
+                                    >
+                                      <option value={1}>Monday</option>
+                                      <option value={2}>Tuesday</option>
+                                      <option value={3}>Wednesday</option>
+                                      <option value={4}>Thursday</option>
+                                      <option value={5}>Friday</option>
+                                      <option value={6}>Saturday</option>
+                                      <option value={0}>Sunday</option>
+                                    </select>
+                                  </div>
+                                )}
+
+                                {rule.recurrenceType === 'monthly' && (
+                                  <div className="pp-downtime-field">
+                                    <label className="pp-downtime-field-label">Day of month</label>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={31}
+                                      value={rule.dayOfMonth ?? 1}
+                                      onChange={(e) =>
+                                        updateRecurringRule(m.id, rule.id, {
+                                          dayOfMonth: Math.max(1, Math.min(31, Number(e.target.value) || 1)),
+                                        })
+                                      }
+                                      className="pp-setup-input pp-downtime-num-input"
+                                    />
+                                  </div>
+                                )}
+
+                                <div className="pp-downtime-field">
+                                  <label className="pp-downtime-field-label">Start time</label>
+                                  <input
+                                    type="time"
+                                    value={`${String(rule.startHour).padStart(2, '0')}:${String(rule.startMinute).padStart(2, '0')}`}
+                                    onChange={(e) => {
+                                      const [h, min] = e.target.value.split(':').map(Number);
+                                      updateRecurringRule(m.id, rule.id, {
+                                        startHour: h ?? 0,
+                                        startMinute: min ?? 0,
+                                      });
+                                    }}
+                                    className="pp-setup-input pp-downtime-time-input"
+                                  />
+                                </div>
+
+                                <div className="pp-downtime-field">
+                                  <label className="pp-downtime-field-label">Duration (h)</label>
+                                  <input
+                                    type="number"
+                                    min={0.5}
+                                    step={0.5}
+                                    value={rule.durationHours}
+                                    onChange={(e) =>
+                                      updateRecurringRule(m.id, rule.id, {
+                                        durationHours: Math.max(0.5, Number(e.target.value) || 0.5),
+                                      })
+                                    }
+                                    className="pp-setup-input pp-downtime-num-input"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="pp-downtime-recurring-row">
+                                <div className="pp-downtime-field">
+                                  <label className="pp-downtime-field-label">Effective from</label>
+                                  <input
+                                    type="date"
+                                    value={toDateLocal(rule.startDate)}
+                                    onChange={(e) => {
+                                      const d = e.target.value ? new Date(e.target.value + 'T00:00:00') : null;
+                                      if (d && !isNaN(d.getTime()))
+                                        updateRecurringRule(m.id, rule.id, { startDate: d });
+                                    }}
+                                    className="pp-setup-input pp-downtime-date-input"
+                                  />
+                                </div>
+                                <div className="pp-downtime-field">
+                                  <label className="pp-downtime-field-label">
+                                    Until
+                                    {!rule.endDate && (
+                                      <span className="pp-downtime-indefinite">(no end)</span>
+                                    )}
+                                  </label>
+                                  <div className="pp-downtime-end-row">
+                                    <input
+                                      type="date"
+                                      value={rule.endDate ? toDateLocal(rule.endDate) : ''}
+                                      onChange={(e) => {
+                                        const d = e.target.value ? new Date(e.target.value + 'T23:59:59') : null;
+                                        updateRecurringRule(m.id, rule.id, { endDate: d ?? undefined });
+                                      }}
+                                      className="pp-setup-input pp-downtime-date-input"
+                                      placeholder="No end date"
+                                    />
+                                    {rule.endDate && (
+                                      <button
+                                        className="pp-setup-action-btn"
+                                        onClick={() => updateRecurringRule(m.id, rule.id, { endDate: undefined })}
+                                        title="Set to indefinite"
+                                      >
+                                        &infin;
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="pp-downtime-field" style={{ flex: 1 }}>
+                                  <label className="pp-downtime-field-label">Reason</label>
+                                  <input
+                                    type="text"
+                                    value={rule.reason || ''}
+                                    onChange={(e) =>
+                                      updateRecurringRule(m.id, rule.id, { reason: e.target.value })
+                                    }
+                                    className="pp-setup-input"
+                                    placeholder="e.g. Weekly CIP, Monthly inspection"
+                                  />
+                                </div>
+                                <div className="pp-downtime-field" style={{ justifyContent: 'flex-end' }}>
+                                  <button
+                                    className="pp-setup-action-btn pp-setup-delete-btn"
+                                    onClick={() => removeRecurringRule(m.id, rule.id)}
+                                    title="Remove rule"
+                                  >
+                                    Del
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="pp-downtime-recurring-summary">
+                                {rule.recurrenceType === 'weekly'
+                                  ? `Every ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][rule.dayOfWeek ?? 0]}`
+                                  : `Day ${rule.dayOfMonth ?? 1} of each month`}
+                                {`, ${String(rule.startHour).padStart(2, '0')}:${String(rule.startMinute).padStart(2, '0')} for ${rule.durationHours}h`}
+                                {expired && <span className="pp-downtime-expired-badge">Expired</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
