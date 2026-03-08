@@ -1075,6 +1075,77 @@ body {
   gap: 4px;
 }
 
+/* Recurring downtime */
+
+.pp-downtime-recurring-empty {
+  font-size: 11px;
+  color: var(--pp-muted);
+  padding: 4px 0 2px;
+}
+
+.pp-downtime-recurring-card {
+  border: 1px solid var(--pp-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: #fff;
+}
+
+.pp-downtime-recurring-card.expired {
+  opacity: 0.5;
+}
+
+.pp-downtime-recurring-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: flex-end;
+  margin-bottom: 6px;
+}
+
+.pp-downtime-recurring-row:last-child {
+  margin-bottom: 0;
+}
+
+.pp-downtime-select {
+  font-size: 11px !important;
+  padding: 3px 6px !important;
+  min-width: 90px;
+}
+
+.pp-downtime-time-input {
+  max-width: 100px;
+  font-size: 11px !important;
+  padding: 3px 6px !important;
+}
+
+.pp-downtime-num-input {
+  max-width: 70px;
+  font-size: 11px !important;
+  padding: 3px 6px !important;
+}
+
+.pp-downtime-recurring-summary {
+  font-size: 10px;
+  color: var(--pp-muted);
+  border-top: 1px dashed var(--pp-border);
+  padding-top: 4px;
+  margin-top: 2px;
+}
+
+.pp-downtime-expired-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #9ca3af;
+  background: #f3f4f6;
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 6px;
+}
+
 /* ─── Display groups tab ──────────────────────────────────────────────── */
 
 .pp-setup-groups {
