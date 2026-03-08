@@ -266,6 +266,26 @@ export default function ProcessSetup({
     [draftStageTypes]
   );
 
+  // Per-product-line: sorted stage types keyed by product line ID
+  const sortedPLStageTypesMap = useMemo(() => {
+    const map: Record<string, StageTypeDefinition[]> = {};
+    for (const [plId, arr] of Object.entries(draftPLStageTypes)) {
+      map[plId] = [...arr].sort((a, b) => a.displayOrder - b.displayOrder);
+    }
+    return map;
+  }, [draftPLStageTypes]);
+
+  // Resolve which stage types to use for a given product line (mode-aware)
+  const stageTypesForPL = useCallback(
+    (plId: string): StageTypeDefinition[] => {
+      if (draftStageTypesMode === 'per_product_line') {
+        return sortedPLStageTypesMap[plId] || [];
+      }
+      return sortedStageTypes;
+    },
+    [draftStageTypesMode, sortedPLStageTypesMap, sortedStageTypes]
+  );
+
   // ── Equipment group lookup ─────────────────────────────────────────
 
   const eqGroupNameById = useMemo(() => {
@@ -316,6 +336,9 @@ export default function ProcessSetup({
   );
 
   const addStageDefault = useCallback((plId: string) => {
+    // Pick the first available stage type for this product line (mode-aware)
+    const availableTypes = stageTypesForPL(plId);
+    const fallbackType = availableTypes[0]?.id || 'production';
     setDraftProductLines((prev) =>
       prev.map((pl) => {
         if (pl.id !== plId) return pl;
@@ -323,13 +346,13 @@ export default function ProcessSetup({
           ...pl,
           stageDefaults: [
             ...pl.stageDefaults,
-            { stageType: 'production', defaultDurationHours: 48, minDurationHours: 43, maxDurationHours: 53, machineGroup: 'fermenter' },
+            { stageType: fallbackType, defaultDurationHours: 48, minDurationHours: 43, maxDurationHours: 53, machineGroup: storeEquipmentGroups[0]?.id || 'fermenter' },
           ],
         };
       })
     );
     setDirty(true);
-  }, []);
+  }, [stageTypesForPL, storeEquipmentGroups]);
 
   const removeStageDefault = useCallback((plId: string, idx: number) => {
     setDraftProductLines((prev) =>
@@ -523,20 +546,34 @@ export default function ProcessSetup({
     (newMode: 'shared' | 'per_product_line') => {
       if (newMode === draftStageTypesMode) return;
       if (newMode === 'per_product_line') {
-        // Copy global stage types as initial template for each product line
+        // Copy global stage types as initial template for each product line.
+        // When generating new IDs, remap stageDefaults references to match.
         const perLine: Record<string, StageTypeDefinition[]> = {};
-        for (const pl of draftProductLines) {
-          // Only seed from global if this line has no existing data
+        const updatedProductLines = [...draftProductLines];
+        for (let pi = 0; pi < updatedProductLines.length; pi++) {
+          const pl = updatedProductLines[pi];
+          // Only seed from global if this line has no existing per-line data
           if (!draftPLStageTypes[pl.id] || draftPLStageTypes[pl.id].length === 0) {
-            perLine[pl.id] = draftStageTypes.map((d) => ({
-              ...d,
-              id: generateId('st-'),  // new IDs to avoid collisions across lines
-            }));
+            const idMap: Record<string, string> = {}; // oldId → newId
+            perLine[pl.id] = draftStageTypes.map((d) => {
+              const newId = generateId('st-');
+              idMap[d.id] = newId;
+              return { ...d, id: newId };
+            });
+            // Remap stageDefaults to use new IDs
+            updatedProductLines[pi] = {
+              ...pl,
+              stageDefaults: pl.stageDefaults.map((sd) => ({
+                ...sd,
+                stageType: idMap[sd.stageType] || sd.stageType,
+              })),
+            };
           } else {
             perLine[pl.id] = draftPLStageTypes[pl.id];
           }
         }
         setDraftPLStageTypes(perLine);
+        setDraftProductLines(updatedProductLines);
       }
       setDraftStageTypesMode(newMode);
       setDirty(true);
@@ -1008,7 +1045,7 @@ export default function ProcessSetup({
                               }
                               className="pp-setup-select"
                             >
-                              {sortedStageTypes.map((st) => (
+                              {stageTypesForPL(pl.id).map((st) => (
                                 <option key={st.id} value={st.id}>
                                   {st.name || st.id}
                                 </option>
@@ -1618,7 +1655,10 @@ export default function ProcessSetup({
             </p>
             <p className="pp-confirm-warning">
               Stage duration defaults (Target, Min, Max, Equipment Group) for this stage type
-              will be permanently lost for all affected product lines. This cannot be undone.
+              will be permanently lost{deleteConfirm.productLineId
+                ? ` for ${deleteConfirm.affectedLines[0]}`
+                : ' for all affected product lines'
+              }. This cannot be undone.
             </p>
             <div className="pp-confirm-actions">
               <button
