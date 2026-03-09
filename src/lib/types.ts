@@ -124,8 +124,11 @@ export function isDateInRecurringRule(rule: RecurringDowntimeRule, atDate: Date)
       // Check if yesterday's window extends into today
       const windowStartMinutes = rule.startHour * 60 + rule.startMinute;
       const windowEndMinutes = windowStartMinutes + rule.durationHours * 60;
-      const currentMinutes = (24 * 60) + hour * 60 + minute; // offset by 24h since from yesterday
-      if (currentMinutes >= windowStartMinutes + 24 * 60 && currentMinutes < windowEndMinutes) {
+      // windowEndMinutes > 24*60 means the window spills past midnight.
+      // currentMinutes (today) falls in the spillover if it's before the
+      // overflow portion: 0 <= currentMinutes < (windowEndMinutes - 24*60)
+      const currentMinutes = hour * 60 + minute;
+      if (windowEndMinutes > 24 * 60 && currentMinutes < windowEndMinutes - 24 * 60) {
         // Re-check validity for yesterday's date
         if (yesterday >= rule.startDate && (!rule.endDate || yesterday <= rule.endDate)) {
           return true;
