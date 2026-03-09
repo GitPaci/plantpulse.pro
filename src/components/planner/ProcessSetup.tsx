@@ -656,13 +656,16 @@ export default function ProcessSetup({
         return { ...t, id: newId, displayOrder: idx };
       });
 
-      // Build a name-based mapping for non-template PLs so we can remap their
+      // Build a positional mapping for non-template PLs so we can remap their
       // stage defaults to the new global IDs where a matching stage type exists.
-      // Key: (name|shortName|count) → global ID
+      // Uses (name|shortName|count|occurrenceIndex) to disambiguate duplicates.
       const structureToGlobalId: Record<string, string> = {};
+      const seenKeys: Record<string, number> = {};
       for (const gt of globalTypes) {
-        const key = `${gt.name}|${gt.shortName}|${gt.count}`;
-        structureToGlobalId[key] = gt.id;
+        const baseKey = `${gt.name}|${gt.shortName}|${gt.count}`;
+        const occ = seenKeys[baseKey] ?? 0;
+        seenKeys[baseKey] = occ + 1;
+        structureToGlobalId[`${baseKey}|${occ}`] = gt.id;
       }
 
       // Update product lines: remap stageDefaults to use new global IDs.
@@ -678,13 +681,19 @@ export default function ProcessSetup({
             })),
           };
         }
-        // Non-template PL: remap by matching per-PL type structure → global ID
-        const plTypes = draftPLStageTypes[pl.id] || [];
+        // Non-template PL: remap by matching per-PL type structure → global ID (positional)
+        const plTypes = [...(draftPLStageTypes[pl.id] || [])].sort(
+          (a, b) => a.displayOrder - b.displayOrder
+        );
         const plIdToGlobalId: Record<string, string> = {};
+        const plSeenKeys: Record<string, number> = {};
         for (const pt of plTypes) {
-          const key = `${pt.name}|${pt.shortName}|${pt.count}`;
-          if (structureToGlobalId[key]) {
-            plIdToGlobalId[pt.id] = structureToGlobalId[key];
+          const baseKey = `${pt.name}|${pt.shortName}|${pt.count}`;
+          const occ = plSeenKeys[baseKey] ?? 0;
+          plSeenKeys[baseKey] = occ + 1;
+          const fullKey = `${baseKey}|${occ}`;
+          if (structureToGlobalId[fullKey]) {
+            plIdToGlobalId[pt.id] = structureToGlobalId[fullKey];
           }
         }
 
