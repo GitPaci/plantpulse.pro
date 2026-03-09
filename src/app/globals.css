@@ -1896,3 +1896,227 @@ body {
 .pp-naming-erp-link:hover {
   text-decoration: underline;
 }
+
+/* ─── Shift Schedule modal ───────────────────────────────────────────── */
+
+.pp-shift-section {
+  margin-bottom: 16px;
+}
+
+.pp-shift-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.pp-shift-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--pp-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Teams grid */
+
+.pp-shift-teams-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pp-shift-team-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--pp-border);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.pp-shift-team-index {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--pp-muted);
+  min-width: 14px;
+  text-align: center;
+}
+
+.pp-shift-color-input {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--pp-border);
+  border-radius: 4px;
+  cursor: pointer;
+  background: none;
+}
+
+.pp-shift-color-input::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.pp-shift-color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+.pp-shift-name-input {
+  width: 90px;
+  font-size: 12px !important;
+  padding: 3px 6px !important;
+}
+
+/* Cycle pattern */
+
+.pp-shift-cycle-info {
+  font-size: 11px;
+  color: var(--pp-muted);
+}
+
+.pp-shift-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.pp-shift-preset-btn {
+  font-size: 10px;
+  padding: 3px 8px;
+  border: 1px solid var(--pp-border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--pp-text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.pp-shift-preset-btn:hover:not(:disabled) {
+  background: #f0f4ff;
+  border-color: #93a8d1;
+}
+
+.pp-shift-preset-btn.active {
+  background: #e8eeff;
+  border-color: var(--pp-accent, #0066FF);
+  color: var(--pp-accent, #0066FF);
+  font-weight: 600;
+}
+
+.pp-shift-preset-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pp-shift-cycle-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: flex-end;
+  margin-bottom: 8px;
+}
+
+.pp-shift-cycle-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.pp-shift-step-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--pp-muted);
+  white-space: nowrap;
+}
+
+.pp-shift-step-select {
+  font-size: 10px !important;
+  padding: 2px 4px !important;
+  min-width: 60px;
+}
+
+.pp-shift-step-remove {
+  font-size: 10px;
+  line-height: 1;
+  padding: 0 3px;
+  border: none;
+  background: none;
+  color: var(--pp-muted);
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+.pp-shift-step-remove:hover {
+  color: #ef4444;
+  opacity: 1;
+}
+
+.pp-shift-cycle-add {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--pp-border);
+  border-radius: 4px;
+  background: none;
+  color: var(--pp-muted);
+  font-size: 14px;
+  cursor: pointer;
+  margin-bottom: 2px;
+}
+
+.pp-shift-cycle-add:hover {
+  border-color: var(--pp-accent, #0066FF);
+  color: var(--pp-accent, #0066FF);
+}
+
+/* Visual preview strip */
+
+.pp-shift-preview {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pp-shift-preview-label {
+  font-size: 10px;
+  color: var(--pp-muted);
+  margin-right: 4px;
+}
+
+.pp-shift-preview-block {
+  width: 18px;
+  height: 10px;
+  border-radius: 2px;
+  opacity: 0.8;
+}
+
+/* Timing section */
+
+.pp-shift-timing-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.pp-shift-hint {
+  font-size: 10px;
+  color: var(--pp-muted);
+  margin-top: 2px;
+}
+
+.pp-shift-enterprise {
+  font-style: italic;
+  color: #7c3aed;
+}
+
+.pp-shift-readonly {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pp-heading);
+}

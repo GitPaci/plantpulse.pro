@@ -8,6 +8,7 @@ import Navigation from '@/components/ui/Navigation';
 import WallboardCanvas from '@/components/timeline/WallboardCanvas';
 import EquipmentSetup from '@/components/planner/EquipmentSetup';
 import ProcessSetup from '@/components/planner/ProcessSetup';
+import ShiftSchedule from '@/components/planner/ShiftSchedule';
 import { usePlantPulseStore } from '@/lib/store';
 import { subDays, addDays, startOfDay } from 'date-fns';
 import { useState } from 'react';
@@ -176,6 +177,7 @@ export default function PlannerPage() {
   // Modal state
   const [equipmentSetupOpen, setEquipmentSetupOpen] = useState(false);
   const [processSetupOpen, setProcessSetupOpen] = useState(false);
+  const [shiftScheduleOpen, setShiftScheduleOpen] = useState(false);
 
   function shiftView(days: number) {
     setViewConfig({
@@ -319,7 +321,7 @@ export default function PlannerPage() {
                 icon={<IconShift />}
                 label="Shift Schedule"
                 description="Teams, rotation pattern, shift bar colors"
-                onClick={handleNotImplemented('Shift Schedule')}
+                onClick={() => setShiftScheduleOpen(true)}
               />
             </SidebarSection>
           </div>
@@ -342,6 +344,10 @@ export default function PlannerPage() {
       <ProcessSetup
         open={processSetupOpen}
         onClose={() => setProcessSetupOpen(false)}
+      />
+      <ShiftSchedule
+        open={shiftScheduleOpen}
+        onClose={() => setShiftScheduleOpen(false)}
       />
     </div>
   );

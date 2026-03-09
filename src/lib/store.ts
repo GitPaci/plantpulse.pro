@@ -15,6 +15,7 @@ import type {
   ShutdownPeriod,
   StageTypeDefinition,
   BatchNamingConfig,
+  ShiftRotation,
 } from './types';
 import {
   DEFAULT_MACHINES,
@@ -25,6 +26,7 @@ import {
   DEFAULT_TURNAROUND_ACTIVITIES,
   DEFAULT_WALLBOARD_EQUIPMENT_GROUPS,
   DEFAULT_BATCH_NAMING_CONFIG,
+  DEFAULT_SHIFT_ROTATION,
   generateDemoData,
 } from './demo-data';
 
@@ -52,6 +54,7 @@ interface PlantPulseState {
   productLineStageTypes: Record<string, StageTypeDefinition[]>;  // keyed by ProductLine.id
   wallboardEquipmentGroups: string[];  // equipment group IDs visible on wallboard
   batchNamingConfig: BatchNamingConfig;
+  shiftRotation: ShiftRotation;
   viewConfig: ViewConfig;
 
   // ── View actions ──────────────────────────────────────────────────
@@ -125,6 +128,9 @@ interface PlantPulseState {
 
   // ── Batch naming config ─────────────────────────────────────────
   setBatchNamingConfig: (config: BatchNamingConfig) => void;
+
+  // ── Shift rotation ────────────────────────────────────────────
+  setShiftRotation: (rotation: ShiftRotation) => void;
 }
 
 // ─── Store ─────────────────────────────────────────────────────────────
@@ -143,6 +149,7 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   productLineStageTypes: {} as Record<string, StageTypeDefinition[]>,
   wallboardEquipmentGroups: DEFAULT_WALLBOARD_EQUIPMENT_GROUPS,
   batchNamingConfig: DEFAULT_BATCH_NAMING_CONFIG,
+  shiftRotation: DEFAULT_SHIFT_ROTATION,
   viewConfig: {
     viewStart: subDays(startOfDay(new Date()), 4),
     numberOfDays: 21,
@@ -379,4 +386,8 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   // ── Batch naming config ─────────────────────────────────────────
 
   setBatchNamingConfig: (config) => set({ batchNamingConfig: config }),
+
+  // ── Shift rotation ────────────────────────────────────────────
+
+  setShiftRotation: (rotation) => set({ shiftRotation: rotation }),
 }));
