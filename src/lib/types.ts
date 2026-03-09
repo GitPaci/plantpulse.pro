@@ -314,3 +314,32 @@ export function batchNamePreviewSequence(rule: BatchNamingRule, startCounter: nu
     batchNamePreview(rule, startCounter + i * step)
   );
 }
+
+// ── Shift rotation configuration ────────────────────────────────────
+
+export interface ShiftTeam {
+  name: string;           // e.g. "Blue", "Alpha", "Team A"
+  color: string;          // hex color for shift band, e.g. "#0066FF"
+}
+
+/** Manual override for a specific shift slot (Enterprise feature). */
+export interface ShiftOverride {
+  date: Date;
+  shiftIndex: number;     // 0 = day (06–18), 1 = night (18–06)
+  teamIndex: number;      // which team takes this slot
+  reason?: string;
+}
+
+/**
+ * User-configurable shift rotation. The cycle array defines which team
+ * works each consecutive 12-hour block starting from the anchor date.
+ * Ported from VBA: default is 8-step Russian pattern [0,2,1,3,2,0,3,1].
+ */
+export interface ShiftRotation {
+  teams: ShiftTeam[];         // typically 4 teams
+  shiftLengthHours: number;   // 12 (display-only in Free edition)
+  cyclePattern: number[];     // team indices, e.g. [0,2,1,3,2,0,3,1]
+  anchorDate: Date;           // cycle alignment reference point
+  dayShiftStartHour: number;  // when day shift begins (default 6)
+  overrides: ShiftOverride[]; // Enterprise only
+}

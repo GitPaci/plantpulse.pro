@@ -9,13 +9,10 @@ import WallboardCanvas from '@/components/timeline/WallboardCanvas';
 import WallboardDisplaySettings from '@/components/wallboard/WallboardDisplaySettings';
 import { usePlantPulseStore } from '@/lib/store';
 import { currentShiftTeam } from '@/lib/shift-rotation';
-import { SHIFT_TEAM_COLORS } from '@/lib/colors';
 import { useNightMode } from '@/lib/useNightMode';
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { addDays } from 'date-fns';
 import type { MachineDisplayGroup } from '@/lib/types';
-
-const TEAM_NAMES = ['Blue', 'Green', 'Red', 'Yellow'];
 
 export default function WallboardPage() {
   const viewConfig = usePlantPulseStore((s) => s.viewConfig);
@@ -24,6 +21,7 @@ export default function WallboardPage() {
   const machines = usePlantPulseStore((s) => s.machines);
   const machineGroups = usePlantPulseStore((s) => s.machineGroups);
   const wallboardEquipmentGroups = usePlantPulseStore((s) => s.wallboardEquipmentGroups);
+  const shiftRotation = usePlantPulseStore((s) => s.shiftRotation);
 
   // Reset timeline to today on every mount (direct nav, reload, returning from another page)
   useEffect(() => {
@@ -81,15 +79,17 @@ export default function WallboardPage() {
     }
   }, []);
 
-  const teamIdx = useMemo(() => currentShiftTeam(now), [now]);
-  const teamColor = SHIFT_TEAM_COLORS[teamIdx];
-  const teamName = TEAM_NAMES[teamIdx];
-  const shiftLabel = now.getHours() >= 6 && now.getHours() < 18 ? 'Day' : 'Night';
+  const teamIdx = useMemo(() => currentShiftTeam(now, shiftRotation.anchorDate, shiftRotation.cyclePattern), [now, shiftRotation.anchorDate, shiftRotation.cyclePattern]);
+  const teamColor = shiftRotation.teams[teamIdx]?.color || '#888';
+  const teamName = shiftRotation.teams[teamIdx]?.name || `Team ${teamIdx}`;
+  const dayStart = shiftRotation.dayShiftStartHour;
+  const nightStart = (dayStart + shiftRotation.shiftLengthHours) % 24;
+  const shiftLabel = now.getHours() >= dayStart && now.getHours() < nightStart ? 'Day' : 'Night';
 
   const hasActiveShift =
     Number.isInteger(teamIdx) &&
     teamIdx >= 0 &&
-    teamIdx < TEAM_NAMES.length &&
+    teamIdx < shiftRotation.teams.length &&
     Boolean(teamColor);
 
   function shiftView(days: number) {

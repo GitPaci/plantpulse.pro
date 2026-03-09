@@ -264,9 +264,12 @@ function drawShiftBand(
   viewStart: Date,
   numDays: number,
   width: number,
-  theme: CanvasTheme
+  theme: CanvasTheme,
+  anchorDate?: Date,
+  cyclePattern?: readonly number[],
+  teamColors?: string[]
 ) {
-  const bands = shiftBands(viewStart, numDays);
+  const bands = shiftBands(viewStart, numDays, anchorDate, cyclePattern);
   const ppd = getPPD(width, LEFT_MARGIN, numDays);
   const pph = ppd / 24;
 
@@ -283,7 +286,7 @@ function drawShiftBand(
     const clampedX = Math.max(x, LEFT_MARGIN);
     const clampedW = Math.min(x + w, width) - clampedX;
 
-    ctx.fillStyle = SHIFT_TEAM_COLORS[band.teamIndex];
+    ctx.fillStyle = (teamColors && teamColors[band.teamIndex]) || SHIFT_TEAM_COLORS[band.teamIndex] || '#888';
     ctx.globalAlpha = 0.7;
     ctx.fillRect(clampedX, 1, clampedW, SHIFT_BAND_H - 2);
     ctx.globalAlpha = 1.0;
@@ -561,6 +564,7 @@ export default function WallboardCanvas({
   const viewConfig = usePlantPulseStore((s) => s.viewConfig);
   const shutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
   const batchNamingConfig = usePlantPulseStore((s) => s.batchNamingConfig);
+  const shiftRotation = usePlantPulseStore((s) => s.shiftRotation);
   const loadDemoData = usePlantPulseStore((s) => s.loadDemoData);
 
   // Load demo data on mount
@@ -646,10 +650,10 @@ export default function WallboardCanvas({
     }
     drawMachineLabels(ctx, rows, theme);
     if (showShiftBandProp) {
-      drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
+      drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, shiftRotation.anchorDate, shiftRotation.cyclePattern, shiftRotation.teams.map((t) => t.color));
     }
     drawDateHeader(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
-  }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods]);
+  }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods, shiftRotation]);
 
   // Redraw on any change
   useEffect(() => {

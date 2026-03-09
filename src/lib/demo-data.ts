@@ -12,6 +12,7 @@ import type {
   StageTypeDefinition,
   TurnaroundActivity,
   BatchNamingConfig,
+  ShiftRotation,
 } from './types';
 
 // ─── Default equipment groups (user-configurable at runtime) ─────────
@@ -75,6 +76,22 @@ export const DEFAULT_BATCH_NAMING_CONFIG: BatchNamingConfig = {
   counterResetMode: 'annual',
   counterResetMonth: 1,
   counterResetDay: 1,
+};
+
+// ─── Default shift rotation (4-team Russian pattern from VBA) ───────────
+
+export const DEFAULT_SHIFT_ROTATION: ShiftRotation = {
+  teams: [
+    { name: 'Blue',   color: '#0066FF' },
+    { name: 'Green',  color: '#00CC00' },
+    { name: 'Red',    color: '#FF0000' },
+    { name: 'Yellow', color: '#FFFD00' },
+  ],
+  shiftLengthHours: 12,
+  cyclePattern: [0, 2, 1, 3, 2, 0, 3, 1],
+  anchorDate: new Date(2026, 0, 1, 6, 0, 0), // Jan 1 2026, 06:00
+  dayShiftStartHour: 6,
+  overrides: [],
 };
 
 // ─── Default machines (from VBA imena array) ───────────────────────────
