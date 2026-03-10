@@ -312,12 +312,10 @@ timeline canvas. The following tracks what is implemented vs. pending.
 | Process Setup modal — Turnaround Activities tab | Done | CRUD for CIP/SIP/Cleaning per equipment group; d:h:m picker; default flag |
 | Process Setup modal — Shutdowns tab | Done | CRUD for shutdown periods with date range, name, reason; past dimmed |
 | `ShutdownPeriod` type + store CRUD | Done | `lib/types.ts` + `lib/store.ts`; full add/update/delete |
-
-### Pending — Setup Modals
-
-| Component | Gap | Priority |
-|-----------|-----|----------|
-| Shift Schedule modal | UI for team names, rotation pattern, shift colors | Medium — wallboard already uses hardcoded cycle |
+| Shift Schedule modal | Done | Team editor, rotation presets (Russian/Panama/DuPont/etc.), variable shift lengths, plant coverage heatmap, shift sequence diagram, Holiday Calendar section |
+| Shift band gap segments | Done | Gray (`#b0b0b0`) segments for uncovered periods in Wallboard + Planner shift bands; `isShiftCoveredAt()` + `ShiftBandSegment` with `teamIndex: -1` |
+| Recurring machine downtime | Done | `RecurringDowntimeRule` (weekly/monthly), `isDateInRecurringRule()`, integrated into `isMachineUnavailable()` |
+| Stage Types scope toggle | Done | Shared vs per-product-line mode; validation dialog on mode switch; Stage Types ↔ Stage Defaults sync |
 
 ### Pending — Batch Operations
 

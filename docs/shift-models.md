@@ -465,8 +465,14 @@ PlantPulse implements shift rotation as a **deterministic roster function** anch
 
 3. **Team resolution:** For any given date/time, PlantPulse computes the number of shift blocks elapsed since the anchor, takes the modular index into the cycle array, and returns the team on duty. This is a pure function with no external dependencies — it works offline and requires no database lookup.
 
-4. **Visual rendering:** The resolved team is rendered as a colored band behind the timeline (the "shift ownership band"), using the team's assigned color. This provides at-a-glance visibility into which crew is responsible at any point in time.
+4. **Visual rendering:** The resolved team is rendered as a colored band behind the timeline (the "shift ownership band"), using the team's assigned color. Time periods with no shift coverage (inactive days or outside operating hours) are rendered as neutral gray segments, providing immediate visual feedback on uncovered periods.
 
-5. **Override support (Enterprise):** Enterprise editions support shift overrides — manual reassignments for holidays, training days, or emergency coverage — stored as exceptions against the base cycle.
+5. **Plant coverage configuration:** Administrators configure which weekdays are operational and set an operating hours window (e.g., 06:00–22:00 for non-24h plants). Hours outside this window produce gray "gap" segments in the shift band. `isShiftCoveredAt(time, config)` resolves coverage for any wall-clock time.
 
-The Russian shift pattern (8-step, 4-team, 12-hour cycle) is the built-in default. Future versions may allow administrators to define custom shift patterns by specifying their own cycle arrays, shift lengths, and team counts. The underlying engine is pattern-agnostic: any cyclic shift model that can be expressed as a repeating sequence of team assignments can be implemented using the same deterministic anchor-and-index approach.
+6. **Shift sequence diagram:** The Shift Schedule editor includes a Wikipedia-style grid visualization showing one full rotation cycle (7–14 days). Columns represent days, rows represent shift periods (Day/Night for 12h, Morning/Afternoon/Night for 8h). Cells are team-colored with the team initial; gray cells indicate no coverage.
+
+7. **Override support (Enterprise):** Enterprise editions support shift overrides — manual reassignments for holidays, training days, or emergency coverage — stored as exceptions against the base cycle.
+
+8. **Holiday Calendar:** Slovenian public holidays (12 static dates + Easter Monday) are built into the system and automatically highlighted on timeline views. Custom country/region holiday calendars are available in the Enterprise edition.
+
+The Russian shift pattern (8-step, 4-team, 12-hour cycle) is the built-in default. Administrators can select from built-in presets (Russian, Panama 2-2-3, Pitman 2-3-2, DuPont, Navy 3-shift, Simple A-B-C-D, 2-team alternating, 4-on-2-off) or define custom patterns by specifying their own cycle arrays, shift lengths (6/7.5/8/12h), and team counts via the Shift Schedule modal. The underlying engine is pattern-agnostic: any cyclic shift model that can be expressed as a repeating sequence of team assignments can be implemented using the same deterministic anchor-and-index approach.
