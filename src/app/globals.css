@@ -2090,10 +2090,15 @@ body {
 }
 
 .pp-shift-preview-block {
-  width: 18px;
+  min-width: 4px;
   height: 10px;
   border-radius: 2px;
   opacity: 0.8;
+}
+
+.pp-shift-preview-gap {
+  opacity: 0.5;
+  background: #b0b0b0 !important;
 }
 
 /* Timing section */

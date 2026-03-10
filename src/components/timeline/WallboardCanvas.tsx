@@ -9,7 +9,7 @@ import { usePlantPulseStore } from '@/lib/store';
 import { getWallboardBorderColor, SHIFT_TEAM_COLORS } from '@/lib/colors';
 import { stageBarPosition, nowLineX, pixelsPerDay as getPPD } from '@/lib/timeline-math';
 import { isHoliday, isWeekend, isSaturday, isSunday } from '@/lib/holidays';
-import { shiftBands } from '@/lib/shift-rotation';
+import { shiftBands, SHIFT_GAP_TEAM } from '@/lib/shift-rotation';
 import {
   addDays,
   startOfDay,
@@ -259,6 +259,9 @@ function drawCalendarColumns(
   }
 }
 
+/** Neutral gray used for gap segments (no shift coverage). */
+const SHIFT_GAP_COLOR = '#b0b0b0';
+
 function drawShiftBand(
   ctx: CanvasRenderingContext2D,
   viewStart: Date,
@@ -268,9 +271,12 @@ function drawShiftBand(
   anchorDate?: Date,
   cyclePattern?: readonly number[],
   teamColors?: string[],
-  shiftLengthHours: number = 12
+  shiftLengthHours: number = 12,
+  activeDays?: boolean[],
+  operatingHoursStart?: number,
+  operatingHoursEnd?: number
 ) {
-  const bands = shiftBands(viewStart, numDays, anchorDate, cyclePattern, shiftLengthHours);
+  const bands = shiftBands(viewStart, numDays, anchorDate, cyclePattern, shiftLengthHours, activeDays, operatingHoursStart, operatingHoursEnd);
   const ppd = getPPD(width, LEFT_MARGIN, numDays);
   const pph = ppd / 24;
 
@@ -279,16 +285,22 @@ function drawShiftBand(
 
   for (const band of bands) {
     const hoursOffset = (band.start.getTime() - viewStart.getTime()) / 3600000;
+    const durationHours = (band.end.getTime() - band.start.getTime()) / 3600000;
     const x = LEFT_MARGIN + hoursOffset * pph;
-    const w = shiftLengthHours * pph;
+    const w = durationHours * pph;
 
     if (x + w < LEFT_MARGIN || x > width) continue;
 
     const clampedX = Math.max(x, LEFT_MARGIN);
     const clampedW = Math.min(x + w, width) - clampedX;
 
-    ctx.fillStyle = (teamColors && teamColors[band.teamIndex]) || SHIFT_TEAM_COLORS[band.teamIndex] || '#888';
-    ctx.globalAlpha = 0.7;
+    if (band.teamIndex === SHIFT_GAP_TEAM) {
+      ctx.fillStyle = SHIFT_GAP_COLOR;
+      ctx.globalAlpha = 0.45;
+    } else {
+      ctx.fillStyle = (teamColors && teamColors[band.teamIndex]) || SHIFT_TEAM_COLORS[band.teamIndex] || '#888';
+      ctx.globalAlpha = 0.7;
+    }
     ctx.fillRect(clampedX, 1, clampedW, SHIFT_BAND_H - 2);
     ctx.globalAlpha = 1.0;
   }
@@ -651,7 +663,7 @@ export default function WallboardCanvas({
     }
     drawMachineLabels(ctx, rows, theme);
     if (showShiftBandProp) {
-      drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, shiftRotation.anchorDate, shiftRotation.cyclePattern, shiftRotation.teams.map((t) => t.color), shiftRotation.shiftLengthHours);
+      drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, shiftRotation.anchorDate, shiftRotation.cyclePattern, shiftRotation.teams.map((t) => t.color), shiftRotation.shiftLengthHours, shiftRotation.activeDays, shiftRotation.operatingHoursStart, shiftRotation.operatingHoursEnd);
     }
     drawDateHeader(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
   }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods, shiftRotation]);
