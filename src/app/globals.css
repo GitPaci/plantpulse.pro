@@ -2100,29 +2100,21 @@ body {
   margin-top: 8px;
 }
 
-.pp-shift-sequence-header {
-  font-size: 10px;
-  color: var(--pp-muted);
-  margin-bottom: 4px;
-}
-
 .pp-shift-sequence-grid {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pp-shift-sequence-row {
+  display: flex;
   align-items: center;
+  gap: 1px;
 }
 
-.pp-shift-sequence-corner {
-  height: 14px;
-}
-
-.pp-shift-sequence-day {
-  font-size: 9px;
-  color: var(--pp-muted);
-  text-align: center;
-}
-
-.pp-shift-sequence-row-label {
+.pp-shift-sequence-label {
+  width: 34px;
+  flex-shrink: 0;
   font-size: 9px;
   font-weight: 600;
   color: var(--pp-muted);
@@ -2130,10 +2122,25 @@ body {
   padding-right: 4px;
 }
 
+.pp-shift-sequence-header {
+  flex: 1 1 0;
+  font-size: 9px;
+  color: var(--pp-muted);
+  text-align: center;
+  min-width: 20px;
+}
+
 .pp-shift-sequence-cell {
-  height: 12px;
+  flex: 1 1 0;
+  height: 18px;
+  min-width: 20px;
   border-radius: 2px;
-  opacity: 0.82;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 /* Timing section */

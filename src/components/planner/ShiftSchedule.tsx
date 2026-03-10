@@ -615,6 +615,58 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
                 Gray = no coverage
               </span>
             </div>
+
+            {/* Shift sequence diagram — Wikipedia-style grid: days × shift periods */}
+            {draft.cyclePattern.length > 0 && (
+              <div className="pp-shift-sequence">
+                <span className="pp-shift-preview-label" style={{ marginBottom: 2 }}>Rotation sequence:</span>
+                <div className="pp-shift-sequence-grid">
+                  {/* Header row: day numbers */}
+                  <div className="pp-shift-sequence-row">
+                    <span className="pp-shift-sequence-label" />
+                    {Array.from({ length: sequenceDays }, (_, d) => (
+                      <span key={d} className="pp-shift-sequence-header">D{d + 1}</span>
+                    ))}
+                  </div>
+                  {/* One row per shift period */}
+                  {Array.from({ length: previewSlotsPerDay }, (_, slot) => {
+                    const periodLabel = previewSlotsPerDay === 2
+                      ? (slot === 0 ? 'Day' : 'Night')
+                      : previewSlotsPerDay === 3
+                        ? (['Morn', 'Aftn', 'Night'][slot] || `S${slot + 1}`)
+                        : `S${slot + 1}`;
+                    return (
+                      <div key={slot} className="pp-shift-sequence-row">
+                        <span className="pp-shift-sequence-label">{periodLabel}</span>
+                        {Array.from({ length: sequenceDays }, (_, d) => {
+                          const stepIdx = d * previewSlotsPerDay + slot;
+                          const patternIdx = stepIdx % draft.cyclePattern.length;
+                          const teamIdx = draft.cyclePattern[patternIdx];
+                          const covered = isPreviewSlotCovered(stepIdx, draft);
+                          const team = draft.teams[teamIdx];
+                          const bg = covered ? (team?.color || '#ccc') : SHIFT_GAP_COLOR;
+                          // Compute luminance to pick text color
+                          const r = parseInt(bg.slice(1, 3), 16) || 0;
+                          const g = parseInt(bg.slice(3, 5), 16) || 0;
+                          const b = parseInt(bg.slice(5, 7), 16) || 0;
+                          const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+                          return (
+                            <span
+                              key={d}
+                              className="pp-shift-sequence-cell"
+                              style={{ background: bg, color: lum > 0.55 ? '#1a1a2e' : '#fff' }}
+                              title={covered ? `${team?.name || '?'} — D${d + 1} ${periodLabel}` : `No coverage — D${d + 1} ${periodLabel}`}
+                            >
+                              {covered ? (team?.name?.[0] || '?') : ''}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── Plant Coverage section ── */}
