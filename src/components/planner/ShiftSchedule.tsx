@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlantPulseStore } from '@/lib/store';
 import type { ShiftRotation, ShiftTeam } from '@/lib/types';
+import { SHIFT_GAP_COLOR } from '@/lib/colors';
 
 // ─── Date helper ──────────────────────────────────────────────────────
 
@@ -235,99 +236,21 @@ function countGapHours(coverage: CoverageCell[][]): number {
   return gaps;
 }
 
-// ─── Preview blocks with gap segments ────────────────────────────────
 
-/** Neutral gray for gap blocks in the rotation preview. */
-const SHIFT_PREVIEW_GAP_COLOR = '#b0b0b0';
+function isPreviewSlotCovered(stepIdx: number, draft: ShiftRotation): boolean {
+  const shiftsPerDay = 24 / draft.shiftLengthHours;
+  const dayIdx = Math.floor(stepIdx / shiftsPerDay) % 7;
+  const slotHourStart = (stepIdx % shiftsPerDay) * draft.shiftLengthHours;
 
-interface PreviewBlock {
-  /** Width relative to one shift step (1 = one full shift slot). */
-  widthUnits: number;
-  color: string;
-  label: string;
-  isGap: boolean;
-}
+  if (!draft.activeDays[dayIdx]) return false;
 
-/**
- * Compute preview blocks for the rotation cycle, inserting gray gap segments
- * wherever the operating window or active days exclude coverage.
- * Each block's widthUnits represents its duration relative to a full shift step.
- */
-function computePreviewBlocks(draft: ShiftRotation): PreviewBlock[] {
-  const is24h = draft.operatingHoursStart === 0 && draft.operatingHoursEnd === 24;
-  const allDaysActive = draft.activeDays.every((d) => d);
+  if (draft.operatingHoursStart === 0 && draft.operatingHoursEnd === 24) return true;
 
-  // Fast path: 24/7 — no gaps, just team blocks
-  if (is24h && allDaysActive) {
-    return draft.cyclePattern.map((teamIdx, i) => ({
-      widthUnits: 1,
-      color: draft.teams[teamIdx]?.color || '#ccc',
-      label: `${draft.teams[teamIdx]?.name || '?'} — ${shiftStepLabel(i, draft.shiftLengthHours)}`,
-      isGap: false,
-    }));
+  if (draft.operatingHoursEnd > draft.operatingHoursStart) {
+    return slotHourStart >= draft.operatingHoursStart && slotHourStart < draft.operatingHoursEnd;
   }
 
-  // Slow path: walk hour by hour through the full cycle and merge segments
-  const cycleTotalHours = draft.cyclePattern.length * draft.shiftLengthHours;
-  const blocks: PreviewBlock[] = [];
-  let currentBlock: { teamIdx: number; hours: number; startStep: number; isGap: boolean } | null = null;
-
-  for (let h = 0; h < cycleTotalHours; h++) {
-    // Which day of the cycle is this? Map to weekday starting from anchor (Sun=0)
-    const dayInCycle = Math.floor(h / 24);
-    // Use modular weekday offset — assume cycle starts on the anchor's weekday
-    const weekday = dayInCycle % 7;
-    const hourOfDay = h % 24;
-
-    const dayActive = draft.activeDays[weekday] ?? true;
-    let hourInWindow = true;
-    if (!is24h) {
-      const opStart = draft.operatingHoursStart;
-      const opEnd = draft.operatingHoursEnd;
-      if (opEnd > opStart) {
-        hourInWindow = hourOfDay >= opStart && hourOfDay < opEnd;
-      } else {
-        hourInWindow = hourOfDay >= opStart || hourOfDay < opEnd;
-      }
-    }
-
-    const isActive = dayActive && hourInWindow;
-    const shiftStep = Math.floor(h / draft.shiftLengthHours);
-    const teamIdx = isActive ? (draft.cyclePattern[shiftStep] ?? 0) : -1;
-    const isGap = !isActive;
-
-    if (currentBlock && currentBlock.teamIdx === teamIdx && currentBlock.isGap === isGap) {
-      currentBlock.hours++;
-    } else {
-      if (currentBlock) {
-        blocks.push({
-          widthUnits: currentBlock.hours / draft.shiftLengthHours,
-          color: currentBlock.isGap
-            ? SHIFT_PREVIEW_GAP_COLOR
-            : (draft.teams[currentBlock.teamIdx]?.color || '#ccc'),
-          label: currentBlock.isGap
-            ? 'No coverage'
-            : `${draft.teams[currentBlock.teamIdx]?.name || '?'} — ${shiftStepLabel(currentBlock.startStep, draft.shiftLengthHours)}`,
-          isGap: currentBlock.isGap,
-        });
-      }
-      currentBlock = { teamIdx, hours: 1, startStep: shiftStep, isGap };
-    }
-  }
-  if (currentBlock) {
-    blocks.push({
-      widthUnits: currentBlock.hours / draft.shiftLengthHours,
-      color: currentBlock.isGap
-        ? SHIFT_PREVIEW_GAP_COLOR
-        : (draft.teams[currentBlock.teamIdx]?.color || '#ccc'),
-      label: currentBlock.isGap
-        ? 'No coverage'
-        : `${draft.teams[currentBlock.teamIdx]?.name || '?'} — ${shiftStepLabel(currentBlock.startStep, draft.shiftLengthHours)}`,
-      isGap: currentBlock.isGap,
-    });
-  }
-
-  return blocks;
+  return slotHourStart >= draft.operatingHoursStart || slotHourStart < draft.operatingHoursEnd;
 }
 
 // ─── Shift label helper ──────────────────────────────────────────────
@@ -514,7 +437,11 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
 
   const coverage = useMemo(() => computeCoverage(draft), [draft]);
   const gapHours = useMemo(() => countGapHours(coverage), [coverage]);
-  const previewBlocks = useMemo(() => computePreviewBlocks(draft), [draft]);
+  const previewSlotsPerDay = useMemo(() => slotsPerDayForShiftLength(draft.shiftLengthHours), [draft.shiftLengthHours]);
+  const sequenceDays = useMemo(() => {
+    const cycleDays = Math.ceil(draft.cyclePattern.length / previewSlotsPerDay);
+    return Math.min(14, Math.max(7, cycleDays));
+  }, [draft.cyclePattern.length, previewSlotsPerDay]);
 
   // Detect matched rotation preset
   const patternStr = draft.cyclePattern.join(',');
@@ -667,19 +594,22 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
             {/* Visual preview — small colored blocks with gap segments */}
             <div className="pp-shift-preview">
               <span className="pp-shift-preview-label">Preview:</span>
-              {previewBlocks.map((block, i) => (
-                <span
-                  key={i}
-                  className={`pp-shift-preview-block${block.isGap ? ' pp-shift-preview-gap' : ''}`}
-                  style={{
-                    background: block.color,
-                    flexGrow: block.widthUnits,
-                    flexBasis: 0,
-                    opacity: block.isGap ? 0.5 : 0.8,
-                  }}
-                  title={block.label}
-                />
-              ))}
+              {draft.cyclePattern.map((teamIdx, i) => {
+                const covered = isPreviewSlotCovered(i, draft);
+                const label = shiftStepLabel(i, draft.shiftLengthHours);
+                const teamName = draft.teams[teamIdx]?.name || '?';
+                return (
+                  <span
+                    key={i}
+                    className="pp-shift-preview-block"
+                    style={{ background: covered ? (draft.teams[teamIdx]?.color || '#ccc') : SHIFT_GAP_COLOR }}
+                    title={covered ? `${teamName} — ${label}` : `No shift coverage — ${label}`}
+                  />
+                );
+              })}
+              <span className="pp-shift-preview-label" style={{ marginLeft: 8 }}>
+                Gray = no coverage
+              </span>
             </div>
           </div>
 

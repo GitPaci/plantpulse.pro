@@ -13,6 +13,17 @@ export const SHIFT_CYCLE: readonly number[] = [0, 2, 1, 3, 2, 0, 3, 1];
 /** Default anchor date — used to align the cycle. Adjustable per facility. */
 export const DEFAULT_ANCHOR = new Date(2026, 0, 1, 6, 0, 0); // Jan 1 2026, 06:00
 
+export interface ShiftCoverageConfig {
+  teams: { color: string }[];
+  activeDays: boolean[];
+  operatingHoursStart: number;
+  operatingHoursEnd: number;
+  anchorDate: Date;
+  cyclePattern: number[];
+  shiftLengthHours: number;
+}
+
+
 /**
  * Determine which team is on shift at a given time.
  * Ported from VBA shift detection logic.
@@ -141,4 +152,30 @@ export function shiftBands(
   }
 
   return bands;
+}
+
+function isHourInOperatingWindow(hour: number, operatingHoursStart: number, operatingHoursEnd: number): boolean {
+  if (operatingHoursStart === 0 && operatingHoursEnd === 24) return true;
+  if (operatingHoursEnd > operatingHoursStart) {
+    return hour >= operatingHoursStart && hour < operatingHoursEnd;
+  }
+  return hour >= operatingHoursStart || hour < operatingHoursEnd;
+}
+
+/**
+ * Resolve whether a specific wall-clock hour is covered by an active shift.
+ */
+export function isShiftCoveredAt(time: Date, rotation: ShiftCoverageConfig): boolean {
+  const dayIndex = time.getDay();
+  if (!rotation.activeDays[dayIndex]) return false;
+  if (!isHourInOperatingWindow(time.getHours(), rotation.operatingHoursStart, rotation.operatingHoursEnd)) {
+    return false;
+  }
+  const teamIndex = currentShiftTeam(
+    time,
+    rotation.anchorDate,
+    rotation.cyclePattern,
+    rotation.shiftLengthHours
+  );
+  return teamIndex >= 0 && teamIndex < rotation.teams.length;
 }

@@ -6,10 +6,11 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { usePlantPulseStore } from '@/lib/store';
-import { getWallboardBorderColor, SHIFT_TEAM_COLORS } from '@/lib/colors';
+import { getWallboardBorderColor, SHIFT_GAP_COLOR, SHIFT_TEAM_COLORS } from '@/lib/colors';
 import { stageBarPosition, nowLineX, pixelsPerDay as getPPD } from '@/lib/timeline-math';
 import { isHoliday, isWeekend, isSaturday, isSunday } from '@/lib/holidays';
-import { shiftBands, SHIFT_GAP_TEAM } from '@/lib/shift-rotation';
+import { isShiftCoveredAt, shiftBands } from '@/lib/shift-rotation';
+import type { ShiftCoverageConfig } from '@/lib/shift-rotation';
 import {
   addDays,
   startOfDay,
@@ -272,9 +273,7 @@ function drawShiftBand(
   cyclePattern?: readonly number[],
   teamColors?: string[],
   shiftLengthHours: number = 12,
-  activeDays?: boolean[],
-  operatingHoursStart?: number,
-  operatingHoursEnd?: number
+  shiftRotation?: ShiftCoverageConfig
 ) {
   const bands = shiftBands(viewStart, numDays, anchorDate, cyclePattern, shiftLengthHours, activeDays, operatingHoursStart, operatingHoursEnd);
   const ppd = getPPD(width, LEFT_MARGIN, numDays);
@@ -294,13 +293,13 @@ function drawShiftBand(
     const clampedX = Math.max(x, LEFT_MARGIN);
     const clampedW = Math.min(x + w, width) - clampedX;
 
-    if (band.teamIndex === SHIFT_GAP_TEAM) {
-      ctx.fillStyle = SHIFT_GAP_COLOR;
-      ctx.globalAlpha = 0.45;
-    } else {
-      ctx.fillStyle = (teamColors && teamColors[band.teamIndex]) || SHIFT_TEAM_COLORS[band.teamIndex] || '#888';
-      ctx.globalAlpha = 0.7;
-    }
+    const covered = shiftRotation
+      ? isShiftCoveredAt(band.start, shiftRotation)
+      : true;
+    ctx.fillStyle = covered
+      ? (teamColors && teamColors[band.teamIndex]) || SHIFT_TEAM_COLORS[band.teamIndex] || '#888'
+      : SHIFT_GAP_COLOR;
+    ctx.globalAlpha = 0.7;
     ctx.fillRect(clampedX, 1, clampedW, SHIFT_BAND_H - 2);
     ctx.globalAlpha = 1.0;
   }
@@ -663,7 +662,7 @@ export default function WallboardCanvas({
     }
     drawMachineLabels(ctx, rows, theme);
     if (showShiftBandProp) {
-      drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, shiftRotation.anchorDate, shiftRotation.cyclePattern, shiftRotation.teams.map((t) => t.color), shiftRotation.shiftLengthHours, shiftRotation.activeDays, shiftRotation.operatingHoursStart, shiftRotation.operatingHoursEnd);
+      drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, shiftRotation.anchorDate, shiftRotation.cyclePattern, shiftRotation.teams.map((t) => t.color), shiftRotation.shiftLengthHours, shiftRotation);
     }
     drawDateHeader(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
   }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods, shiftRotation]);
