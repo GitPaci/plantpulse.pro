@@ -255,6 +255,10 @@ function isPreviewSlotCovered(stepIdx: number, draft: ShiftRotation): boolean {
 
 // ─── Shift label helper ──────────────────────────────────────────────
 
+function slotsPerDayForShiftLength(shiftLengthHours: number): number {
+  return shiftLengthHours > 0 ? 24 / shiftLengthHours : 2;
+}
+
 function shiftStepLabel(stepIdx: number, shiftLengthHours: number): string {
   const shiftsPerDay = 24 / shiftLengthHours;
   const dayNum = Math.floor(stepIdx / shiftsPerDay) + 1;
