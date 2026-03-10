@@ -437,6 +437,11 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
 
   const coverage = useMemo(() => computeCoverage(draft), [draft]);
   const gapHours = useMemo(() => countGapHours(coverage), [coverage]);
+  const previewSlotsPerDay = useMemo(() => slotsPerDayForShiftLength(draft.shiftLengthHours), [draft.shiftLengthHours]);
+  const sequenceDays = useMemo(() => {
+    const cycleDays = Math.ceil(draft.cyclePattern.length / previewSlotsPerDay);
+    return Math.min(14, Math.max(7, cycleDays));
+  }, [draft.cyclePattern.length, previewSlotsPerDay]);
 
   // Detect matched rotation preset
   const patternStr = draft.cyclePattern.join(',');
