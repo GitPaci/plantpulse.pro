@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlantPulseStore } from '@/lib/store';
 import type { ShiftRotation, ShiftTeam } from '@/lib/types';
+import { SHIFT_GAP_COLOR } from '@/lib/colors';
 
 // ─── Date helper ──────────────────────────────────────────────────────
 
@@ -233,6 +234,23 @@ function countGapHours(coverage: CoverageCell[][]): number {
     }
   }
   return gaps;
+}
+
+
+function isPreviewSlotCovered(stepIdx: number, draft: ShiftRotation): boolean {
+  const shiftsPerDay = 24 / draft.shiftLengthHours;
+  const dayIdx = Math.floor(stepIdx / shiftsPerDay) % 7;
+  const slotHourStart = (stepIdx % shiftsPerDay) * draft.shiftLengthHours;
+
+  if (!draft.activeDays[dayIdx]) return false;
+
+  if (draft.operatingHoursStart === 0 && draft.operatingHoursEnd === 24) return true;
+
+  if (draft.operatingHoursEnd > draft.operatingHoursStart) {
+    return slotHourStart >= draft.operatingHoursStart && slotHourStart < draft.operatingHoursEnd;
+  }
+
+  return slotHourStart >= draft.operatingHoursStart || slotHourStart < draft.operatingHoursEnd;
 }
 
 // ─── Shift label helper ──────────────────────────────────────────────
@@ -571,14 +589,22 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
             {/* Visual preview — small colored blocks */}
             <div className="pp-shift-preview">
               <span className="pp-shift-preview-label">Preview:</span>
-              {draft.cyclePattern.map((teamIdx, i) => (
-                <span
-                  key={i}
-                  className="pp-shift-preview-block"
-                  style={{ background: draft.teams[teamIdx]?.color || '#ccc' }}
-                  title={`${draft.teams[teamIdx]?.name || '?'} — ${shiftStepLabel(i, draft.shiftLengthHours)}`}
-                />
-              ))}
+              {draft.cyclePattern.map((teamIdx, i) => {
+                const covered = isPreviewSlotCovered(i, draft);
+                const label = shiftStepLabel(i, draft.shiftLengthHours);
+                const teamName = draft.teams[teamIdx]?.name || '?';
+                return (
+                  <span
+                    key={i}
+                    className="pp-shift-preview-block"
+                    style={{ background: covered ? (draft.teams[teamIdx]?.color || '#ccc') : SHIFT_GAP_COLOR }}
+                    title={covered ? `${teamName} — ${label}` : `No shift coverage — ${label}`}
+                  />
+                );
+              })}
+              <span className="pp-shift-preview-label" style={{ marginLeft: 8 }}>
+                Gray = no coverage
+              </span>
             </div>
           </div>
 

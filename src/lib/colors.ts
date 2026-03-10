@@ -34,6 +34,9 @@ export const SHIFT_TEAM_COLORS = [
   '#FFFD00', // Team 3 — Yellow
 ] as const;
 
+/** Neutral color for periods where no shift is scheduled. */
+export const SHIFT_GAP_COLOR = '#9CA3AF';
+
 export function getBatchBarColor(seriesNumber: number): string {
   return BATCH_BAR_COLORS[((seriesNumber % 12) + 12) % 12];
 }
