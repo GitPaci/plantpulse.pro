@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlantPulseStore } from '@/lib/store';
 import type { ShiftRotation, ShiftTeam } from '@/lib/types';
+import { SHIFT_GAP_COLOR } from '@/lib/colors';
 
 // ─── Date helper ──────────────────────────────────────────────────────
 
@@ -235,6 +236,35 @@ function countGapHours(coverage: CoverageCell[][]): number {
   return gaps;
 }
 
+
+function slotsPerDayForShiftLength(shiftLengthHours: number): number {
+  return Math.max(1, Math.round(24 / shiftLengthHours));
+}
+
+function isPreviewSlotCovered(stepIdx: number, draft: ShiftRotation): boolean {
+  const slotsPerDay = slotsPerDayForShiftLength(draft.shiftLengthHours);
+  const dayIdx = Math.floor(stepIdx / slotsPerDay) % 7;
+  const slotHourStart = (stepIdx % slotsPerDay) * draft.shiftLengthHours;
+  const teamIdx = draft.cyclePattern[stepIdx % draft.cyclePattern.length] ?? -1;
+
+  if (teamIdx < 0 || teamIdx >= draft.teams.length) return false;
+  if (!draft.activeDays[dayIdx]) return false;
+
+  if (draft.operatingHoursStart === 0 && draft.operatingHoursEnd === 24) return true;
+
+  if (draft.operatingHoursEnd > draft.operatingHoursStart) {
+    return slotHourStart >= draft.operatingHoursStart && slotHourStart < draft.operatingHoursEnd;
+  }
+
+  return slotHourStart >= draft.operatingHoursStart || slotHourStart < draft.operatingHoursEnd;
+}
+
+function shiftPeriodLabel(slotInDay: number, slotsPerDay: number): string {
+  if (slotsPerDay === 2) return slotInDay === 0 ? 'Day' : 'Night';
+  if (slotsPerDay === 3) return ['Morn', 'Aftn', 'Night'][slotInDay] || `S${slotInDay + 1}`;
+  return `S${slotInDay + 1}`;
+}
+
 // ─── Shift label helper ──────────────────────────────────────────────
 
 function shiftStepLabel(stepIdx: number, shiftLengthHours: number): string {
@@ -419,6 +449,11 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
 
   const coverage = useMemo(() => computeCoverage(draft), [draft]);
   const gapHours = useMemo(() => countGapHours(coverage), [coverage]);
+  const previewSlotsPerDay = useMemo(() => slotsPerDayForShiftLength(draft.shiftLengthHours), [draft.shiftLengthHours]);
+  const sequenceDays = useMemo(() => {
+    const cycleDays = Math.ceil(draft.cyclePattern.length / previewSlotsPerDay);
+    return Math.min(14, Math.max(7, cycleDays));
+  }, [draft.cyclePattern.length, previewSlotsPerDay]);
 
   // Detect matched rotation preset
   const patternStr = draft.cyclePattern.join(',');
@@ -571,14 +606,56 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
             {/* Visual preview — small colored blocks */}
             <div className="pp-shift-preview">
               <span className="pp-shift-preview-label">Preview:</span>
-              {draft.cyclePattern.map((teamIdx, i) => (
-                <span
-                  key={i}
-                  className="pp-shift-preview-block"
-                  style={{ background: draft.teams[teamIdx]?.color || '#ccc' }}
-                  title={`${draft.teams[teamIdx]?.name || '?'} — ${shiftStepLabel(i, draft.shiftLengthHours)}`}
-                />
-              ))}
+              {draft.cyclePattern.map((teamIdx, i) => {
+                const covered = isPreviewSlotCovered(i, draft);
+                const label = shiftStepLabel(i, draft.shiftLengthHours);
+                const teamName = draft.teams[teamIdx]?.name || '?';
+                return (
+                  <span
+                    key={i}
+                    className="pp-shift-preview-block"
+                    style={{ background: covered ? (draft.teams[teamIdx]?.color || '#ccc') : SHIFT_GAP_COLOR }}
+                    title={covered ? `${teamName} — ${label}` : `No shift coverage — ${label}`}
+                  />
+                );
+              })}
+              <span className="pp-shift-preview-label" style={{ marginLeft: 8 }}>
+                Gray = no coverage
+              </span>
+            </div>
+
+            <div className="pp-shift-sequence">
+              <div className="pp-shift-sequence-header">Sequence (one cycle, day vs night)</div>
+              <div className="pp-shift-sequence-grid" style={{ gridTemplateColumns: `56px repeat(${sequenceDays}, minmax(0, 1fr))` }}>
+                <span className="pp-shift-sequence-corner" />
+                {Array.from({ length: sequenceDays }, (_, day) => (
+                  <span key={`day-${day}`} className="pp-shift-sequence-day">D{day + 1}</span>
+                ))}
+                {Array.from({ length: previewSlotsPerDay }, (_, slotInDay) => (
+                  <div key={`row-${slotInDay}`} className="pp-shift-sequence-row" style={{ display: 'contents' }}>
+                    <span className="pp-shift-sequence-row-label">
+                      {shiftPeriodLabel(slotInDay, previewSlotsPerDay)}
+                    </span>
+                    {Array.from({ length: sequenceDays }, (_, day) => {
+                      const stepIdx = day * previewSlotsPerDay + slotInDay;
+                      const patternIdx = draft.cyclePattern.length > 0 ? stepIdx % draft.cyclePattern.length : 0;
+                      const teamIdx = draft.cyclePattern[patternIdx] ?? -1;
+                      const covered = draft.cyclePattern.length > 0 && isPreviewSlotCovered(stepIdx, draft);
+                      const teamName = teamIdx >= 0 && teamIdx < draft.teams.length ? draft.teams[teamIdx]?.name : 'Unassigned';
+                      return (
+                        <span
+                          key={`cell-${slotInDay}-${day}`}
+                          className="pp-shift-sequence-cell"
+                          style={{ background: covered ? (draft.teams[teamIdx]?.color || '#ccc') : SHIFT_GAP_COLOR }}
+                          title={covered
+                            ? `Day ${day + 1} ${shiftPeriodLabel(slotInDay, previewSlotsPerDay)}: ${teamName}`
+                            : `Day ${day + 1} ${shiftPeriodLabel(slotInDay, previewSlotsPerDay)}: No coverage`}
+                        />
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 

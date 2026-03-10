@@ -2096,6 +2096,46 @@ body {
   opacity: 0.8;
 }
 
+.pp-shift-sequence {
+  margin-top: 8px;
+}
+
+.pp-shift-sequence-header {
+  font-size: 10px;
+  color: var(--pp-muted);
+  margin-bottom: 4px;
+}
+
+.pp-shift-sequence-grid {
+  display: grid;
+  gap: 2px;
+  align-items: center;
+}
+
+.pp-shift-sequence-corner {
+  height: 14px;
+}
+
+.pp-shift-sequence-day {
+  font-size: 9px;
+  color: var(--pp-muted);
+  text-align: center;
+}
+
+.pp-shift-sequence-row-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--pp-muted);
+  text-align: right;
+  padding-right: 4px;
+}
+
+.pp-shift-sequence-cell {
+  height: 12px;
+  border-radius: 2px;
+  opacity: 0.82;
+}
+
 /* Timing section */
 
 .pp-shift-timing-grid {
