@@ -260,6 +260,9 @@ function drawCalendarColumns(
   }
 }
 
+/** Neutral gray used for gap segments (no shift coverage). */
+const SHIFT_GAP_COLOR = '#b0b0b0';
+
 function drawShiftBand(
   ctx: CanvasRenderingContext2D,
   viewStart: Date,
@@ -272,7 +275,7 @@ function drawShiftBand(
   shiftLengthHours: number = 12,
   shiftRotation?: ShiftCoverageConfig
 ) {
-  const bands = shiftBands(viewStart, numDays, anchorDate, cyclePattern, shiftLengthHours);
+  const bands = shiftBands(viewStart, numDays, anchorDate, cyclePattern, shiftLengthHours, activeDays, operatingHoursStart, operatingHoursEnd);
   const ppd = getPPD(width, LEFT_MARGIN, numDays);
   const pph = ppd / 24;
 
@@ -281,8 +284,9 @@ function drawShiftBand(
 
   for (const band of bands) {
     const hoursOffset = (band.start.getTime() - viewStart.getTime()) / 3600000;
+    const durationHours = (band.end.getTime() - band.start.getTime()) / 3600000;
     const x = LEFT_MARGIN + hoursOffset * pph;
-    const w = shiftLengthHours * pph;
+    const w = durationHours * pph;
 
     if (x + w < LEFT_MARGIN || x > width) continue;
 

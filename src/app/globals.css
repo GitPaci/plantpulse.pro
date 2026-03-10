@@ -2090,7 +2090,7 @@ body {
 }
 
 .pp-shift-preview-block {
-  width: 18px;
+  min-width: 4px;
   height: 10px;
   border-radius: 2px;
   opacity: 0.8;

@@ -591,7 +591,7 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
               </button>
             </div>
 
-            {/* Visual preview — small colored blocks */}
+            {/* Visual preview — small colored blocks with gap segments */}
             <div className="pp-shift-preview">
               <span className="pp-shift-preview-label">Preview:</span>
               {draft.cyclePattern.map((teamIdx, i) => {
