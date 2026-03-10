@@ -92,6 +92,9 @@ export const DEFAULT_SHIFT_ROTATION: ShiftRotation = {
   anchorDate: new Date(2026, 0, 1, 6, 0, 0), // Jan 1 2026, 06:00
   dayShiftStartHour: 6,
   overrides: [],
+  activeDays: [true, true, true, true, true, true, true],  // 24/7 default
+  operatingHoursStart: 0,
+  operatingHoursEnd: 24,
 };
 
 // ─── Default machines (from VBA imena array) ───────────────────────────

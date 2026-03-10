@@ -337,9 +337,13 @@ export interface ShiftOverride {
  */
 export interface ShiftRotation {
   teams: ShiftTeam[];         // typically 4 teams
-  shiftLengthHours: number;   // 12 (display-only in Free edition)
+  shiftLengthHours: number;   // variable: 6, 7.5, 8, 12 (set by rotation preset)
   cyclePattern: number[];     // team indices, e.g. [0,2,1,3,2,0,3,1]
   anchorDate: Date;           // cycle alignment reference point
   dayShiftStartHour: number;  // when day shift begins (default 6)
   overrides: ShiftOverride[]; // Enterprise only
+  // Plant coverage fields:
+  activeDays: boolean[];          // [Sun, Mon, Tue, Wed, Thu, Fri, Sat] — which days are operational
+  operatingHoursStart: number;    // 0–23, plant opens (used for non-24h operation)
+  operatingHoursEnd: number;      // 0–24, plant closes (24 = midnight = 24h continuous)
 }

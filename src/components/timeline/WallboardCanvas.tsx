@@ -267,9 +267,10 @@ function drawShiftBand(
   theme: CanvasTheme,
   anchorDate?: Date,
   cyclePattern?: readonly number[],
-  teamColors?: string[]
+  teamColors?: string[],
+  shiftLengthHours: number = 12
 ) {
-  const bands = shiftBands(viewStart, numDays, anchorDate, cyclePattern);
+  const bands = shiftBands(viewStart, numDays, anchorDate, cyclePattern, shiftLengthHours);
   const ppd = getPPD(width, LEFT_MARGIN, numDays);
   const pph = ppd / 24;
 
@@ -279,7 +280,7 @@ function drawShiftBand(
   for (const band of bands) {
     const hoursOffset = (band.start.getTime() - viewStart.getTime()) / 3600000;
     const x = LEFT_MARGIN + hoursOffset * pph;
-    const w = 12 * pph;
+    const w = shiftLengthHours * pph;
 
     if (x + w < LEFT_MARGIN || x > width) continue;
 
@@ -650,7 +651,7 @@ export default function WallboardCanvas({
     }
     drawMachineLabels(ctx, rows, theme);
     if (showShiftBandProp) {
-      drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, shiftRotation.anchorDate, shiftRotation.cyclePattern, shiftRotation.teams.map((t) => t.color));
+      drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, shiftRotation.anchorDate, shiftRotation.cyclePattern, shiftRotation.teams.map((t) => t.color), shiftRotation.shiftLengthHours);
     }
     drawDateHeader(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
   }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods, shiftRotation]);
