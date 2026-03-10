@@ -155,7 +155,7 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
   return (
     <div className="pp-modal-backdrop" onClick={onClose}>
       <div
-        className="pp-modal-container"
+        className="pp-modal"
         style={{ maxWidth: 600 }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
