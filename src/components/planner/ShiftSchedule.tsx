@@ -237,17 +237,11 @@ function countGapHours(coverage: CoverageCell[][]): number {
 }
 
 
-function slotsPerDayForShiftLength(shiftLengthHours: number): number {
-  return Math.max(1, Math.round(24 / shiftLengthHours));
-}
-
 function isPreviewSlotCovered(stepIdx: number, draft: ShiftRotation): boolean {
-  const slotsPerDay = slotsPerDayForShiftLength(draft.shiftLengthHours);
-  const dayIdx = Math.floor(stepIdx / slotsPerDay) % 7;
-  const slotHourStart = (stepIdx % slotsPerDay) * draft.shiftLengthHours;
-  const teamIdx = draft.cyclePattern[stepIdx % draft.cyclePattern.length] ?? -1;
+  const shiftsPerDay = 24 / draft.shiftLengthHours;
+  const dayIdx = Math.floor(stepIdx / shiftsPerDay) % 7;
+  const slotHourStart = (stepIdx % shiftsPerDay) * draft.shiftLengthHours;
 
-  if (teamIdx < 0 || teamIdx >= draft.teams.length) return false;
   if (!draft.activeDays[dayIdx]) return false;
 
   if (draft.operatingHoursStart === 0 && draft.operatingHoursEnd === 24) return true;
@@ -257,12 +251,6 @@ function isPreviewSlotCovered(stepIdx: number, draft: ShiftRotation): boolean {
   }
 
   return slotHourStart >= draft.operatingHoursStart || slotHourStart < draft.operatingHoursEnd;
-}
-
-function shiftPeriodLabel(slotInDay: number, slotsPerDay: number): string {
-  if (slotsPerDay === 2) return slotInDay === 0 ? 'Day' : 'Night';
-  if (slotsPerDay === 3) return ['Morn', 'Aftn', 'Night'][slotInDay] || `S${slotInDay + 1}`;
-  return `S${slotInDay + 1}`;
 }
 
 // ─── Shift label helper ──────────────────────────────────────────────
@@ -622,40 +610,6 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
               <span className="pp-shift-preview-label" style={{ marginLeft: 8 }}>
                 Gray = no coverage
               </span>
-            </div>
-
-            <div className="pp-shift-sequence">
-              <div className="pp-shift-sequence-header">Sequence (one cycle, day vs night)</div>
-              <div className="pp-shift-sequence-grid" style={{ gridTemplateColumns: `56px repeat(${sequenceDays}, minmax(0, 1fr))` }}>
-                <span className="pp-shift-sequence-corner" />
-                {Array.from({ length: sequenceDays }, (_, day) => (
-                  <span key={`day-${day}`} className="pp-shift-sequence-day">D{day + 1}</span>
-                ))}
-                {Array.from({ length: previewSlotsPerDay }, (_, slotInDay) => (
-                  <div key={`row-${slotInDay}`} className="pp-shift-sequence-row" style={{ display: 'contents' }}>
-                    <span className="pp-shift-sequence-row-label">
-                      {shiftPeriodLabel(slotInDay, previewSlotsPerDay)}
-                    </span>
-                    {Array.from({ length: sequenceDays }, (_, day) => {
-                      const stepIdx = day * previewSlotsPerDay + slotInDay;
-                      const patternIdx = draft.cyclePattern.length > 0 ? stepIdx % draft.cyclePattern.length : 0;
-                      const teamIdx = draft.cyclePattern[patternIdx] ?? -1;
-                      const covered = draft.cyclePattern.length > 0 && isPreviewSlotCovered(stepIdx, draft);
-                      const teamName = teamIdx >= 0 && teamIdx < draft.teams.length ? draft.teams[teamIdx]?.name : 'Unassigned';
-                      return (
-                        <span
-                          key={`cell-${slotInDay}-${day}`}
-                          className="pp-shift-sequence-cell"
-                          style={{ background: covered ? (draft.teams[teamIdx]?.color || '#ccc') : SHIFT_GAP_COLOR }}
-                          title={covered
-                            ? `Day ${day + 1} ${shiftPeriodLabel(slotInDay, previewSlotsPerDay)}: ${teamName}`
-                            : `Day ${day + 1} ${shiftPeriodLabel(slotInDay, previewSlotsPerDay)}: No coverage`}
-                        />
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
 
