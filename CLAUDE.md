@@ -145,13 +145,23 @@ When adding a new series, the system checks:
 - Wallboard: `series_id mod 5` cycles through 5 border colors
 - Future batches on wallboard: rendered in grey with transparency
 
-#### 6. Shift rotation (wallboard)
-- 4 teams, 12-hour shifts: day 06:00–18:00, night 18:00–06:00
-- 8-step cycle array: `[0, 2, 1, 3, 2, 0, 3, 1]`
-- Team colors: Blue (0,102,255), Green (0,204,0), Red (255,0,0), Yellow (255,253,0)
-- Current shift determined by `Hour(Now)`: 18-23→shift 2, 0-5→shift 4, else→shift 0
-- Shift band at top of wallboard canvas shows team color per 12h block, segmented at 06:00 and 18:00
+#### 6. Shift rotation (wallboard + planner)
+- **Configurable** via Shift Schedule modal (Planner toolbar button)
+- **Teams**: user-defined names and colors (default 4: Blue, Green, Red, Yellow)
+- **Variable shift lengths**: 6, 7.5, 8, or 12 hours (set by rotation preset)
+- **Rotation presets**: Russian 4-team (default), Simple A-B-C-D, 2-team alternating, Navy 3-shift (8h), Panama 2-2-3, Pitman 2-3-2, DuPont, 4-on-2-off, Custom
+- Default 8-step cycle array: `[0, 2, 1, 3, 2, 0, 3, 1]`
+- Default team colors: Blue (0,102,255), Green (0,204,0), Red (255,0,0), Yellow (255,253,0)
+- **Plant coverage**: configurable active days (per weekday toggle) and operating hours window (non-24h operation supported)
+- **Gap segments**: time periods with no shift coverage rendered as neutral gray (`#b0b0b0`) in the shift band on both Wallboard and Planner views, visually distinct from team colors
+- `isShiftCoveredAt(time, config)` — resolves whether a wall-clock hour is covered by an active shift
+- `shiftBands()` returns `ShiftBandSegment[]` with `teamIndex: -1` for gap segments
+- Shift band at top of canvas shows team color per shift block; gray for uncovered periods
+- **Shift sequence diagram**: Wikipedia-style day×period grid in the Shift Schedule editor (days as columns, shift periods as rows, team-colored cells with initial, gray for gaps); shows 1–2 weeks depending on cycle length
+- **Coverage heatmap**: 7×24 grid (days × hours) showing covered / gap / outside status per hour
+- **Holiday Calendar**: Slovenian public holidays (12 static dates + Easter Monday) built-in; custom country/region calendars available in Enterprise edition (CTA → hello@plantpulse.pro)
 - Full shift model reference: `docs/shift-models.md`
+- Implementation: `lib/shift-rotation.ts` (data + `ShiftCoverageConfig` + `isShiftCoveredAt`), `components/planner/ShiftSchedule.tsx` (modal), `WallboardCanvas.tsx` (rendering)
 
 #### 7. Calendar / holidays
 - Weekend detection: `Weekday() = 7` (Saturday) or `= 1` (Sunday) → red styling
@@ -191,13 +201,17 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 
 #### 11. Machine downtime / unavailability (modern, no VBA equivalent)
 - Per-machine unavailability windows defined in Equipment Setup modal (Machines tab)
-- Each window has: start date, optional end date (indefinite if omitted), optional reason
+- **One-time downtime**: each window has start date, optional end date (indefinite if omitted), optional reason
+- **Recurring downtime**: periodic unavailability rules (e.g. every Friday 08:00–12:00 for maintenance)
+  - `RecurringDowntimeRule`: recurrenceType (`weekly` | `monthly`), dayOfWeek/dayOfMonth, startHour, startMinute, durationHours, validity window (startDate + optional endDate), optional reason
+  - `isDateInRecurringRule(rule, atDate)` — checks if a date falls within any occurrence of a recurring rule
+  - Expired rules (endDate in past) are visually dimmed; `isRecurringRuleExpired()` helper
 - Three visual states for yellow dot indicator:
   - **Active**: solid yellow dot (start ≤ now ≤ end or no end)
   - **Scheduled/upcoming**: outlined yellow dot (start > now)
   - **Ended**: no indicator (past finite windows suppressed by `isDowntimeEnded()`)
-- `isMachineUnavailable(machine, atDate?)` — checks if machine is unavailable at a point in time
-- `hasMachineDowntime(machine)` — checks if machine has active or future downtime (excludes past windows)
+- `isMachineUnavailable(machine, atDate?)` — checks both one-time downtime and recurring rules
+- `hasMachineDowntime(machine)` — checks if machine has active or future downtime (excludes past windows); also considers recurring rules
 - Machines with active downtime are excluded from auto-scheduling vessel assignment
 
 #### 12. Turnaround activities (modern, no VBA equivalent)
@@ -293,9 +307,14 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Save button keeps modal open (matches Process Setup behavior)
 - CSS: `.pp-setup-section-header`, `.pp-setup-section-count`, `.pp-setup-section-separator` in `globals.css`
 
-#### 20. Process Setup — Stage Types compact layout and count field
+#### 20. Process Setup — Stage Types compact layout, count field, and scope toggle
 - Stage Types tab columns (#, Name, Short, Count, Description, Actions) rendered in a single horizontal row using `pp-setup-row` flex wrapper inside `pp-setup-row-wrapper`
 - **Count field**: `StageTypeDefinition.count` (number) — instances per batch chain (e.g. 2 if two inoculum vessels per chain); min 1, max 99
+- **Scope toggle**: `stageTypesMode: 'shared' | 'per_product_line'` in Zustand store
+  - **Shared** (default): one global list of stage types used by all product lines
+  - **Per-product-line**: each product line defines its own stage type list
+  - Mode switch triggers a **validation dialog** warning that existing per-line configurations may be affected; user must confirm before switching
+  - Stage Types ↔ Stage Defaults stay synchronized: deleting a stage type removes corresponding defaults, adding a stage type auto-creates default entries
 - CSS: `.pp-process-stage-col-count` (52px width) in `globals.css`
 
 #### 21. Process Setup — Naming tab (batch nomenclature)
@@ -317,6 +336,23 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Machines are filtered by `group === 'inoculum'` and exclude any machines already present in product-line display groups (prevents duplicate rows)
 - `machineIdsInGroups` useMemo tracks all machine IDs already in `buildDisplayGroups()` output
 - Inoculum group only prepended to schedule machine groups when it has non-empty machineIds
+
+#### 23. Shift Schedule modal (modern, no VBA equivalent)
+- Planner toolbar button opens full configuration modal for shift rotation
+- **Teams section**: add/remove teams, edit name and color per team (color picker input)
+- **Rotation Presets**: one-click presets — Russian 4-team (default), Simple A-B-C-D, 2-team alternating, Navy 3-shift (8h), Panama 2-2-3, Pitman 2-3-2, DuPont, 4-on-2-off, Custom
+- **Cycle grid editor**: per-slot team assignment with add/remove slots; each slot shows team color border
+- **Preview bar**: colored blocks showing team order in the cycle; gray for uncovered slots
+- **Shift sequence diagram**: Wikipedia-style grid (days × shift periods) showing one full rotation cycle (7–14 days); cells team-colored with initial, gray for gaps; auto-contrast text
+- **Plant Coverage section**: operation presets (24/7, 24/6, 24/5, 16/5, Office Hours, Custom), per-day active toggles, operating hours window
+- **Coverage heatmap**: 7×24 grid (Monday-first rows × hour columns) with covered (green) / gap (amber) / outside (gray) cells
+- **Timing section**: anchor date/time picker, day shift start hour selector
+- **Shift Overrides**: Enterprise CTA placeholder
+- **Holiday Calendar**: notes Slovenian holidays built-in; Enterprise CTA card for custom country/region calendars (mailto: hello@plantpulse.pro)
+- Draft-state pattern: all edits local until Save (matches EquipmentSetup/ProcessSetup)
+- State: `shiftRotation: ShiftRotation` in Zustand store with `setShiftRotation()` action
+- Implementation: `components/planner/ShiftSchedule.tsx` (modal) + `lib/shift-rotation.ts` (data) + `WallboardCanvas.tsx` (rendering)
+- CSS: `.pp-shift-section`, `.pp-shift-team-card`, `.pp-shift-preview-*`, `.pp-shift-sequence-*`, `.pp-shift-heatmap-*`, `.pp-shift-operation-*`, `.pp-shift-day-toggle`, `.pp-shift-timing-grid` in `globals.css`
 
 ---
 
@@ -382,7 +418,8 @@ interface Machine {
   group: MachineGroup;    // user-defined equipment group (references EquipmentGroup.id)
   productLine?: string;   // assigned product line, or null if shared
   displayOrder: number;
-  downtime?: MachineDowntime;  // optional unavailability window
+  downtime?: MachineDowntime;            // one-time unavailability window
+  recurringDowntime?: RecurringDowntimeRule[];  // repeating unavailability rules
 }
 
 interface BatchChain {
@@ -481,12 +518,45 @@ interface BatchNamingConfig {
   counterResetDay: number;                       // 1-31 (default 1)
 }
 
+interface ShiftTeam {
+  name: string;           // e.g. "Blue", "Alpha", "Team A"
+  color: string;          // hex color for shift band, e.g. "#0066FF"
+}
+
+interface ShiftOverride {
+  date: Date;
+  shiftIndex: number;     // 0 = day, 1 = night (relative to shift boundaries)
+  teamIndex: number;      // which team takes this slot
+  reason?: string;
+}
+
 interface ShiftRotation {
-  teams: string[];        // 4 team names
-  shiftLengthHours: 12;
-  cyclePattern: number[]; // [0, 2, 1, 3, 2, 0, 3, 1]
-  anchorDate: Date;       // shutdown-to-shutdown anchor
-  overrides: ShiftOverride[];
+  teams: ShiftTeam[];         // user-configurable (default 4 teams)
+  shiftLengthHours: number;   // variable: 6, 7.5, 8, 12 (set by rotation preset)
+  cyclePattern: number[];     // team indices, e.g. [0,2,1,3,2,0,3,1]
+  anchorDate: Date;           // cycle alignment reference point
+  dayShiftStartHour: number;  // when day shift begins (default 6)
+  overrides: ShiftOverride[]; // Enterprise only
+  // Plant coverage fields:
+  activeDays: boolean[];          // [Sun, Mon, Tue, Wed, Thu, Fri, Sat] — which days are operational
+  operatingHoursStart: number;    // 0–23, plant opens (used for non-24h operation)
+  operatingHoursEnd: number;      // 0–24, plant closes (24 = midnight = 24h continuous)
+}
+
+// Recurring machine unavailability rule — generates periodic downtime windows.
+type RecurrenceType = 'weekly' | 'monthly';
+
+interface RecurringDowntimeRule {
+  id: string;
+  recurrenceType: RecurrenceType;
+  dayOfWeek?: number;     // 0=Sun … 6=Sat (when recurrenceType === 'weekly')
+  dayOfMonth?: number;    // 1–31 (when recurrenceType === 'monthly')
+  startHour: number;      // 0–23: time-of-day the window starts
+  startMinute: number;    // 0–59
+  durationHours: number;  // length of each unavailability window
+  startDate: Date;        // recurrence validity start
+  endDate?: Date;         // optional recurrence validity end (undefined = indefinite)
+  reason?: string;
 }
 ```
 
@@ -511,6 +581,8 @@ interface ShiftRotation {
 | *(no VBA equivalent)* | MachineDowntime — per-machine unavailability windows |
 | *(no VBA equivalent)* | StageTypeDefinition — user-configurable stage types (Inoculum, Seed n-2, Seed n-1, Production) with count per chain |
 | *(no VBA equivalent)* | BatchNamingConfig — batch nomenclature rules (prefix, suffix, step, counter reset, per-line or shared) |
+| Hardcoded 4-team 12h shift cycle | ShiftRotation — configurable teams, presets, variable shift lengths, plant coverage, gap detection |
+| *(no VBA equivalent)* | RecurringDowntimeRule — periodic machine unavailability (weekly/monthly recurrence) |
 
 ---
 
@@ -633,13 +705,13 @@ npm run lint         # Run linter
 
 ### Build order (Phase 1–6 for Free MVP)
 
-1. **`lib/types.ts`** — Define all TypeScript interfaces (done: includes EquipmentGroup, MachineDowntime, TurnaroundActivity, ShutdownPeriod, MachineDisplayGroup, StageTypeDefinition, BatchNamingRule, BatchNamingConfig; StageType is `string` referencing StageTypeDefinition.id)
+1. **`lib/types.ts`** — Define all TypeScript interfaces (done: includes EquipmentGroup, MachineDowntime, RecurringDowntimeRule, TurnaroundActivity, ShutdownPeriod, MachineDisplayGroup, StageTypeDefinition, BatchNamingRule, BatchNamingConfig, ShiftTeam, ShiftOverride, ShiftRotation; StageType is `string` referencing StageTypeDefinition.id)
 2. **`lib/excel-io.ts`** — Import from legacy `.xlsx` format + export
-3. **`lib/store.ts`** — Zustand store with CRUD for all entities (done: Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup, ShutdownPeriod, StageTypeDefinition, BatchNamingConfig + bulkShiftStages)
+3. **`lib/store.ts`** — Zustand store with CRUD for all entities (done: Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup, ShutdownPeriod, StageTypeDefinition, BatchNamingConfig, ShiftRotation + bulkShiftStages + stageTypesMode)
 4. **`lib/timeline-math.ts`** — Port the VBA pixel geometry functions
 5. **`lib/holidays.ts`** — Slovenian holidays + Gauss Easter
 6. **`lib/colors.ts`** — `seriesNumber mod 12` color palette
-7. **`lib/shift-rotation.ts`** — 4-team cycle
+7. **`lib/shift-rotation.ts`** — Configurable shift rotation (done: multi-preset support, variable shift lengths, plant coverage with gap detection, `ShiftCoverageConfig`, `isShiftCoveredAt()`)
 8. **`components/timeline/`** — Core timeline renderer
 9. **`app/wallboard/`** — Operator wallboard view (read-only + task confirm)
 10. **`lib/scheduling.ts`** + **`lib/seed-train.ts`** — Business rules engine
