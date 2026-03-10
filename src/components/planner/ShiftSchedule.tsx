@@ -813,6 +813,34 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
               Available in the Enterprise edition.
             </p>
           </div>
+
+          {/* ── Holiday Calendar ── */}
+          <div className="pp-shift-section">
+            <div className="pp-shift-section-header">
+              <span className="pp-shift-section-title">Holiday Calendar</span>
+            </div>
+            <p className="pp-shift-hint" style={{ margin: '4px 0 8px' }}>
+              Slovenian public holidays (12 static dates + Easter Monday) are built into the
+              system and automatically highlighted on the Wallboard and Schedule views.
+            </p>
+            <div className="pp-naming-erp-cta">
+              <div className="pp-naming-erp-header">
+                <span className="pp-naming-erp-icon">&#x1F4C5;</span>
+                <span className="pp-naming-erp-title">Custom Holiday Calendars</span>
+                <span className="pp-naming-erp-badge">Enterprise</span>
+              </div>
+              <p className="pp-naming-erp-desc">
+                Import holiday calendars for any country or region. Support for
+                multi-site operations with different regional calendars.
+              </p>
+              <a
+                href="mailto:hello@plantpulse.pro?subject=Custom%20Holiday%20Calendar%20Inquiry"
+                className="pp-naming-erp-link"
+              >
+                Ask for a quote &rarr; hello@plantpulse.pro
+              </a>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
