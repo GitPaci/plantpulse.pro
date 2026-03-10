@@ -2120,3 +2120,158 @@ body {
   font-weight: 600;
   color: var(--pp-heading);
 }
+
+/* Operation presets */
+
+.pp-shift-operation-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.pp-shift-operation-btn {
+  font-size: 10px;
+  padding: 3px 8px;
+  border: 1px solid var(--pp-border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--pp-text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.pp-shift-operation-btn:hover:not(:disabled) {
+  background: #f0f4ff;
+  border-color: #93a8d1;
+}
+
+.pp-shift-operation-btn.active {
+  background: #e8eeff;
+  border-color: var(--pp-accent, #0066FF);
+  color: var(--pp-accent, #0066FF);
+  font-weight: 600;
+}
+
+.pp-shift-operation-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Active days toggles */
+
+.pp-shift-active-days {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 8px;
+}
+
+.pp-shift-day-toggle {
+  width: 30px;
+  height: 26px;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid var(--pp-border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--pp-muted);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pp-shift-day-toggle:hover {
+  border-color: #93a8d1;
+}
+
+.pp-shift-day-toggle.active {
+  background: var(--pp-accent, #0066FF);
+  border-color: var(--pp-accent, #0066FF);
+  color: #fff;
+}
+
+/* Operating hours row */
+
+.pp-shift-hours-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+/* Coverage heatmap */
+
+.pp-shift-heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 4px;
+}
+
+.pp-shift-heatmap-row {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.pp-shift-heatmap-row-label {
+  width: 22px;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--pp-muted);
+  text-align: right;
+  flex-shrink: 0;
+  padding-right: 3px;
+}
+
+.pp-shift-heatmap-header {
+  flex: 1;
+  min-width: 0;
+  font-size: 8px;
+  color: var(--pp-muted);
+  text-align: center;
+}
+
+.pp-shift-heatmap-cell {
+  flex: 1;
+  min-width: 0;
+  height: 14px;
+  border-radius: 2px;
+}
+
+.pp-shift-heatmap-cell.covered {
+  background: #22c55e;
+  opacity: 0.7;
+}
+
+.pp-shift-heatmap-cell.gap {
+  background: #f59e0b;
+  opacity: 0.7;
+}
+
+.pp-shift-heatmap-cell.outside {
+  background: #e5e7eb;
+  opacity: 0.5;
+}
+
+/* Coverage badge */
+
+.pp-shift-coverage-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.pp-shift-coverage-badge.ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.pp-shift-coverage-badge.warning {
+  background: #fef3c7;
+  color: #92400e;
+}

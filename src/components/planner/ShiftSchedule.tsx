@@ -1,10 +1,10 @@
 'use client';
 
-// Shift Schedule modal — configure shift teams, rotation pattern, anchor date.
-// Follows the same draft-state pattern as EquipmentSetup/ProcessSetup:
+// Shift Schedule modal — configure shift teams, rotation pattern, plant coverage,
+// and anchor date. Follows the same draft-state pattern as EquipmentSetup/ProcessSetup:
 // all edits are local until Save. Reuses pp-modal-* CSS classes.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlantPulseStore } from '@/lib/store';
 import type { ShiftRotation, ShiftTeam } from '@/lib/types';
 
@@ -15,17 +15,241 @@ function toDatetimeLocal(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// ─── Cycle pattern presets ────────────────────────────────────────────
+// ─── Rotation presets ─────────────────────────────────────────────────
 
-const CYCLE_PRESETS: { label: string; pattern: number[] }[] = [
-  { label: 'Russian 4-team (default)', pattern: [0, 2, 1, 3, 2, 0, 3, 1] },
-  { label: 'Simple rotation A-B-C-D',  pattern: [0, 1, 2, 3] },
-  { label: '2-team alternating',        pattern: [0, 1] },
-  { label: 'Custom',                    pattern: [] },
+interface RotationPreset {
+  id: string;
+  label: string;
+  teams: number;
+  shiftLength: number;
+  pattern: number[];
+  description: string;
+}
+
+const ROTATION_PRESETS: RotationPreset[] = [
+  {
+    id: 'russian',
+    label: 'Russian 4-team',
+    teams: 4, shiftLength: 12,
+    pattern: [0, 2, 1, 3, 2, 0, 3, 1],
+    description: '4 teams, 12h shifts, 4-day cycle. Classic pharma/chemical rotation.',
+  },
+  {
+    id: 'simple-abcd',
+    label: 'Simple A-B-C-D',
+    teams: 4, shiftLength: 12,
+    pattern: [0, 1, 2, 3],
+    description: '4 teams rotate sequentially, each team works one 12h shift then rests.',
+  },
+  {
+    id: '2-team',
+    label: '2-team alternating',
+    teams: 2, shiftLength: 12,
+    pattern: [0, 1],
+    description: '2 teams alternate day/night, simplest 24/7 coverage.',
+  },
+  {
+    id: 'navy',
+    label: 'Navy 3-shift (8h)',
+    teams: 3, shiftLength: 8,
+    pattern: [0, 1, 2],
+    description: '3 teams, 8h shifts (06-14, 14-22, 22-06). Classic industrial 3-shift.',
+  },
+  {
+    id: 'panama',
+    label: 'Panama 2-2-3',
+    teams: 4, shiftLength: 12,
+    // 28-day cycle: 2on-2off-3on, 2off-2on-3off pattern for each team
+    pattern: [
+      0,0, 1,1, 0,0,0, 1,1, 0,0, 1,1,1,
+      2,2, 3,3, 2,2,2, 3,3, 2,2, 3,3,3,
+    ],
+    description: '4 teams, 12h shifts, 28-day cycle. Workers average 42h/week.',
+  },
+  {
+    id: 'pitman',
+    label: 'Pitman 2-3-2',
+    teams: 4, shiftLength: 12,
+    // 14-day cycle per pair of teams
+    pattern: [
+      0,0, 1,1,1, 0,0, 1,1, 0,0,0, 1,1,
+      2,2, 3,3,3, 2,2, 3,3, 2,2,2, 3,3,
+    ],
+    description: '4 teams, 12h shifts, 28-day cycle. 2on-3off-2on-2off-3on-2off.',
+  },
+  {
+    id: 'dupont',
+    label: 'DuPont',
+    teams: 4, shiftLength: 12,
+    // 28-day DuPont schedule (4 weeks, one 7-day off block per team per cycle)
+    pattern: [
+      // Week 1: Team 0 nights ×4, Team 1 days ×4, then swap
+      0,1, 0,1, 0,1, 0,1,
+      // Week 2
+      2,3, 2,3, 2,3, 0,3,
+      // Week 3
+      2,1, 2,1, 2,1, 2,1,
+      // Week 4
+      0,3, 0,3, 0,3, 2,3,
+    ],
+    description: '4 teams, 12h shifts, 28-day cycle with a 7-day rest block.',
+  },
+  {
+    id: '4on2off',
+    label: '4-on-2-off',
+    teams: 3, shiftLength: 8,
+    pattern: [
+      0,1,2, 0,1,2, 0,1,2, 0,1,2,
+      1,2,0, 1,2,0,
+    ],
+    description: '3 teams, 8h shifts, work 4 days then rest 2. 18-slot cycle.',
+  },
+  {
+    id: 'custom',
+    label: 'Custom',
+    teams: 0, shiftLength: 0,
+    pattern: [],
+    description: 'Define your own rotation pattern.',
+  },
 ];
 
-// Day names for cycle visualization
-const SHIFT_LABELS = ['Day', 'Night'] as const;
+// ─── Operation presets ────────────────────────────────────────────────
+
+interface OperationPreset {
+  id: string;
+  label: string;
+  activeDays: boolean[];
+  hoursStart: number;
+  hoursEnd: number;
+  description: string;
+}
+
+const OPERATION_PRESETS: OperationPreset[] = [
+  {
+    id: '24/7', label: '24/7',
+    activeDays: [true, true, true, true, true, true, true],
+    hoursStart: 0, hoursEnd: 24,
+    description: 'Continuous operation, all days.',
+  },
+  {
+    id: '24/6', label: '24/6',
+    activeDays: [false, true, true, true, true, true, true],
+    hoursStart: 0, hoursEnd: 24,
+    description: '24h operation Monday–Saturday, Sunday off.',
+  },
+  {
+    id: '24/5', label: '24/5',
+    activeDays: [false, true, true, true, true, true, false],
+    hoursStart: 0, hoursEnd: 24,
+    description: '24h operation Monday–Friday.',
+  },
+  {
+    id: '16/5', label: '16/5',
+    activeDays: [false, true, true, true, true, true, false],
+    hoursStart: 6, hoursEnd: 22,
+    description: '2 shifts (06–22) Monday–Friday.',
+  },
+  {
+    id: 'office', label: 'Office Hours',
+    activeDays: [false, true, true, true, true, true, false],
+    hoursStart: 7, hoursEnd: 15,
+    description: 'Standard 8h day shift Monday–Friday.',
+  },
+  {
+    id: 'custom-op', label: 'Custom',
+    activeDays: [], hoursStart: 0, hoursEnd: 0,
+    description: 'Define your own coverage window.',
+  },
+];
+
+// Day abbreviations (Sunday first)
+const DAY_ABBR = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+// ─── Coverage heatmap computation ─────────────────────────────────────
+
+// Returns 7×24 grid: 'covered' | 'gap' | 'outside'
+type CoverageCell = 'covered' | 'gap' | 'outside';
+
+function computeCoverage(draft: ShiftRotation): CoverageCell[][] {
+  const grid: CoverageCell[][] = Array.from({ length: 7 }, () => Array(24).fill('outside'));
+
+  if (draft.cyclePattern.length === 0 || draft.shiftLengthHours <= 0) return grid;
+
+  const is24h = draft.operatingHoursStart === 0 && draft.operatingHoursEnd === 24;
+
+  // Determine which hours are within operating window
+  for (let day = 0; day < 7; day++) {
+    if (!draft.activeDays[day]) continue;
+    for (let hour = 0; hour < 24; hour++) {
+      const inWindow = is24h || (
+        draft.operatingHoursEnd > draft.operatingHoursStart
+          ? hour >= draft.operatingHoursStart && hour < draft.operatingHoursEnd
+          : hour >= draft.operatingHoursStart || hour < draft.operatingHoursEnd // overnight window
+      );
+      if (inWindow) {
+        grid[day][hour] = 'gap'; // default to gap, will mark covered below
+      }
+    }
+  }
+
+  // Simulate one full cycle to determine which hours are covered.
+  // For patterns that span multiple days, we run through enough days to cover the full cycle.
+  const cycleLengthHours = draft.cyclePattern.length * draft.shiftLengthHours;
+  const cycleLengthDays = Math.ceil(cycleLengthHours / 24);
+  // Run through enough weeks to catch the full pattern mapped onto weekdays
+  const weeksToSimulate = Math.max(1, Math.ceil(cycleLengthDays / 7));
+  const totalDays = weeksToSimulate * 7;
+
+  for (let d = 0; d < totalDays; d++) {
+    const dayOfWeek = d % 7;
+    if (!draft.activeDays[dayOfWeek]) continue;
+
+    // For each hour of this day, figure out which shift block it falls into
+    for (let hour = 0; hour < 24; hour++) {
+      if (grid[dayOfWeek][hour] === 'outside') continue;
+
+      // Total hours from cycle start
+      const totalHoursFromStart = d * 24 + hour;
+      // Which shift block does this hour fall into?
+      const shiftBlock = Math.floor(totalHoursFromStart / draft.shiftLengthHours);
+      const patternIdx = shiftBlock % draft.cyclePattern.length;
+      const teamIdx = draft.cyclePattern[patternIdx];
+
+      // If a valid team is assigned, this hour is covered
+      if (teamIdx !== undefined && teamIdx >= 0 && teamIdx < draft.teams.length) {
+        grid[dayOfWeek][hour] = 'covered';
+      }
+    }
+  }
+
+  return grid;
+}
+
+function countGapHours(coverage: CoverageCell[][]): number {
+  let gaps = 0;
+  for (let day = 0; day < 7; day++) {
+    for (let hour = 0; hour < 24; hour++) {
+      if (coverage[day][hour] === 'gap') gaps++;
+    }
+  }
+  return gaps;
+}
+
+// ─── Shift label helper ──────────────────────────────────────────────
+
+function shiftStepLabel(stepIdx: number, shiftLengthHours: number): string {
+  const shiftsPerDay = 24 / shiftLengthHours;
+  const dayNum = Math.floor(stepIdx / shiftsPerDay) + 1;
+  const slotInDay = stepIdx % shiftsPerDay;
+  if (shiftsPerDay === 2) {
+    return `D${dayNum} ${slotInDay === 0 ? 'Day' : 'Night'}`;
+  }
+  if (shiftsPerDay === 3) {
+    const labels = ['Morn', 'Aftn', 'Night'];
+    return `D${dayNum} ${labels[slotInDay] || `S${slotInDay + 1}`}`;
+  }
+  return `D${dayNum} S${slotInDay + 1}`;
+}
 
 // ─── Component ────────────────────────────────────────────────────────
 
@@ -51,6 +275,9 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
         cyclePattern: [...storeRotation.cyclePattern],
         anchorDate: new Date(storeRotation.anchorDate),
         overrides: [...storeRotation.overrides],
+        activeDays: [...(storeRotation.activeDays || [true, true, true, true, true, true, true])],
+        operatingHoursStart: storeRotation.operatingHoursStart ?? 0,
+        operatingHoursEnd: storeRotation.operatingHoursEnd ?? 24,
       });
       setDirty(false);
     }
@@ -67,8 +294,8 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
   }, []);
 
   const addTeam = useCallback(() => {
-    const names = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta'];
-    const colors = ['#0066FF', '#00CC00', '#FF0000', '#FFFD00', '#FF6600', '#9966FF'];
+    const names = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta'];
+    const colors = ['#0066FF', '#00CC00', '#FF0000', '#FFFD00', '#FF6600', '#9966FF', '#00CCCC', '#CC6699'];
     const idx = draft.teams.length;
     setDraft((prev) => ({
       ...prev,
@@ -80,20 +307,41 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
   const removeTeam = useCallback((idx: number) => {
     setDraft((prev) => {
       const newTeams = prev.teams.filter((_, i) => i !== idx);
-      // Remove references to deleted team from cycle pattern
       const newPattern = prev.cyclePattern.filter((t) => t < newTeams.length);
       return { ...prev, teams: newTeams, cyclePattern: newPattern.length > 0 ? newPattern : [0] };
     });
     setDirty(true);
   }, []);
 
-  // ── Cycle editing ───────────────────────────────────────────────
+  // ── Rotation preset ───────────────────────────────────────────
 
-  const applyPreset = useCallback((pattern: number[]) => {
-    if (pattern.length === 0) return; // "Custom" — do nothing, user edits manually
-    setDraft((prev) => ({ ...prev, cyclePattern: [...pattern] }));
+  const applyRotationPreset = useCallback((preset: RotationPreset) => {
+    if (preset.id === 'custom') return;
+    setDraft((prev) => {
+      // Auto-adjust team count
+      let newTeams = [...prev.teams.map((t) => ({ ...t }))];
+      while (newTeams.length < preset.teams) {
+        const names = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta'];
+        const colors = ['#0066FF', '#00CC00', '#FF0000', '#FFFD00', '#FF6600', '#9966FF', '#00CCCC', '#CC6699'];
+        newTeams.push({
+          name: names[newTeams.length] || `Team ${newTeams.length + 1}`,
+          color: colors[newTeams.length] || '#888888',
+        });
+      }
+      if (newTeams.length > preset.teams) {
+        newTeams = newTeams.slice(0, preset.teams);
+      }
+      return {
+        ...prev,
+        teams: newTeams,
+        shiftLengthHours: preset.shiftLength,
+        cyclePattern: [...preset.pattern],
+      };
+    });
     setDirty(true);
   }, []);
+
+  // ── Cycle editing ───────────────────────────────────────────────
 
   const updateCycleStep = useCallback((idx: number, teamIdx: number) => {
     setDraft((prev) => ({
@@ -119,6 +367,32 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
     setDirty(true);
   }, []);
 
+  // ── Coverage / operation editing ──────────────────────────────
+
+  const applyOperationPreset = useCallback((preset: OperationPreset) => {
+    if (preset.id === 'custom-op') return;
+    setDraft((prev) => ({
+      ...prev,
+      activeDays: [...preset.activeDays],
+      operatingHoursStart: preset.hoursStart,
+      operatingHoursEnd: preset.hoursEnd,
+    }));
+    setDirty(true);
+  }, []);
+
+  const toggleActiveDay = useCallback((dayIdx: number) => {
+    setDraft((prev) => ({
+      ...prev,
+      activeDays: prev.activeDays.map((v, i) => (i === dayIdx ? !v : v)),
+    }));
+    setDirty(true);
+  }, []);
+
+  const updateOperatingHours = useCallback((field: 'operatingHoursStart' | 'operatingHoursEnd', value: number) => {
+    setDraft((prev) => ({ ...prev, [field]: value }));
+    setDirty(true);
+  }, []);
+
   // ── Anchor / day shift start ────────────────────────────────────
 
   const updateAnchor = useCallback((dateStr: string) => {
@@ -141,22 +415,37 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
     setDirty(false);
   }, [draft, setShiftRotation]);
 
-  if (!open) return null;
+  // ── Computed values ─────────────────────────────────────────────
 
-  // Detect which preset matches current pattern
+  const coverage = useMemo(() => computeCoverage(draft), [draft]);
+  const gapHours = useMemo(() => countGapHours(coverage), [coverage]);
+
+  // Detect matched rotation preset
   const patternStr = draft.cyclePattern.join(',');
-  const matchedPreset = CYCLE_PRESETS.find(
-    (p) => p.pattern.length > 0 && p.pattern.join(',') === patternStr
+  const matchedRotation = ROTATION_PRESETS.find(
+    (p) => p.pattern.length > 0 && p.pattern.join(',') === patternStr && p.shiftLength === draft.shiftLengthHours
+  );
+
+  // Detect matched operation preset
+  const matchedOperation = OPERATION_PRESETS.find(
+    (p) => p.activeDays.length > 0 &&
+      p.activeDays.join(',') === draft.activeDays.join(',') &&
+      p.hoursStart === draft.operatingHoursStart &&
+      p.hoursEnd === draft.operatingHoursEnd
   );
 
   // Cycle length in days
   const cycleDays = (draft.cyclePattern.length * draft.shiftLengthHours) / 24;
 
+  const is24h = draft.operatingHoursStart === 0 && draft.operatingHoursEnd === 24;
+
+  if (!open) return null;
+
   return (
     <div className="pp-modal-backdrop" onClick={onClose}>
       <div
         className="pp-modal"
-        style={{ maxWidth: 600 }}
+        style={{ maxWidth: 680 }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -223,18 +512,19 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
             <div className="pp-shift-section-header">
               <span className="pp-shift-section-title">Rotation Pattern</span>
               <span className="pp-shift-cycle-info">
-                {draft.cyclePattern.length} slots = {cycleDays} day{cycleDays !== 1 ? 's' : ''}
+                {draft.cyclePattern.length} slots &times; {draft.shiftLengthHours}h = {cycleDays} day{cycleDays !== 1 ? 's' : ''}
               </span>
             </div>
 
             {/* Preset selector */}
             <div className="pp-shift-presets">
-              {CYCLE_PRESETS.map((preset) => (
+              {ROTATION_PRESETS.map((preset) => (
                 <button
-                  key={preset.label}
-                  className={`pp-shift-preset-btn${matchedPreset?.label === preset.label ? ' active' : ''}`}
-                  onClick={() => applyPreset(preset.pattern)}
-                  disabled={preset.pattern.length === 0}
+                  key={preset.id}
+                  className={`pp-shift-preset-btn${matchedRotation?.id === preset.id ? ' active' : ''}`}
+                  onClick={() => applyRotationPreset(preset)}
+                  disabled={preset.id === 'custom'}
+                  title={preset.description}
                 >
                   {preset.label}
                 </button>
@@ -243,36 +533,32 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
 
             {/* Cycle grid — each step is one shift slot */}
             <div className="pp-shift-cycle-grid">
-              {draft.cyclePattern.map((teamIdx, stepIdx) => {
-                const shiftType = stepIdx % 2; // 0=day, 1=night within each day
-                const dayNum = Math.floor(stepIdx / 2) + 1;
-                return (
-                  <div key={stepIdx} className="pp-shift-cycle-step">
-                    <span className="pp-shift-step-label">
-                      D{dayNum} {SHIFT_LABELS[shiftType]}
-                    </span>
-                    <select
-                      value={teamIdx}
-                      onChange={(e) => updateCycleStep(stepIdx, Number(e.target.value))}
-                      className="pp-setup-select pp-shift-step-select"
-                      style={{ borderLeftColor: draft.teams[teamIdx]?.color || '#ccc', borderLeftWidth: 3 }}
+              {draft.cyclePattern.map((teamIdx, stepIdx) => (
+                <div key={stepIdx} className="pp-shift-cycle-step">
+                  <span className="pp-shift-step-label">
+                    {shiftStepLabel(stepIdx, draft.shiftLengthHours)}
+                  </span>
+                  <select
+                    value={teamIdx}
+                    onChange={(e) => updateCycleStep(stepIdx, Number(e.target.value))}
+                    className="pp-setup-select pp-shift-step-select"
+                    style={{ borderLeftColor: draft.teams[teamIdx]?.color || '#ccc', borderLeftWidth: 3 }}
+                  >
+                    {draft.teams.map((t, ti) => (
+                      <option key={ti} value={ti}>{t.name}</option>
+                    ))}
+                  </select>
+                  {draft.cyclePattern.length > 2 && (
+                    <button
+                      className="pp-shift-step-remove"
+                      onClick={() => removeCycleStep(stepIdx)}
+                      title="Remove slot"
                     >
-                      {draft.teams.map((t, ti) => (
-                        <option key={ti} value={ti}>{t.name}</option>
-                      ))}
-                    </select>
-                    {draft.cyclePattern.length > 2 && (
-                      <button
-                        className="pp-shift-step-remove"
-                        onClick={() => removeCycleStep(stepIdx)}
-                        title="Remove slot"
-                      >
-                        &times;
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
+                      &times;
+                    </button>
+                  )}
+                </div>
+              ))}
               <button
                 className="pp-shift-cycle-add"
                 onClick={addCycleStep}
@@ -290,8 +576,98 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
                   key={i}
                   className="pp-shift-preview-block"
                   style={{ background: draft.teams[teamIdx]?.color || '#ccc' }}
-                  title={`${draft.teams[teamIdx]?.name || '?'} — ${SHIFT_LABELS[i % 2]}`}
+                  title={`${draft.teams[teamIdx]?.name || '?'} — ${shiftStepLabel(i, draft.shiftLengthHours)}`}
                 />
+              ))}
+            </div>
+          </div>
+
+          {/* ── Plant Coverage section ── */}
+          <div className="pp-shift-section">
+            <div className="pp-shift-section-header">
+              <span className="pp-shift-section-title">Plant Coverage</span>
+              <span className={`pp-shift-coverage-badge${gapHours === 0 ? ' ok' : ' warning'}`}>
+                {gapHours === 0 ? '\u2713 Fully covered' : `\u26A0 ${gapHours}h uncovered/week`}
+              </span>
+            </div>
+
+            {/* Operation presets */}
+            <div className="pp-shift-operation-presets">
+              {OPERATION_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  className={`pp-shift-operation-btn${matchedOperation?.id === preset.id ? ' active' : ''}`}
+                  onClick={() => applyOperationPreset(preset)}
+                  disabled={preset.id === 'custom-op'}
+                  title={preset.description}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Active days toggles */}
+            <div className="pp-shift-active-days">
+              <span className="pp-shift-hint" style={{ marginRight: 6 }}>Active days:</span>
+              {DAY_ABBR.map((abbr, i) => (
+                <button
+                  key={i}
+                  className={`pp-shift-day-toggle${draft.activeDays[i] ? ' active' : ''}`}
+                  onClick={() => toggleActiveDay(i)}
+                  title={`Toggle ${abbr}`}
+                >
+                  {abbr}
+                </button>
+              ))}
+            </div>
+
+            {/* Operating hours (only when not 24h) */}
+            {!is24h && (
+              <div className="pp-shift-hours-row">
+                <label className="pp-shift-hint">Open from</label>
+                <select
+                  value={draft.operatingHoursStart}
+                  onChange={(e) => updateOperatingHours('operatingHoursStart', Number(e.target.value))}
+                  className="pp-setup-select"
+                  style={{ width: 80, fontSize: 11 }}
+                >
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+                  ))}
+                </select>
+                <label className="pp-shift-hint">to</label>
+                <select
+                  value={draft.operatingHoursEnd}
+                  onChange={(e) => updateOperatingHours('operatingHoursEnd', Number(e.target.value))}
+                  className="pp-setup-select"
+                  style={{ width: 80, fontSize: 11 }}
+                >
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {i + 1 === 24 ? '24:00' : `${String(i + 1).padStart(2, '0')}:00`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Coverage heatmap: 7 rows (days) × 24 columns (hours) */}
+            <div className="pp-shift-heatmap">
+              {/* Header row */}
+              <div className="pp-shift-heatmap-row">
+                <span className="pp-shift-heatmap-row-label" />
+                {Array.from({ length: 24 }, (_, h) => (
+                  <span key={h} className="pp-shift-heatmap-header">{h}</span>
+                ))}
+              </div>
+              {/* Data rows — Monday first for display (reorder from Sun-first array) */}
+              {[1, 2, 3, 4, 5, 6, 0].map((dayIdx) => (
+                <div key={dayIdx} className="pp-shift-heatmap-row">
+                  <span className="pp-shift-heatmap-row-label">{DAY_ABBR[dayIdx]}</span>
+                  {coverage[dayIdx].map((cell, h) => (
+                    <span key={h} className={`pp-shift-heatmap-cell ${cell}`} title={`${DAY_ABBR[dayIdx]} ${String(h).padStart(2, '0')}:00 — ${cell}`} />
+                  ))}
+                </div>
               ))}
             </div>
           </div>
@@ -324,23 +700,14 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
                   className="pp-setup-select"
                   style={{ width: 100 }}
                 >
-                  {Array.from({ length: 12 }, (_, i) => (
+                  {Array.from({ length: 24 }, (_, i) => (
                     <option key={i} value={i}>
                       {String(i).padStart(2, '0')}:00
                     </option>
                   ))}
                 </select>
                 <span className="pp-shift-hint">
-                  Night shift starts {draft.shiftLengthHours}h later at{' '}
-                  {String((draft.dayShiftStartHour + draft.shiftLengthHours) % 24).padStart(2, '0')}:00.
-                </span>
-              </div>
-
-              <div className="pp-downtime-field">
-                <label className="pp-downtime-field-label">Shift Length</label>
-                <span className="pp-shift-readonly">{draft.shiftLengthHours}h</span>
-                <span className="pp-shift-hint pp-shift-enterprise">
-                  Custom shift lengths available in Enterprise edition.
+                  Shift length: {draft.shiftLengthHours}h (set by rotation preset).
                 </span>
               </div>
             </div>

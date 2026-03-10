@@ -79,7 +79,7 @@ export default function WallboardPage() {
     }
   }, []);
 
-  const teamIdx = useMemo(() => currentShiftTeam(now, shiftRotation.anchorDate, shiftRotation.cyclePattern), [now, shiftRotation.anchorDate, shiftRotation.cyclePattern]);
+  const teamIdx = useMemo(() => currentShiftTeam(now, shiftRotation.anchorDate, shiftRotation.cyclePattern, shiftRotation.shiftLengthHours), [now, shiftRotation.anchorDate, shiftRotation.cyclePattern, shiftRotation.shiftLengthHours]);
   const teamColor = shiftRotation.teams[teamIdx]?.color || '#888';
   const teamName = shiftRotation.teams[teamIdx]?.name || `Team ${teamIdx}`;
   const dayStart = shiftRotation.dayShiftStartHour;
