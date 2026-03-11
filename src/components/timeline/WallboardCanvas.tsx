@@ -551,6 +551,8 @@ interface WallboardCanvasProps {
   showShiftBand?: boolean;
   canvasId?: string;
   nightMode?: boolean;
+  /** Called when a batch bar is clicked — passes the stage ID. Planner uses this to open StageDetailPanel. */
+  onStageClick?: (stageId: string) => void;
 }
 
 export default function WallboardCanvas({
@@ -561,6 +563,7 @@ export default function WallboardCanvas({
   showShiftBand: showShiftBandProp = true,
   canvasId,
   nightMode = false,
+  onStageClick,
 }: WallboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -677,12 +680,89 @@ export default function WallboardCanvas({
     return () => clearInterval(interval);
   }, [draw]);
 
+  // ── Hit-testing: find which stage bar is at a given CSS pixel coordinate ──
+
+  const machineRowMap = new Map<string, RowInfo>();
+  for (const r of rows) {
+    if (r.type === 'machine') machineRowMap.set(r.machineId, r);
+  }
+
+  const hitTestStage = useCallback(
+    (cssX: number, cssY: number): string | null => {
+      for (const stage of visibleStages) {
+        const row = machineRowMap.get(stage.machineId);
+        if (!row) continue;
+
+        const pos = stageBarPosition(
+          viewConfig.viewStart,
+          stage.startDatetime,
+          stage.endDatetime,
+          dims.width,
+          LEFT_MARGIN,
+          viewConfig.numberOfDays
+        );
+        if (pos.offScreen) continue;
+
+        const barY = row.y + BAR_Y_PAD;
+        if (
+          cssX >= pos.left &&
+          cssX <= pos.left + pos.width &&
+          cssY >= barY &&
+          cssY <= barY + BAR_HEIGHT
+        ) {
+          return stage.id;
+        }
+      }
+      return null;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleStages, viewConfig, dims.width, rows]
+  );
+
+  const handleCanvasClick = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!onStageClick) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const cssX = event.clientX - rect.left;
+      const cssY = event.clientY - rect.top;
+
+      const stageId = hitTestStage(cssX, cssY);
+      if (stageId) {
+        onStageClick(stageId);
+      }
+    },
+    [onStageClick, hitTestStage]
+  );
+
+  const handleCanvasMouseMove = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!onStageClick) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const cssX = event.clientX - rect.left;
+      const cssY = event.clientY - rect.top;
+
+      canvas.style.cursor = hitTestStage(cssX, cssY) ? 'pointer' : 'default';
+    },
+    [onStageClick, hitTestStage]
+  );
+
   return (
     <div
       ref={containerRef}
       style={{ width: '100%', height: '100%', overflow: 'auto' }}
     >
-      <canvas ref={canvasRef} id={canvasId} />
+      <canvas
+        ref={canvasRef}
+        id={canvasId}
+        onClick={handleCanvasClick}
+        onMouseMove={onStageClick ? handleCanvasMouseMove : undefined}
+      />
     </div>
   );
 }

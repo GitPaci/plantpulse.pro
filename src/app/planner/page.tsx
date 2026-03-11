@@ -9,6 +9,7 @@ import WallboardCanvas from '@/components/timeline/WallboardCanvas';
 import EquipmentSetup from '@/components/planner/EquipmentSetup';
 import ProcessSetup from '@/components/planner/ProcessSetup';
 import ShiftSchedule from '@/components/planner/ShiftSchedule';
+import StageDetailPanel from '@/components/planner/StageDetailPanel';
 import { usePlantPulseStore } from '@/lib/store';
 import { subDays, addDays, startOfDay } from 'date-fns';
 import { useState } from 'react';
@@ -174,10 +175,11 @@ export default function PlannerPage() {
   const stages = usePlantPulseStore((s) => s.stages);
   const batchChains = usePlantPulseStore((s) => s.batchChains);
 
-  // Modal state
+  // Modal / panel state
   const [equipmentSetupOpen, setEquipmentSetupOpen] = useState(false);
   const [processSetupOpen, setProcessSetupOpen] = useState(false);
   const [shiftScheduleOpen, setShiftScheduleOpen] = useState(false);
+  const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
 
   function shiftView(days: number) {
     setViewConfig({
@@ -247,7 +249,7 @@ export default function PlannerPage() {
       <div className="flex-1 min-h-0 flex">
         {/* Timeline */}
         <div className="flex-1 min-w-0">
-          <WallboardCanvas />
+          <WallboardCanvas onStageClick={(id) => setSelectedStageId(id)} />
         </div>
 
         {/* Planning sidebar */}
@@ -348,6 +350,10 @@ export default function PlannerPage() {
       <ShiftSchedule
         open={shiftScheduleOpen}
         onClose={() => setShiftScheduleOpen(false)}
+      />
+      <StageDetailPanel
+        stageId={selectedStageId}
+        onClose={() => setSelectedStageId(null)}
       />
     </div>
   );
