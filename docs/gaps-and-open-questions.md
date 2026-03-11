@@ -319,12 +319,76 @@ timeline canvas. The following tracks what is implemented vs. pending.
 
 ### Pending — Batch Operations
 
+> **Status:** Ready to start. All prerequisites are in place — data model (types.ts),
+> store CRUD (stages + batch chains + bulkShiftStages), demo data generator, setup
+> modals (Equipment, Process, Shift Schedule), and canvas rendering (batch bars,
+> shift band, calendar grid). The planner page scaffold exists with placeholder
+> buttons for "New Batch Chain" and "Bulk Shift".
+
+#### Recommended build order
+
+**Step 1 — Business logic engines (pure functions, no UI)**
+
+| File | Purpose | Key functions |
+|------|---------|---------------|
+| `lib/scheduling.ts` | Overlap detection + auto-scheduling | `detectOverlap(stage, existingStages)`, `findAvailableVessel(machineGroup, timeWindow, stages)`, `validateBulkShift(stageIds, deltaHours)` |
+| `lib/seed-train.ts` | Back-calculation from fermenter start | `backCalculateChain(finalStageStart, stageDefaults)` — walks product line's `StageDefault[]` backwards to compute start times for each upstream stage |
+
+These are pure functions with no UI dependencies. `scheduling.ts` needs to integrate
+turnaround activity durations (`turnaroundTotalHours()`) into gap enforcement, and
+respect machine downtime (`isMachineUnavailable()`). Overlap detection logic is ported
+from VBA `DateDiff("h", lastEnd, newStart) < 0`.
+
+**Step 2 — Canvas click handlers + StageDetailPanel**
+
+| Component | Purpose |
+|-----------|---------|
+| Canvas click handler in `WallboardCanvas.tsx` | Hit-test batch bars on click, emit `onStageClick(stageId)` callback |
+| `components/planner/StageDetailPanel.tsx` | Side panel showing stage + chain details; editable fields: vessel, start/end datetime, state; "fixed duration" and "link to next" modes (ported from VBA `ObdelavaSerija`) |
+
+This makes the planner immediately useful — users can click any batch bar and
+view/edit its properties.
+
+**Step 3 — NewChainWizard**
+
+| Component | Purpose |
+|-----------|---------|
+| `components/planner/NewChainWizard.tsx` | Guided batch creation: select product line → pick fermenter + start time (or auto-find earliest available) → back-calculate seed train → show preview with overlap warnings → confirm to add all stages |
+
+Depends on `scheduling.ts` (overlap detection, available vessel finder) and
+`seed-train.ts` (back-calculation). VBA equivalent: `NovaSer` form.
+
+**Step 4 — BulkShiftTool**
+
+| Component | Purpose |
+|-----------|---------|
+| `components/planner/BulkShiftTool.tsx` | UI: cutoff date + series number filter + hour delta (±). Calls `bulkShiftStages()` store action. Post-shift validation via `scheduling.ts` to warn about new overlaps. VBA equivalent: `Premik`. |
+
+**Step 5 (medium priority) — ChainEditor + drag interactions**
+
 | Component | Gap | Priority |
 |-----------|-----|----------|
-| New Batch Chain wizard | Auto-scheduling with back-calculation, vessel suggestions, overlap check | High — core planner feature |
-| Bulk Shift tool | UI for cutoff date/series filter + hour delta input, post-shift validation | High |
-| Chain Editor / Stage Detail Panel | Click-to-edit side panel for stage properties | High |
+| `ChainEditor.tsx` | Full chain view with all linked stages, batch name, status | Medium |
 | Drag-to-move / stretch-to-resize | Canvas interaction for stage bars | Medium |
+
+#### Dependencies diagram
+
+```
+lib/types.ts (done)
+lib/store.ts (done — CRUD for Stage, BatchChain)
+    │
+    ▼
+lib/scheduling.ts ◄── lib/seed-train.ts
+    │                       │
+    ▼                       ▼
+StageDetailPanel ◄── NewChainWizard
+    │                       │
+    ▼                       ▼
+Canvas click handlers   BulkShiftTool
+    │
+    ▼
+ChainEditor (optional)
+```
 
 ### Pending — Data I/O
 

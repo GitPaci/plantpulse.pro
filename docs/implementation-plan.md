@@ -32,8 +32,9 @@ Phases 8-12 are Enterprise-only.
 - `lib/colors.ts` — 12-color batch cycle + 5-color wallboard border cycle
 - `lib/shift-rotation.ts` — 4-team, 12h, 8-step cycle
 - `lib/timeline-math.ts` — Pixel geometry (bar positioning, clipping, now-line)
-- `lib/scheduling.ts` — Overlap detection, conflict checking
-- `lib/seed-train.ts` — Chain creation with back-calculation (PR -> PF -> F)
+- `lib/scheduling.ts` — Overlap detection, conflict checking, auto-vessel assignment, turnaround gap enforcement (pending)
+- `lib/seed-train.ts` — Chain creation with back-calculation using ProductLine.stageDefaults (pending)
+- `lib/shift-rotation.ts` — Configurable shift rotation with presets, plant coverage, gap detection, shift continuity (done)
 - Unit tests for all of the above
 
 ### Phase 2 — Demo data generator + Zustand store
@@ -176,13 +177,14 @@ Phases 8-12 are Enterprise-only.
   - Stretch to change duration (pending)
   - Click to edit in side panel (pending)
   - Delete / reassign machine (pending)
-- `components/planner/ChainEditor.tsx` — View/edit chain segments (pending)
-- `components/planner/NewChainWizard.tsx` — Add new batch chain (pending):
-  - Auto-scheduling with back-calculation
-  - Vessel availability suggestions
-  - Overlap checking
-- `components/planner/BulkShiftTool.tsx` — Shift multiple batches by N hours (pending)
-- `components/planner/StageDetailPanel.tsx` — Side panel editor (pending)
+- **Batch operations build order** (pending — ready to start):
+  1. `lib/scheduling.ts` + `lib/seed-train.ts` — Pure business logic engines:
+     - `scheduling.ts`: `detectOverlap()`, `findAvailableVessel()`, `validateBulkShift()` — integrates turnaround durations + machine downtime
+     - `seed-train.ts`: `backCalculateChain(finalStageStart, stageDefaults)` — generic back-calculator for any product line's seed train
+  2. Canvas click handlers + `StageDetailPanel.tsx` — Hit-test batch bars, open side panel for view/edit stage properties (vessel, start/end, state, fixed-duration mode, link-to-next mode)
+  3. `NewChainWizard.tsx` — Guided batch creation: select product line → pick fermenter + start → back-calculate seed train → overlap preview → confirm
+  4. `BulkShiftTool.tsx` — Cutoff date + series filter + hour delta; calls `bulkShiftStages()` store action; post-shift overlap validation
+  5. `ChainEditor.tsx` — Full chain view with all linked stages (medium priority)
 - **Equipment Setup modal** (implemented):
   - `components/planner/EquipmentSetup.tsx` — full CRUD modal for facility equipment (4 tabs)
   - **Machines tab**: inline editing of name, equipment group, product line assignment, display order (up/down reorder), add/delete
@@ -221,9 +223,12 @@ Phases 8-12 are Enterprise-only.
   - `StageTypeDefinition` type defined in `lib/types.ts`; full store CRUD in `lib/store.ts`
   - Draft state pattern: all changes buffered locally, applied to Zustand store on Save
   - Wired to Planner sidebar via "Process Setup" tool button
-- Shift Schedule modal (pending):
-  - Teams, rotation pattern, shift bar colors
-- Conflict indicators: overlap, hold risk, shutdown crossing (pending)
+- **Shift Schedule modal** (implemented):
+  - `components/planner/ShiftSchedule.tsx` — configurable teams (name + color), rotation presets (Russian/Panama/DuPont/Pitman/Navy/etc.), variable shift lengths (6/7.5/8/12h), plant coverage (active days + operating hours), coverage heatmap (7×24 grid), shift sequence diagram (Wikipedia-style day×period grid), Holiday Calendar (Slovenian built-in + Enterprise CTA for custom calendars)
+  - Draft state pattern; wired to Planner sidebar via "Shift Schedule" tool button
+  - Gray gap segments for uncovered periods in Wallboard + Planner shift band
+  - Shift continuity: shifts run their full duration even across day boundaries
+- Conflict indicators: overlap, hold risk, shutdown crossing (pending — requires `lib/scheduling.ts`)
 
 ### Phase 7 — Landing page + deploy
 
