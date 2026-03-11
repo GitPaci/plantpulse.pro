@@ -744,6 +744,137 @@ body {
   color: var(--pp-muted);
 }
 
+/* ─── New Chain Wizard ────────────────────────────────────────────────── */
+/* Two-step modal: product line + fermenter → preview + confirm            */
+
+.pp-wizard-modal {
+  max-width: 600px;
+}
+
+.pp-wizard-step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pp-wizard-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pp-wizard-field label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pp-muted);
+}
+
+.pp-wizard-preview-name {
+  font-size: 14px;
+  color: var(--pp-text, #1a202c);
+  padding: 8px 12px;
+  background: rgba(49, 130, 206, 0.06);
+  border-radius: 6px;
+  border: 1px solid rgba(49, 130, 206, 0.15);
+}
+.pp-wizard-preview-series {
+  font-size: 12px;
+  color: var(--pp-muted);
+  margin-left: 8px;
+}
+
+.pp-wizard-info {
+  font-size: 12px;
+  color: var(--pp-muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pp-wizard-stage-chip {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--pp-surface, #f7f7f8);
+  border: 1px solid var(--pp-border);
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+/* Preview table */
+.pp-wizard-table {
+  border: 1px solid var(--pp-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.pp-wizard-table-header {
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom: 1px solid var(--pp-border);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pp-muted);
+}
+
+.pp-wizard-table-row {
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--pp-text, #1a202c);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+.pp-wizard-table-row:last-child {
+  border-bottom: none;
+}
+
+.pp-wizard-table-row-warn {
+  background: #fffbeb;
+}
+.pp-wizard-table-row-error {
+  background: #fff5f5;
+}
+
+.pp-wizard-col-type {
+  width: 50px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.pp-wizard-col-machine {
+  width: 90px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pp-wizard-col-time {
+  flex: 1;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.pp-wizard-col-dur {
+  width: 50px;
+  text-align: right;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--pp-muted);
+}
+
+.pp-wizard-overlap-badge {
+  font-size: 12px;
+  color: #d97706;
+  cursor: help;
+}
+
+.pp-wizard-footer {
+  justify-content: flex-end;
+}
+
 /* ─── Reusable modal ──────────────────────────────────────────────────── */
 /* Used by Equipment Setup, Process Setup, Shift Schedule, etc.           */
 

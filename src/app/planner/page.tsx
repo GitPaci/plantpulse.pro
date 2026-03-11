@@ -10,6 +10,7 @@ import EquipmentSetup from '@/components/planner/EquipmentSetup';
 import ProcessSetup from '@/components/planner/ProcessSetup';
 import ShiftSchedule from '@/components/planner/ShiftSchedule';
 import StageDetailPanel from '@/components/planner/StageDetailPanel';
+import NewChainWizard from '@/components/planner/NewChainWizard';
 import { usePlantPulseStore } from '@/lib/store';
 import { subDays, addDays, startOfDay } from 'date-fns';
 import { useState } from 'react';
@@ -180,6 +181,7 @@ export default function PlannerPage() {
   const [processSetupOpen, setProcessSetupOpen] = useState(false);
   const [shiftScheduleOpen, setShiftScheduleOpen] = useState(false);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
+  const [newChainWizardOpen, setNewChainWizardOpen] = useState(false);
 
   function shiftView(days: number) {
     setViewConfig({
@@ -265,7 +267,7 @@ export default function PlannerPage() {
                 icon={<IconPlus />}
                 label="New Batch Chain"
                 description="Auto-schedule with seed train wizard"
-                onClick={handleNotImplemented('New Batch Chain')}
+                onClick={() => setNewChainWizardOpen(true)}
               />
               <ToolButton
                 icon={<IconBulkShift />}
@@ -354,6 +356,10 @@ export default function PlannerPage() {
       <StageDetailPanel
         stageId={selectedStageId}
         onClose={() => setSelectedStageId(null)}
+      />
+      <NewChainWizard
+        open={newChainWizardOpen}
+        onClose={() => setNewChainWizardOpen(false)}
       />
     </div>
   );
