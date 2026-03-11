@@ -54,10 +54,15 @@ export const SHIFT_GAP_TEAM = -1;
 /**
  * Get the shift team for every shift block in a date range,
  * aligned to shift boundaries.
- * Returns array of { start, teamIndex } objects.
+ * Returns array of ShiftBandSegment objects.
  *
  * When activeDays and operatingHours are provided, hours outside the
  * operating window or on inactive days produce gap segments (teamIndex === -1).
+ *
+ * Shift continuity rule: if a shift block starts during a valid operating
+ * window on an active day, the entire shift runs to its natural end — even
+ * if it crosses into an inactive day or outside operating hours (e.g. a
+ * Friday night shift extending into Saturday in a 24/5 setup).
  */
 export function shiftBands(
   viewStart: Date,
@@ -76,12 +81,13 @@ export function shiftBands(
   const is24h = !hasPlantCoverage || (operatingHoursStart === 0 && operatingHoursEnd === 24);
   const allDaysActive = !hasPlantCoverage || activeDays.every((d) => d);
 
+  // Snap to the shift boundary at or before viewStart
+  const hoursSinceAnchor = differenceInHours(viewStart, anchorDate);
+  const alignedShiftOffset = Math.floor(hoursSinceAnchor / shiftLengthHours) * shiftLengthHours;
+  let cursor = new Date(anchorDate.getTime() + alignedShiftOffset * 3600000);
+
   // Fast path: 24/7 with all days active — no gaps possible
   if (is24h && allDaysActive) {
-    const hoursSinceAnchor = differenceInHours(viewStart, anchorDate);
-    const alignedShiftOffset = Math.floor(hoursSinceAnchor / shiftLengthHours) * shiftLengthHours;
-    let cursor = new Date(anchorDate.getTime() + alignedShiftOffset * 3600000);
-
     while (cursor < viewEnd) {
       const end = new Date(cursor.getTime() + shiftLengthHours * 3600000);
       bands.push({
@@ -94,61 +100,36 @@ export function shiftBands(
     return bands;
   }
 
-  // Slow path: iterate hour by hour and merge consecutive segments
-  let cursor = new Date(viewStart.getTime());
-  // Snap to start of the hour
-  cursor.setMinutes(0, 0, 0);
-
-  let currentSegment: ShiftBandSegment | null = null;
-
+  // Coverage-aware path: iterate shift-block by shift-block.
+  // A shift is covered if its START falls on an active day within operating hours.
+  // Once a shift starts, it runs its full duration (shift continuity rule).
   while (cursor < viewEnd) {
-    const dayOfWeek = cursor.getDay(); // 0=Sun
-    const hour = cursor.getHours();
+    const shiftStart = new Date(cursor.getTime());
+    const shiftEnd = new Date(cursor.getTime() + shiftLengthHours * 3600000);
 
-    // Determine if this hour is within operating window
+    const dayOfWeek = shiftStart.getDay();
+    const hour = shiftStart.getHours();
     const dayActive = activeDays![dayOfWeek] ?? true;
-    let hourInWindow = true;
-    if (!is24h) {
-      const opStart = operatingHoursStart!;
-      const opEnd = operatingHoursEnd!;
-      if (opEnd > opStart) {
-        hourInWindow = hour >= opStart && hour < opEnd;
-      } else {
-        // Overnight window (e.g. 22:00–06:00)
-        hourInWindow = hour >= opStart || hour < opEnd;
-      }
-    }
+    const hourInWindow = is24h || isHourInOperatingWindow(hour, operatingHoursStart!, operatingHoursEnd!);
+    const shiftStartCovered = dayActive && hourInWindow;
 
-    const isActive = dayActive && hourInWindow;
-    let teamIndex: number;
-    if (isActive) {
-      teamIndex = currentShiftTeam(cursor, anchorDate, cyclePattern, shiftLengthHours);
+    if (shiftStartCovered) {
+      // Entire shift block gets the team color
+      bands.push({
+        start: shiftStart,
+        end: shiftEnd,
+        teamIndex: currentShiftTeam(shiftStart, anchorDate, cyclePattern, shiftLengthHours),
+      });
     } else {
-      teamIndex = SHIFT_GAP_TEAM;
+      // Gap: no shift coverage for this block
+      bands.push({
+        start: shiftStart,
+        end: shiftEnd,
+        teamIndex: SHIFT_GAP_TEAM,
+      });
     }
 
-    const nextHour = new Date(cursor.getTime() + 3600000);
-
-    if (currentSegment && currentSegment.teamIndex === teamIndex) {
-      // Extend the current segment
-      currentSegment.end = nextHour;
-    } else {
-      // Push previous segment and start a new one
-      if (currentSegment) {
-        bands.push(currentSegment);
-      }
-      currentSegment = {
-        start: new Date(cursor.getTime()),
-        end: nextHour,
-        teamIndex,
-      };
-    }
-
-    cursor = nextHour;
-  }
-
-  if (currentSegment) {
-    bands.push(currentSegment);
+    cursor = shiftEnd;
   }
 
   return bands;
@@ -163,16 +144,25 @@ function isHourInOperatingWindow(hour: number, operatingHoursStart: number, oper
 }
 
 /**
- * Resolve whether a specific wall-clock hour is covered by an active shift.
+ * Resolve whether a specific wall-clock time is covered by an active shift.
+ *
+ * Shift continuity: checks the shift block's START time against plant coverage,
+ * not the queried time itself. A shift that starts during valid hours continues
+ * to its natural end even if it crosses into an inactive day or off-hours.
  */
 export function isShiftCoveredAt(time: Date, rotation: ShiftCoverageConfig): boolean {
-  const dayIndex = time.getDay();
+  // Find the start of the shift block that contains `time`
+  const hoursSinceAnchor = differenceInHours(time, rotation.anchorDate);
+  const blockIndex = Math.floor(hoursSinceAnchor / rotation.shiftLengthHours);
+  const shiftStart = new Date(rotation.anchorDate.getTime() + blockIndex * rotation.shiftLengthHours * 3600000);
+
+  const dayIndex = shiftStart.getDay();
   if (!rotation.activeDays[dayIndex]) return false;
-  if (!isHourInOperatingWindow(time.getHours(), rotation.operatingHoursStart, rotation.operatingHoursEnd)) {
+  if (!isHourInOperatingWindow(shiftStart.getHours(), rotation.operatingHoursStart, rotation.operatingHoursEnd)) {
     return false;
   }
   const teamIndex = currentShiftTeam(
-    time,
+    shiftStart,
     rotation.anchorDate,
     rotation.cyclePattern,
     rotation.shiftLengthHours

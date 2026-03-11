@@ -178,7 +178,7 @@ function computeCoverage(draft: ShiftRotation): CoverageCell[][] {
 
   const is24h = draft.operatingHoursStart === 0 && draft.operatingHoursEnd === 24;
 
-  // Determine which hours are within operating window
+  // Mark operating window hours as 'gap' (potentially covered but not yet confirmed)
   for (let day = 0; day < 7; day++) {
     if (!draft.activeDays[day]) continue;
     for (let hour = 0; hour < 24; hour++) {
@@ -193,33 +193,45 @@ function computeCoverage(draft: ShiftRotation): CoverageCell[][] {
     }
   }
 
-  // Simulate one full cycle to determine which hours are covered.
-  // For patterns that span multiple days, we run through enough days to cover the full cycle.
+  // Simulate shift blocks across enough weeks to cover the full cycle.
+  // Shift continuity: a shift block is "started" if its first hour falls
+  // on an active day within the operating window. Once started, ALL hours
+  // of that block are covered — even if they spill into an inactive day.
   const cycleLengthHours = draft.cyclePattern.length * draft.shiftLengthHours;
   const cycleLengthDays = Math.ceil(cycleLengthHours / 24);
-  // Run through enough weeks to catch the full pattern mapped onto weekdays
   const weeksToSimulate = Math.max(1, Math.ceil(cycleLengthDays / 7));
   const totalDays = weeksToSimulate * 7;
+  const totalHours = totalDays * 24;
+  const shiftLenH = draft.shiftLengthHours;
 
-  for (let d = 0; d < totalDays; d++) {
-    const dayOfWeek = d % 7;
-    if (!draft.activeDays[dayOfWeek]) continue;
+  // Walk shift blocks (not individual hours)
+  for (let blockStart = 0; blockStart < totalHours; blockStart += shiftLenH) {
+    const startDay = Math.floor(blockStart / 24) % 7;
+    const startHour = blockStart % 24;
 
-    // For each hour of this day, figure out which shift block it falls into
-    for (let hour = 0; hour < 24; hour++) {
-      if (grid[dayOfWeek][hour] === 'outside') continue;
+    // Check if this shift block's START is in the operating window
+    const dayActive = draft.activeDays[startDay] ?? true;
+    const hourInWindow = is24h || (
+      draft.operatingHoursEnd > draft.operatingHoursStart
+        ? startHour >= draft.operatingHoursStart && startHour < draft.operatingHoursEnd
+        : startHour >= draft.operatingHoursStart || startHour < draft.operatingHoursEnd
+    );
 
-      // Total hours from cycle start
-      const totalHoursFromStart = d * 24 + hour;
-      // Which shift block does this hour fall into?
-      const shiftBlock = Math.floor(totalHoursFromStart / draft.shiftLengthHours);
-      const patternIdx = shiftBlock % draft.cyclePattern.length;
-      const teamIdx = draft.cyclePattern[patternIdx];
+    if (!dayActive || !hourInWindow) continue;
 
-      // If a valid team is assigned, this hour is covered
-      if (teamIdx !== undefined && teamIdx >= 0 && teamIdx < draft.teams.length) {
-        grid[dayOfWeek][hour] = 'covered';
-      }
+    // Valid team?
+    const shiftBlockIdx = Math.floor(blockStart / shiftLenH);
+    const patternIdx = shiftBlockIdx % draft.cyclePattern.length;
+    const teamIdx = draft.cyclePattern[patternIdx];
+    if (teamIdx === undefined || teamIdx < 0 || teamIdx >= draft.teams.length) continue;
+
+    // Mark ALL hours of this shift block as covered (shift continuity)
+    for (let h = 0; h < shiftLenH; h++) {
+      const absHour = blockStart + h;
+      const dayOfWeek = Math.floor(absHour / 24) % 7;
+      const hourOfDay = absHour % 24;
+      // Mark covered even if it's on an inactive day (shift spill-over)
+      grid[dayOfWeek][hourOfDay] = 'covered';
     }
   }
 
@@ -237,6 +249,12 @@ function countGapHours(coverage: CoverageCell[][]): number {
 }
 
 
+/**
+ * Check if a shift slot in the preview/sequence diagram is covered.
+ * Each slot represents one full shift block — coverage is determined by
+ * whether the block's START falls on an active day within operating hours.
+ * (Shift continuity: once a shift starts, it runs to its natural end.)
+ */
 function isPreviewSlotCovered(stepIdx: number, draft: ShiftRotation): boolean {
   const shiftsPerDay = 24 / draft.shiftLengthHours;
   const dayIdx = Math.floor(stepIdx / shiftsPerDay) % 7;
@@ -738,7 +756,53 @@ export default function ShiftSchedule({ open, onClose }: ShiftScheduleProps) {
               </div>
             )}
 
-            {/* Coverage heatmap: 7 rows (days) × 24 columns (hours) */}
+            {/* Plant operating window: green = open, gray = closed */}
+            <span className="pp-shift-preview-label" style={{ marginBottom: 2, marginTop: 6, display: 'block' }}>
+              Plant operating window:
+            </span>
+            <div className="pp-shift-heatmap">
+              {/* Header row */}
+              <div className="pp-shift-heatmap-row">
+                <span className="pp-shift-heatmap-row-label" />
+                {Array.from({ length: 24 }, (_, h) => (
+                  <span key={h} className="pp-shift-heatmap-header">{h}</span>
+                ))}
+              </div>
+              {/* Data rows — Monday first */}
+              {[1, 2, 3, 4, 5, 6, 0].map((dayIdx) => {
+                const dayActive = draft.activeDays[dayIdx];
+                return (
+                  <div key={dayIdx} className="pp-shift-heatmap-row">
+                    <span className="pp-shift-heatmap-row-label">{DAY_ABBR[dayIdx]}</span>
+                    {Array.from({ length: 24 }, (_, h) => {
+                      let status: string;
+                      if (!dayActive) {
+                        status = 'outside';
+                      } else if (is24h) {
+                        status = 'covered';
+                      } else {
+                        const inWindow = draft.operatingHoursEnd > draft.operatingHoursStart
+                          ? h >= draft.operatingHoursStart && h < draft.operatingHoursEnd
+                          : h >= draft.operatingHoursStart || h < draft.operatingHoursEnd;
+                        status = inWindow ? 'covered' : 'outside';
+                      }
+                      return (
+                        <span
+                          key={h}
+                          className={`pp-shift-heatmap-cell ${status}`}
+                          title={`${DAY_ABBR[dayIdx]} ${String(h).padStart(2, '0')}:00 — ${status === 'covered' ? 'operating' : 'closed'}`}
+                        />
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Shift coverage heatmap: 7 rows (days) × 24 columns (hours) */}
+            <span className="pp-shift-preview-label" style={{ marginBottom: 2, marginTop: 10, display: 'block' }}>
+              Shift coverage (green = covered, amber = gap within operating window, gray = outside):
+            </span>
             <div className="pp-shift-heatmap">
               {/* Header row */}
               <div className="pp-shift-heatmap-row">
