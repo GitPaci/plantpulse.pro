@@ -113,9 +113,8 @@ export default function BulkShiftTool({ open, onClose }: BulkShiftToolProps) {
   if (!open) return null;
 
   return (
-    <>
-      <div className="pp-modal-backdrop" onClick={handleClose} />
-      <div className="pp-modal pp-wizard-modal">
+    <div className="pp-modal-backdrop" onClick={handleClose}>
+      <div className="pp-modal pp-wizard-modal" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="pp-modal-header">
           <h2>Bulk Shift</h2>
@@ -284,6 +283,6 @@ export default function BulkShiftTool({ open, onClose }: BulkShiftToolProps) {
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }
