@@ -5,14 +5,17 @@
 //
 // Flow: Select product line → Pick fermenter + start time (or auto-find)
 // → Back-calculate seed train → Preview with overlap warnings → Confirm
+//
+// Supports creating multiple consecutive chains in one go via the "+" button.
+// Each additional chain starts after the previous one's production end + turnaround gap.
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { usePlantPulseStore, generateId } from '@/lib/store';
 import { backCalculateChain, chainDurationHours } from '@/lib/seed-train';
-import { autoScheduleChain, earliestAvailableTime } from '@/lib/scheduling';
+import { autoScheduleChain, earliestAvailableTime, requiredTurnaroundGap } from '@/lib/scheduling';
 import type { ChainAssignment } from '@/lib/scheduling';
 import { batchNamePreview } from '@/lib/types';
-import type { BatchNamingRule, ProductLine } from '@/lib/types';
+import type { BatchNamingRule, ProductLine, Stage } from '@/lib/types';
 import { format, addHours, startOfHour } from 'date-fns';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -43,6 +46,13 @@ function nextSeriesNumber(
   return max + 1;
 }
 
+/** Preview result for one chain in multi-chain mode. */
+interface ChainPreview {
+  batchName: string;
+  seriesNumber: number;
+  assignments: ChainAssignment[];
+}
+
 // ─── Component ────────────────────────────────────────────────────────────
 
 interface NewChainWizardProps {
@@ -63,16 +73,17 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
   const addBatchChain = usePlantPulseStore((s) => s.addBatchChain);
   const addStage = usePlantPulseStore((s) => s.addStage);
 
-  // ── Step 1 state: product line, fermenter, start time ──
+  // ── Step 1 state ──
   const [step, setStep] = useState<WizardStep>('select');
   const [selectedProductLine, setSelectedProductLine] = useState('');
   const [selectedFermenter, setSelectedFermenter] = useState('auto');
   const [startTime, setStartTime] = useState(() =>
     toDatetimeLocal(addHours(startOfHour(new Date()), 12))
   );
+  const [chainCount, setChainCount] = useState(1);
 
-  // ── Step 2 state: preview assignments ──
-  const [assignments, setAssignments] = useState<ChainAssignment[]>([]);
+  // ── Step 2 state: preview for all chains ──
+  const [chainPreviews, setChainPreviews] = useState<ChainPreview[]>([]);
 
   // ── Derived data ──
   const productLine: ProductLine | undefined = useMemo(
@@ -92,21 +103,18 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
     );
   }, [machines, productLine]);
 
-  // Suggested start time: earliest available slot across fermenter candidates,
-  // accounting for turnaround gap (CIP, SIP, Cleaning, etc.)
+  // Suggested start time: earliest available slot across fermenter candidates
   const suggestedStart = useMemo(() => {
     if (!productLine || fermenterMachines.length === 0) return null;
     const lastStage = productLine.stageDefaults[productLine.stageDefaults.length - 1];
     if (!lastStage) return null;
 
     if (selectedFermenter !== 'auto') {
-      // Specific fermenter selected — find its earliest slot
       const m = fermenterMachines.find((fm) => fm.id === selectedFermenter);
       if (!m) return null;
       return earliestAvailableTime(m.id, m.group, stages, turnaroundActivities);
     }
 
-    // Auto mode: find the earliest across all fermenters
     let earliest: Date | null = null;
     for (const m of fermenterMachines) {
       const t = earliestAvailableTime(m.id, m.group, stages, turnaroundActivities);
@@ -122,97 +130,158 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
     }
   }, [suggestedStart]);
 
-  // Next series number & batch name preview
-  const seriesNum = useMemo(
+  // Naming rule for this product line
+  const namingRule: BatchNamingRule | null = useMemo(() => {
+    if (!selectedProductLine) return null;
+    return batchNamingConfig.mode === 'per_product_line'
+      ? batchNamingConfig.productLineRules[selectedProductLine] ?? batchNamingConfig.sharedRule
+      : batchNamingConfig.sharedRule;
+  }, [selectedProductLine, batchNamingConfig]);
+
+  // First series number
+  const baseSeriesNum = useMemo(
     () => nextSeriesNumber(batchChains, selectedProductLine),
     [batchChains, selectedProductLine]
   );
 
-  const batchName = useMemo(() => {
-    if (!selectedProductLine) return '';
-    const rule: BatchNamingRule =
-      batchNamingConfig.mode === 'per_product_line'
-        ? batchNamingConfig.productLineRules[selectedProductLine] ?? batchNamingConfig.sharedRule
-        : batchNamingConfig.sharedRule;
-    return batchNamePreview(rule, seriesNum);
-  }, [selectedProductLine, seriesNum, batchNamingConfig]);
+  // Batch names for all chains in the queue
+  const chainNames = useMemo(() => {
+    if (!namingRule) return [];
+    const step = namingRule.step || 1;
+    return Array.from({ length: chainCount }, (_, i) =>
+      batchNamePreview(namingRule, baseSeriesNum + i * step)
+    );
+  }, [namingRule, baseSeriesNum, chainCount]);
 
-  // Total overlap count
+  // Turnaround gap for fermenters
+  const fermenterTurnaroundGap = useMemo(() => {
+    if (!productLine) return 0;
+    const lastStage = productLine.stageDefaults[productLine.stageDefaults.length - 1];
+    if (!lastStage) return 0;
+    return requiredTurnaroundGap(lastStage.machineGroup, turnaroundActivities);
+  }, [productLine, turnaroundActivities]);
+
+  // Production duration
+  const prodDuration = useMemo(() => {
+    if (!productLine || !productLine.stageDefaults.length) return 0;
+    return productLine.stageDefaults[productLine.stageDefaults.length - 1].defaultDurationHours;
+  }, [productLine]);
+
+  // Total overlap count across all chain previews
   const totalOverlaps = useMemo(
-    () => assignments.reduce((sum, a) => sum + a.overlaps.length, 0),
-    [assignments]
+    () => chainPreviews.reduce(
+      (sum, cp) => sum + cp.assignments.reduce((s, a) => s + a.overlaps.length, 0),
+      0
+    ),
+    [chainPreviews]
   );
 
   const hasUnassigned = useMemo(
-    () => assignments.some((a) => !a.machineId),
-    [assignments]
+    () => chainPreviews.some((cp) => cp.assignments.some((a) => !a.machineId)),
+    [chainPreviews]
   );
 
   // ── Actions ──
 
   const handleCalculate = useCallback(() => {
-    if (!productLine || !productLine.stageDefaults.length) return;
+    if (!productLine || !productLine.stageDefaults.length || !namingRule) return;
 
-    const fermStart = new Date(startTime);
-    if (isNaN(fermStart.getTime())) return;
+    const firstStart = new Date(startTime);
+    if (isNaN(firstStart.getTime())) return;
 
-    // Back-calculate the chain
-    const backCalc = backCalculateChain(fermStart, productLine.stageDefaults);
+    const previews: ChainPreview[] = [];
+    // Accumulate stages from previous chains so overlap detection considers them
+    let accumulatedStages: Stage[] = [...stages];
+    let cursor = firstStart;
+    const step = namingRule.step || 1;
 
-    // Auto-schedule: assign vessels
-    const fermId = selectedFermenter === 'auto' ? undefined : selectedFermenter;
-    const result = autoScheduleChain(
-      backCalc,
-      productLine.id,
-      fermId,
-      machines,
-      stages,
-      turnaroundActivities
-    );
+    for (let i = 0; i < chainCount; i++) {
+      const backCalc = backCalculateChain(cursor, productLine.stageDefaults);
+      const fermId = selectedFermenter === 'auto' ? undefined : selectedFermenter;
 
-    setAssignments(result);
+      const result = autoScheduleChain(
+        backCalc,
+        productLine.id,
+        fermId,
+        machines,
+        accumulatedStages,
+        turnaroundActivities
+      );
+
+      const seriesNumber = baseSeriesNum + i * step;
+      previews.push({
+        batchName: batchNamePreview(namingRule, seriesNumber),
+        seriesNumber,
+        assignments: result,
+      });
+
+      // Add this chain's stages to accumulated stages for next chain's overlap check
+      const chainId = `preview-${i}`;
+      for (const a of result) {
+        accumulatedStages.push({
+          id: `preview-${i}-${a.stageType}`,
+          machineId: a.machineId,
+          batchChainId: chainId,
+          stageType: a.stageType,
+          startDatetime: a.startDatetime,
+          endDatetime: a.endDatetime,
+          state: 'planned',
+        });
+      }
+
+      // Next chain starts after this chain's production end + turnaround gap
+      const prodAssignment = result[result.length - 1];
+      if (prodAssignment) {
+        cursor = addHours(prodAssignment.endDatetime, fermenterTurnaroundGap);
+      }
+    }
+
+    setChainPreviews(previews);
     setStep('preview');
-  }, [productLine, startTime, selectedFermenter, machines, stages, turnaroundActivities]);
+  }, [productLine, startTime, selectedFermenter, chainCount, machines, stages, turnaroundActivities, namingRule, baseSeriesNum, fermenterTurnaroundGap]);
 
   const handleCreate = useCallback(() => {
-    if (!productLine || assignments.length === 0) return;
+    if (!productLine || chainPreviews.length === 0) return;
 
-    const chainId = generateId('chain-');
-    addBatchChain({
-      id: chainId,
-      batchName,
-      seriesNumber: seriesNum,
-      productLine: productLine.id,
-      status: 'draft',
-    });
-
-    for (const a of assignments) {
-      addStage({
-        id: generateId('stage-'),
-        machineId: a.machineId,
-        batchChainId: chainId,
-        stageType: a.stageType,
-        startDatetime: a.startDatetime,
-        endDatetime: a.endDatetime,
-        state: 'planned',
+    for (const cp of chainPreviews) {
+      const chainId = generateId('chain-');
+      addBatchChain({
+        id: chainId,
+        batchName: cp.batchName,
+        seriesNumber: cp.seriesNumber,
+        productLine: productLine.id,
+        status: 'draft',
       });
+
+      for (const a of cp.assignments) {
+        addStage({
+          id: generateId('stage-'),
+          machineId: a.machineId,
+          batchChainId: chainId,
+          stageType: a.stageType,
+          startDatetime: a.startDatetime,
+          endDatetime: a.endDatetime,
+          state: 'planned',
+        });
+      }
     }
 
     handleClose();
-  }, [productLine, assignments, batchName, seriesNum, addBatchChain, addStage]);
+  }, [productLine, chainPreviews, addBatchChain, addStage]);
 
   const handleClose = useCallback(() => {
     setStep('select');
     setSelectedProductLine('');
     setSelectedFermenter('auto');
     setStartTime(toDatetimeLocal(addHours(startOfHour(new Date()), 12)));
-    setAssignments([]);
+    setChainCount(1);
+    setChainPreviews([]);
     onClose();
   }, [onClose]);
 
   const handleBack = useCallback(() => {
     setStep('select');
-    setAssignments([]);
+    setChainPreviews([]);
   }, []);
 
   if (!open) return null;
@@ -241,6 +310,7 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
                   onChange={(e) => {
                     setSelectedProductLine(e.target.value);
                     setSelectedFermenter('auto');
+                    setChainCount(1);
                   }}
                   className="pp-detail-input"
                 >
@@ -255,12 +325,50 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
 
               {productLine && (
                 <>
-                  {/* Batch name preview */}
+                  {/* Batch name(s) preview with +/- buttons */}
                   <div className="pp-wizard-preview-name">
-                    Batch: <strong>{batchName}</strong>
-                    <span className="pp-wizard-preview-series">
-                      (series #{seriesNum})
-                    </span>
+                    <div className="pp-wizard-batch-header">
+                      <div>
+                        {chainCount === 1 ? (
+                          <>
+                            Batch: <strong>{chainNames[0]}</strong>
+                            <span className="pp-wizard-preview-series">
+                              (series #{baseSeriesNum})
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <strong>{chainCount} batches:</strong>{' '}
+                            {chainNames.map((name, i) => (
+                              <span key={i}>
+                                {i > 0 && ', '}
+                                <strong>{name}</strong>
+                              </span>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                      <div className="pp-wizard-count-controls">
+                        {chainCount > 1 && (
+                          <button
+                            type="button"
+                            className="pp-wizard-count-btn"
+                            onClick={() => setChainCount((c) => Math.max(1, c - 1))}
+                            title="Remove last batch"
+                          >
+                            −
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="pp-wizard-count-btn pp-wizard-count-btn-add"
+                          onClick={() => setChainCount((c) => Math.min(10, c + 1))}
+                          title="Add another batch"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Seed train summary */}
@@ -274,6 +382,11 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
                         </span>
                       );
                     })}
+                    {fermenterTurnaroundGap > 0 && (
+                      <span className="pp-wizard-stage-chip">
+                        + {fermenterTurnaroundGap}h turnaround
+                      </span>
+                    )}
                   </div>
 
                   {/* Fermenter selection */}
@@ -323,28 +436,40 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
                     )}
                   </div>
 
-                  {/* Production end time + chain span (computed, read-only) */}
+                  {/* Timing summary */}
                   {(() => {
                     const st = new Date(startTime);
                     if (isNaN(st.getTime()) || !productLine.stageDefaults.length) return null;
-                    const prodDuration = productLine.stageDefaults[productLine.stageDefaults.length - 1].defaultDurationHours;
-                    const prodEnd = addHours(st, prodDuration);
                     const totalHours = chainDurationHours(productLine.stageDefaults);
+                    const firstProdEnd = addHours(st, prodDuration);
+                    // For multi-chain: last chain's production end
+                    const lastProdEnd = chainCount === 1
+                      ? firstProdEnd
+                      : addHours(st, prodDuration + (chainCount - 1) * (prodDuration + fermenterTurnaroundGap));
+                    const firstChainStart = addHours(st, -(totalHours - prodDuration));
                     return (
                       <div className="pp-wizard-timing-summary">
                         <div className="pp-wizard-timing-row">
-                          <span className="pp-wizard-timing-label">Production End</span>
-                          <span className="pp-wizard-timing-value">
-                            {format(prodEnd, 'MMM d, yyyy HH:mm')}
+                          <span className="pp-wizard-timing-label">
+                            {chainCount === 1 ? 'Production End' : `Last Prod End`}
                           </span>
-                          <span className="pp-wizard-timing-dur">{formatDuration(prodDuration)}</span>
+                          <span className="pp-wizard-timing-value">
+                            {format(lastProdEnd, 'MMM d, yyyy HH:mm')}
+                          </span>
+                          <span className="pp-wizard-timing-dur">
+                            {chainCount === 1
+                              ? formatDuration(prodDuration)
+                              : `${chainCount} × ${formatDuration(prodDuration)}`}
+                          </span>
                         </div>
                         <div className="pp-wizard-timing-row">
-                          <span className="pp-wizard-timing-label">Full Chain</span>
+                          <span className="pp-wizard-timing-label">Full Span</span>
                           <span className="pp-wizard-timing-value">
-                            {format(addHours(st, -totalHours + prodDuration), 'MMM d HH:mm')} → {format(prodEnd, 'MMM d HH:mm')}
+                            {format(firstChainStart, 'MMM d HH:mm')} → {format(lastProdEnd, 'MMM d HH:mm')}
                           </span>
-                          <span className="pp-wizard-timing-dur">{formatDuration(totalHours)}</span>
+                          <span className="pp-wizard-timing-dur">
+                            {formatDuration((lastProdEnd.getTime() - firstChainStart.getTime()) / 3600000)}
+                          </span>
                         </div>
                       </div>
                     );
@@ -356,10 +481,13 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
 
           {step === 'preview' && (
             <div className="pp-wizard-step">
+              {/* Summary */}
               <div className="pp-wizard-preview-name">
-                <strong>{batchName}</strong>
+                <strong>{chainPreviews.length} batch{chainPreviews.length > 1 ? 'es' : ''}</strong>
                 <span className="pp-wizard-preview-series">
-                  {productLine?.name} — {assignments.length} stages
+                  {productLine?.name}
+                  {chainPreviews.length > 0 && ` — ${chainPreviews[0].batchName}`}
+                  {chainPreviews.length > 1 && ` to ${chainPreviews[chainPreviews.length - 1].batchName}`}
                 </span>
               </div>
 
@@ -382,47 +510,56 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
                 </div>
               )}
 
-              {/* Assignment table */}
-              <div className="pp-wizard-table">
-                <div className="pp-wizard-table-header">
-                  <span className="pp-wizard-col-type">Stage</span>
-                  <span className="pp-wizard-col-machine">Vessel</span>
-                  <span className="pp-wizard-col-time">Start</span>
-                  <span className="pp-wizard-col-time">End</span>
-                  <span className="pp-wizard-col-dur">Duration</span>
-                </div>
-                {assignments.map((a, i) => {
-                  const stDef = stageTypeDefinitions.find((st) => st.id === a.stageType);
-                  const hasOverlap = a.overlaps.length > 0;
-                  return (
-                    <div
-                      key={i}
-                      className={`pp-wizard-table-row ${hasOverlap ? 'pp-wizard-table-row-warn' : ''} ${!a.machineId ? 'pp-wizard-table-row-error' : ''}`}
-                    >
-                      <span className="pp-wizard-col-type">
-                        {stDef?.shortName ?? a.stageType}
-                      </span>
-                      <span className="pp-wizard-col-machine">
-                        {a.machineName}
-                        {hasOverlap && (
-                          <span className="pp-wizard-overlap-badge" title={`${a.overlaps.length} overlap(s)`}>
-                            ⚠
-                          </span>
-                        )}
-                      </span>
-                      <span className="pp-wizard-col-time">
-                        {format(a.startDatetime, 'MMM d HH:mm')}
-                      </span>
-                      <span className="pp-wizard-col-time">
-                        {format(a.endDatetime, 'MMM d HH:mm')}
-                      </span>
-                      <span className="pp-wizard-col-dur">
-                        {formatDuration(a.durationHours)}
-                      </span>
+              {/* Assignment tables — one per chain */}
+              {chainPreviews.map((cp, ci) => (
+                <div key={ci}>
+                  {chainPreviews.length > 1 && (
+                    <div className="pp-wizard-chain-divider">
+                      {cp.batchName} <span className="pp-wizard-chain-divider-sub">(series #{cp.seriesNumber})</span>
                     </div>
-                  );
-                })}
-              </div>
+                  )}
+                  <div className="pp-wizard-table">
+                    <div className="pp-wizard-table-header">
+                      <span className="pp-wizard-col-type">Stage</span>
+                      <span className="pp-wizard-col-machine">Vessel</span>
+                      <span className="pp-wizard-col-time">Start</span>
+                      <span className="pp-wizard-col-time">End</span>
+                      <span className="pp-wizard-col-dur">Duration</span>
+                    </div>
+                    {cp.assignments.map((a, i) => {
+                      const stDef = stageTypeDefinitions.find((st) => st.id === a.stageType);
+                      const hasOverlap = a.overlaps.length > 0;
+                      return (
+                        <div
+                          key={i}
+                          className={`pp-wizard-table-row ${hasOverlap ? 'pp-wizard-table-row-warn' : ''} ${!a.machineId ? 'pp-wizard-table-row-error' : ''}`}
+                        >
+                          <span className="pp-wizard-col-type">
+                            {stDef?.shortName ?? a.stageType}
+                          </span>
+                          <span className="pp-wizard-col-machine">
+                            {a.machineName}
+                            {hasOverlap && (
+                              <span className="pp-wizard-overlap-badge" title={`${a.overlaps.length} overlap(s)`}>
+                                ⚠
+                              </span>
+                            )}
+                          </span>
+                          <span className="pp-wizard-col-time">
+                            {format(a.startDatetime, 'MMM d HH:mm')}
+                          </span>
+                          <span className="pp-wizard-col-time">
+                            {format(a.endDatetime, 'MMM d HH:mm')}
+                          </span>
+                          <span className="pp-wizard-col-dur">
+                            {formatDuration(a.durationHours)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -456,7 +593,7 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
                 onClick={handleCreate}
                 disabled={hasUnassigned}
               >
-                Create Chain
+                Create {chainPreviews.length > 1 ? `${chainPreviews.length} Chains` : 'Chain'}
               </button>
             </>
           )}
