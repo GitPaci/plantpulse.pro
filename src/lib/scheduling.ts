@@ -222,15 +222,38 @@ export function findBestVessel(
     return true;
   });
 
+  // Collect ALL overlap-free candidates, then pick the least-recently-used
+  // (longest idle time) to distribute work across available vessels.
+  const overlapFree: VesselSuggestion[] = [];
   for (const machine of candidates) {
     const overlaps = detectOverlaps(machine.id, proposedStart, proposedEnd, stages);
     if (overlaps.length === 0) {
-      return {
+      overlapFree.push({
         machineId: machine.id,
         machineName: machine.name,
         earliestStart: proposedStart,
-      };
+      });
     }
+  }
+
+  if (overlapFree.length > 0) {
+    if (overlapFree.length === 1) return overlapFree[0];
+
+    // Prefer the machine whose last stage ended earliest (longest idle).
+    // Machines with NO existing stages are preferred (completely idle).
+    let best = overlapFree[0];
+    let bestLastEnd = lastStageEndOnMachine(best.machineId, stages);
+
+    for (let i = 1; i < overlapFree.length; i++) {
+      const lastEnd = lastStageEndOnMachine(overlapFree[i].machineId, stages);
+      if (bestLastEnd === null) break; // current best has no stages — can't beat idle
+      if (lastEnd === null || lastEnd < bestLastEnd) {
+        best = overlapFree[i];
+        bestLastEnd = lastEnd;
+      }
+    }
+
+    return best;
   }
 
   // No overlap-free vessel at proposed time — find earliest across all candidates
