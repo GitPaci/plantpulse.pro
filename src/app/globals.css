@@ -871,6 +871,40 @@ body {
   cursor: help;
 }
 
+.pp-wizard-timing-summary {
+  background: #f8fafc;
+  border: 1px solid var(--pp-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pp-wizard-timing-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.pp-wizard-timing-label {
+  font-weight: 600;
+  color: var(--pp-muted);
+  min-width: 90px;
+}
+
+.pp-wizard-timing-value {
+  flex: 1;
+  color: var(--pp-text, #1a202c);
+}
+
+.pp-wizard-timing-dur {
+  font-size: 11px;
+  color: var(--pp-muted);
+  white-space: nowrap;
+}
+
 .pp-wizard-footer {
   justify-content: flex-end;
 }

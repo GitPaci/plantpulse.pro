@@ -8,7 +8,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { usePlantPulseStore, generateId } from '@/lib/store';
-import { backCalculateChain } from '@/lib/seed-train';
+import { backCalculateChain, chainDurationHours } from '@/lib/seed-train';
 import { autoScheduleChain } from '@/lib/scheduling';
 import type { ChainAssignment } from '@/lib/scheduling';
 import { batchNamePreview } from '@/lib/types';
@@ -275,6 +275,33 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
                       className="pp-detail-input"
                     />
                   </div>
+
+                  {/* Production end time + chain span (computed, read-only) */}
+                  {(() => {
+                    const st = new Date(startTime);
+                    if (isNaN(st.getTime()) || !productLine.stageDefaults.length) return null;
+                    const prodDuration = productLine.stageDefaults[productLine.stageDefaults.length - 1].defaultDurationHours;
+                    const prodEnd = addHours(st, prodDuration);
+                    const totalHours = chainDurationHours(productLine.stageDefaults);
+                    return (
+                      <div className="pp-wizard-timing-summary">
+                        <div className="pp-wizard-timing-row">
+                          <span className="pp-wizard-timing-label">Production End</span>
+                          <span className="pp-wizard-timing-value">
+                            {format(prodEnd, 'MMM d, yyyy HH:mm')}
+                          </span>
+                          <span className="pp-wizard-timing-dur">{formatDuration(prodDuration)}</span>
+                        </div>
+                        <div className="pp-wizard-timing-row">
+                          <span className="pp-wizard-timing-label">Full Chain</span>
+                          <span className="pp-wizard-timing-value">
+                            {format(addHours(st, -totalHours + prodDuration), 'MMM d HH:mm')} → {format(prodEnd, 'MMM d HH:mm')}
+                          </span>
+                          <span className="pp-wizard-timing-dur">{formatDuration(totalHours)}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </div>
