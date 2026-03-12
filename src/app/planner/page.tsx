@@ -11,6 +11,7 @@ import ProcessSetup from '@/components/planner/ProcessSetup';
 import ShiftSchedule from '@/components/planner/ShiftSchedule';
 import StageDetailPanel from '@/components/planner/StageDetailPanel';
 import NewChainWizard from '@/components/planner/NewChainWizard';
+import BulkShiftTool from '@/components/planner/BulkShiftTool';
 import { usePlantPulseStore } from '@/lib/store';
 import { subDays, addDays, startOfDay } from 'date-fns';
 import { useState } from 'react';
@@ -182,6 +183,7 @@ export default function PlannerPage() {
   const [shiftScheduleOpen, setShiftScheduleOpen] = useState(false);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [newChainWizardOpen, setNewChainWizardOpen] = useState(false);
+  const [bulkShiftOpen, setBulkShiftOpen] = useState(false);
 
   function shiftView(days: number) {
     setViewConfig({
@@ -273,7 +275,7 @@ export default function PlannerPage() {
                 icon={<IconBulkShift />}
                 label="Bulk Shift"
                 description="Shift batches by hours after cutoff"
-                onClick={handleNotImplemented('Bulk Shift')}
+                onClick={() => setBulkShiftOpen(true)}
               />
             </SidebarSection>
 
@@ -360,6 +362,10 @@ export default function PlannerPage() {
       <NewChainWizard
         open={newChainWizardOpen}
         onClose={() => setNewChainWizardOpen(false)}
+      />
+      <BulkShiftTool
+        open={bulkShiftOpen}
+        onClose={() => setBulkShiftOpen(false)}
       />
     </div>
   );

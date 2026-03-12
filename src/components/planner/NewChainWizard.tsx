@@ -188,9 +188,8 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
   if (!open) return null;
 
   return (
-    <>
-      <div className="pp-modal-backdrop" onClick={handleClose} />
-      <div className="pp-modal pp-wizard-modal">
+    <div className="pp-modal-backdrop" onClick={handleClose}>
+      <div className="pp-modal pp-wizard-modal" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="pp-modal-header">
           <h2>New Batch Chain</h2>
@@ -389,6 +388,6 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }
