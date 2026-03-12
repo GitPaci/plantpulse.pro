@@ -6,10 +6,10 @@
 // Flow: Select product line → Pick fermenter + start time (or auto-find)
 // → Back-calculate seed train → Preview with overlap warnings → Confirm
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { usePlantPulseStore, generateId } from '@/lib/store';
 import { backCalculateChain, chainDurationHours } from '@/lib/seed-train';
-import { autoScheduleChain } from '@/lib/scheduling';
+import { autoScheduleChain, earliestAvailableTime } from '@/lib/scheduling';
 import type { ChainAssignment } from '@/lib/scheduling';
 import { batchNamePreview } from '@/lib/types';
 import type { BatchNamingRule, ProductLine } from '@/lib/types';
@@ -91,6 +91,36 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
         (!m.productLine || m.productLine === productLine.id)
     );
   }, [machines, productLine]);
+
+  // Suggested start time: earliest available slot across fermenter candidates,
+  // accounting for turnaround gap (CIP, SIP, Cleaning, etc.)
+  const suggestedStart = useMemo(() => {
+    if (!productLine || fermenterMachines.length === 0) return null;
+    const lastStage = productLine.stageDefaults[productLine.stageDefaults.length - 1];
+    if (!lastStage) return null;
+
+    if (selectedFermenter !== 'auto') {
+      // Specific fermenter selected — find its earliest slot
+      const m = fermenterMachines.find((fm) => fm.id === selectedFermenter);
+      if (!m) return null;
+      return earliestAvailableTime(m.id, m.group, stages, turnaroundActivities);
+    }
+
+    // Auto mode: find the earliest across all fermenters
+    let earliest: Date | null = null;
+    for (const m of fermenterMachines) {
+      const t = earliestAvailableTime(m.id, m.group, stages, turnaroundActivities);
+      if (!earliest || t < earliest) earliest = t;
+    }
+    return earliest;
+  }, [productLine, fermenterMachines, selectedFermenter, stages, turnaroundActivities]);
+
+  // Auto-populate start time when product line or fermenter changes
+  useEffect(() => {
+    if (suggestedStart) {
+      setStartTime(toDatetimeLocal(suggestedStart));
+    }
+  }, [suggestedStart]);
 
   // Next series number & batch name preview
   const seriesNum = useMemo(
@@ -266,7 +296,19 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
 
                   {/* Start time */}
                   <div className="pp-wizard-field">
-                    <label htmlFor="wiz-start">Production Start Time</label>
+                    <label htmlFor="wiz-start">
+                      Production Start Time
+                      {suggestedStart && startTime !== toDatetimeLocal(suggestedStart) && (
+                        <button
+                          type="button"
+                          className="pp-wizard-suggest-btn"
+                          onClick={() => setStartTime(toDatetimeLocal(suggestedStart))}
+                          title="Use suggested time (earliest available after turnaround)"
+                        >
+                          Reset to suggested
+                        </button>
+                      )}
+                    </label>
                     <input
                       id="wiz-start"
                       type="datetime-local"
@@ -274,6 +316,11 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
                       onChange={(e) => setStartTime(e.target.value)}
                       className="pp-detail-input"
                     />
+                    {suggestedStart && startTime === toDatetimeLocal(suggestedStart) && (
+                      <span className="pp-wizard-suggest-hint">
+                        Suggested: earliest available after turnaround
+                      </span>
+                    )}
                   </div>
 
                   {/* Production end time + chain span (computed, read-only) */}

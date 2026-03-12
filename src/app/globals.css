@@ -871,6 +871,28 @@ body {
   cursor: help;
 }
 
+.pp-wizard-suggest-btn {
+  background: none;
+  border: none;
+  font-size: 11px;
+  color: var(--pp-accent, #3182ce);
+  cursor: pointer;
+  padding: 0 4px;
+  margin-left: 6px;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+.pp-wizard-suggest-btn:hover {
+  color: #2b6cb0;
+}
+
+.pp-wizard-suggest-hint {
+  display: block;
+  font-size: 11px;
+  color: #16a34a;
+  margin-top: 2px;
+}
+
 .pp-wizard-timing-summary {
   background: #f8fafc;
   border: 1px solid var(--pp-border);
