@@ -13,6 +13,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { usePlantPulseStore, generateId } from '@/lib/store';
 import { backCalculateChain, chainDurationHours } from '@/lib/seed-train';
 import { autoScheduleChain, earliestAvailableTime, requiredTurnaroundGap } from '@/lib/scheduling';
+import { isMachineUnavailable } from '@/lib/types';
 import type { ChainAssignment } from '@/lib/scheduling';
 import { batchNamePreview } from '@/lib/types';
 import type { BatchNamingRule, ProductLine, Stage } from '@/lib/types';
@@ -229,10 +230,26 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
         });
       }
 
-      // Next chain starts after this chain's production end + turnaround gap
-      const prodAssignment = result[result.length - 1];
-      if (prodAssignment) {
-        cursor = addHours(prodAssignment.endDatetime, fermenterTurnaroundGap);
+      // Next chain's production start: use earliest available fermenter slot
+      // across ALL candidates (considering accumulated stages), not just the
+      // previous chain's end. This avoids huge gaps when vessels alternate —
+      // e.g. F-3 may be free days before F-2's chain ends.
+      if (selectedFermenter === 'auto') {
+        let nextEarliest: Date | null = null;
+        for (const m of fermenterMachines) {
+          if (isMachineUnavailable(m, cursor)) continue;
+          const t = earliestAvailableTime(
+            m.id, m.group, accumulatedStages, turnaroundActivities
+          );
+          if (!nextEarliest || t < nextEarliest) nextEarliest = t;
+        }
+        if (nextEarliest) cursor = nextEarliest;
+      } else {
+        // User pinned a specific fermenter — sequential cursor is correct
+        const prodAssignment = result[result.length - 1];
+        if (prodAssignment) {
+          cursor = addHours(prodAssignment.endDatetime, fermenterTurnaroundGap);
+        }
       }
     }
 
