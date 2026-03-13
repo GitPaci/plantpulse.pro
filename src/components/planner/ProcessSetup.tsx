@@ -1708,11 +1708,12 @@ export default function ProcessSetup({
                 {draftNaming.mode === 'per_product_line' && (
                   <div className="pp-naming-rules-list">
                     {draftProductLines.map((pl) => {
-                      const rule = draftNaming.productLineRules[pl.id] || DEFAULT_NAMING_RULE;
+                      const rule = draftNaming.productLineRules[pl.id]
+                        || { ...DEFAULT_NAMING_RULE, prefix: pl.shortName ? `${pl.shortName}-` : '' };
                       return (
                         <NamingRuleEditor
                           key={pl.id}
-                          label={pl.shortName || pl.name}
+                          label={`${pl.name} (${pl.shortName || pl.id})`}
                           rule={rule}
                           onChange={(field, value) => updateNamingRule(pl.id, field, value)}
                           showNextNumber={draftNaming.counterResetMode === 'none'}
