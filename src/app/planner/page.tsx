@@ -13,8 +13,8 @@ import StageDetailPanel from '@/components/planner/StageDetailPanel';
 import NewChainWizard from '@/components/planner/NewChainWizard';
 import BulkShiftTool from '@/components/planner/BulkShiftTool';
 import { usePlantPulseStore } from '@/lib/store';
-import { subDays, addDays, startOfDay } from 'date-fns';
-import { useState } from 'react';
+import { subDays, addDays, startOfDay, differenceInDays } from 'date-fns';
+import { useState, useCallback, useRef } from 'react';
 
 // ─── Inline SVG icons (16×16, stroke-based) ───────────────────────────
 
@@ -197,6 +197,82 @@ export default function PlannerPage() {
     });
   }
 
+  // Horizontal scroll — pan the timeline by scrolling or dragging the scrollbar
+  const timelineRef = useRef<HTMLDivElement>(null);
+
+  // Total scrollable range: 90 days before today to 90 days after = ~180 days
+  const SCROLL_RANGE_DAYS = 180;
+  const SCROLL_RANGE_BEFORE = 90;
+  const today = startOfDay(new Date());
+  const scrollMin = subDays(today, SCROLL_RANGE_BEFORE);
+
+  // Current position as fraction (0..1) of the scroll range
+  const currentOffset = differenceInDays(viewConfig.viewStart, scrollMin);
+  const maxOffset = SCROLL_RANGE_DAYS - viewConfig.numberOfDays;
+  const scrollFraction = Math.max(0, Math.min(1, currentOffset / maxOffset));
+  const thumbWidth = Math.max(8, (viewConfig.numberOfDays / SCROLL_RANGE_DAYS) * 100);
+
+  const handleTimelineWheel = useCallback(
+    (e: React.WheelEvent) => {
+      // Shift + wheel or horizontal wheel → pan timeline
+      const delta = e.shiftKey ? e.deltaY : e.deltaX;
+      if (delta === 0) return;
+      e.preventDefault();
+      const dayShift = delta > 0 ? 1 : -1;
+      setViewConfig({
+        viewStart: addDays(viewConfig.viewStart, dayShift),
+      });
+    },
+    [viewConfig.viewStart, setViewConfig]
+  );
+
+  const handleScrollbarClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickFraction = (e.clientX - rect.left) / rect.width;
+      const newOffset = Math.round(clickFraction * maxOffset);
+      setViewConfig({
+        viewStart: addDays(scrollMin, newOffset),
+      });
+    },
+    [maxOffset, scrollMin, setViewConfig]
+  );
+
+  // Drag state for scrollbar thumb
+  const [dragging, setDragging] = useState(false);
+  const scrollbarRef = useRef<HTMLDivElement>(null);
+
+  const handleThumbMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragging(true);
+      const startX = e.clientX;
+      const startOffset = currentOffset;
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        if (!scrollbarRef.current) return;
+        const trackWidth = scrollbarRef.current.getBoundingClientRect().width;
+        const dx = moveEvent.clientX - startX;
+        const daysDelta = Math.round((dx / trackWidth) * maxOffset);
+        const newOffset = Math.max(0, Math.min(maxOffset, startOffset + daysDelta));
+        setViewConfig({
+          viewStart: addDays(scrollMin, newOffset),
+        });
+      };
+
+      const onMouseUp = () => {
+        setDragging(false);
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      };
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    },
+    [currentOffset, maxOffset, scrollMin, setViewConfig]
+  );
+
   // Placeholder handlers — will be wired to modals/panels in next phases
   function handleNotImplemented(feature: string) {
     return () => {
@@ -251,9 +327,29 @@ export default function PlannerPage() {
 
       {/* Main content: timeline + sidebar */}
       <div className="flex-1 min-h-0 flex">
-        {/* Timeline */}
-        <div className="flex-1 min-w-0">
-          <WallboardCanvas onStageClick={(id) => setSelectedStageId(id)} />
+        {/* Timeline + horizontal scrollbar */}
+        <div className="flex-1 min-w-0 flex flex-col" ref={timelineRef}>
+          <div
+            className="flex-1 min-h-0"
+            onWheel={handleTimelineWheel}
+          >
+            <WallboardCanvas onStageClick={(id) => setSelectedStageId(id)} />
+          </div>
+          {/* Horizontal scrollbar */}
+          <div
+            ref={scrollbarRef}
+            className="planner-hscroll-track"
+            onClick={handleScrollbarClick}
+          >
+            <div
+              className={`planner-hscroll-thumb${dragging ? ' planner-hscroll-thumb-active' : ''}`}
+              style={{
+                left: `${scrollFraction * (100 - thumbWidth)}%`,
+                width: `${thumbWidth}%`,
+              }}
+              onMouseDown={handleThumbMouseDown}
+            />
+          </div>
         </div>
 
         {/* Planning sidebar */}
