@@ -33,6 +33,34 @@ function toDatetimeLocal(date: Date): string {
   return format(date, "yyyy-MM-dd'T'HH:mm");
 }
 
+const TYPICAL_BATCH_PREFIXES = ['B', 'LOT', 'BAT', 'LB', 'BT', 'L', 'P'];
+
+function randomLetters(length: number): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return result;
+}
+
+function randomBatchPrefix(used: Set<string>): string {
+  for (let i = 0; i < 10; i++) {
+    const fromTypical = Math.random() < 0.7;
+    const candidate = fromTypical
+      ? TYPICAL_BATCH_PREFIXES[Math.floor(Math.random() * TYPICAL_BATCH_PREFIXES.length)]
+      : randomLetters(1 + Math.floor(Math.random() * 3));
+    if (!used.has(candidate)) {
+      used.add(candidate);
+      return candidate;
+    }
+  }
+
+  const fallback = randomLetters(3);
+  used.add(fallback);
+  return fallback;
+}
+
 /** Get the next series number based on existing batch chains for a product line. */
 function nextSeriesNumber(
   existingChains: { productLine: string; seriesNumber: number }[],
@@ -165,9 +193,13 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
   const chainNames = useMemo(() => {
     if (!namingRule) return [];
     const step = namingRule.step || 1;
-    return Array.from({ length: chainCount }, (_, i) =>
-      batchNamePreview(namingRule, baseSeriesNum + i * step)
-    );
+    const usedPrefixes = new Set<string>();
+    return Array.from({ length: chainCount }, (_, i) => {
+      const counter = baseSeriesNum + i * step;
+      const numberPart = String(counter).padStart(Math.max(1, namingRule.padDigits || 0), '0');
+      const prefix = randomBatchPrefix(usedPrefixes);
+      return `${prefix}-${numberPart}${namingRule.suffix}`;
+    });
   }, [namingRule, baseSeriesNum, chainCount]);
 
   // Turnaround gap for fermenters
@@ -227,7 +259,7 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
 
       const seriesNumber = baseSeriesNum + i * step;
       previews.push({
-        batchName: batchNamePreview(namingRule, seriesNumber),
+        batchName: chainNames[i] ?? batchNamePreview(namingRule, seriesNumber),
         seriesNumber,
         assignments: result,
       });
@@ -271,7 +303,7 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
 
     setChainPreviews(previews);
     setStep('preview');
-  }, [productLine, startTime, selectedFermenter, chainCount, machines, stages, turnaroundActivities, namingRule, baseSeriesNum, fermenterTurnaroundGap, stageTypeCounts]);
+  }, [productLine, startTime, selectedFermenter, chainCount, machines, stages, turnaroundActivities, namingRule, baseSeriesNum, fermenterTurnaroundGap, stageTypeCounts, chainNames]);
 
   const handleCreate = useCallback(() => {
     if (!productLine || chainPreviews.length === 0) return;
