@@ -316,60 +316,34 @@ timeline canvas. The following tracks what is implemented vs. pending.
 | Shift band gap segments | Done | Gray (`#b0b0b0`) segments for uncovered periods in Wallboard + Planner shift bands; `isShiftCoveredAt()` + `ShiftBandSegment` with `teamIndex: -1` |
 | Recurring machine downtime | Done | `RecurringDowntimeRule` (weekly/monthly), `isDateInRecurringRule()`, integrated into `isMachineUnavailable()` |
 | Stage Types scope toggle | Done | Shared vs per-product-line mode; validation dialog on mode switch; Stage Types ↔ Stage Defaults sync |
+| `lib/scheduling.ts` — scheduling engine | Done | Overlap detection, LRU vessel assignment, auto-schedule chain, bulk shift validation, turnaround gap enforcement |
+| `lib/seed-train.ts` — seed train engine | Done | Back/forward-calculation, stage type count expansion (`expandStageDefaults`), `buildStageTypeCounts` |
+| `StageDetailPanel.tsx` | Done | Canvas click → side panel for stage view/edit (vessel, start/end, state) |
+| `NewChainWizard.tsx` | Done | Multi-chain creation (+ button), auto-suggest start, per-vessel cursor, per-PL stage type resolution, count expansion |
+| `BulkShiftTool.tsx` | Done | Cutoff date + series filter + delta hours; post-shift overlap validation |
 
-### Pending — Batch Operations
+### Implemented — Batch Operations (Steps 1–4)
 
-> **Status:** Ready to start. All prerequisites are in place — data model (types.ts),
-> store CRUD (stages + batch chains + bulkShiftStages), demo data generator, setup
-> modals (Equipment, Process, Shift Schedule), and canvas rendering (batch bars,
-> shift band, calendar grid). The planner page scaffold exists with placeholder
-> buttons for "New Batch Chain" and "Bulk Shift".
+> **Status:** Core batch operations are implemented. Steps 1–4 complete: scheduling
+> engine, canvas click handlers, NewChainWizard (with multi-chain support), and
+> BulkShiftTool. Remaining: ChainEditor and drag interactions (medium priority).
 
-#### Recommended build order
+| Step | Component | Status | Notes |
+|------|-----------|--------|-------|
+| 1 | `lib/scheduling.ts` | Done | `detectOverlaps()`, `findBestVessel()` (LRU heuristic), `autoScheduleChain()`, `validateBulkShift()`, `selectStagesForBulkShift()`, `requiredTurnaroundGap()`, `earliestAvailableTime()` — integrates turnaround durations + machine downtime |
+| 1 | `lib/seed-train.ts` | Done | `backCalculateChain()` with `stageTypeCounts` support, `expandStageDefaults()` (count > 1), `buildStageTypeCounts()`, `forwardCalculateChain()`, `chainDurationHours()` |
+| 2 | Canvas click handlers + `StageDetailPanel.tsx` | Done | Hit-test batch bars, side panel for view/edit stage properties |
+| 3 | `NewChainWizard.tsx` | Done | Multi-chain via "+" button (up to 10), auto-suggest production start, per-vessel earliest-availability cursor, per-product-line stage type resolution, stage type count expansion, production end/span timing display |
+| 4 | `BulkShiftTool.tsx` | Done | Cutoff date + series filter + hour delta; post-shift overlap validation |
+| 5 | `ChainEditor.tsx` | Pending | Full chain view with linked stages, batch name, status (medium priority) |
+| 5 | Drag-to-move / stretch-to-resize | Pending | Canvas interaction for stage bars (medium priority) |
 
-**Step 1 — Business logic engines (pure functions, no UI)**
+#### Key implementation details
 
-| File | Purpose | Key functions |
-|------|---------|---------------|
-| `lib/scheduling.ts` | Overlap detection + auto-scheduling | `detectOverlap(stage, existingStages)`, `findAvailableVessel(machineGroup, timeWindow, stages)`, `validateBulkShift(stageIds, deltaHours)` |
-| `lib/seed-train.ts` | Back-calculation from fermenter start | `backCalculateChain(finalStageStart, stageDefaults)` — walks product line's `StageDefault[]` backwards to compute start times for each upstream stage |
-
-These are pure functions with no UI dependencies. `scheduling.ts` needs to integrate
-turnaround activity durations (`turnaroundTotalHours()`) into gap enforcement, and
-respect machine downtime (`isMachineUnavailable()`). Overlap detection logic is ported
-from VBA `DateDiff("h", lastEnd, newStart) < 0`.
-
-**Step 2 — Canvas click handlers + StageDetailPanel**
-
-| Component | Purpose |
-|-----------|---------|
-| Canvas click handler in `WallboardCanvas.tsx` | Hit-test batch bars on click, emit `onStageClick(stageId)` callback |
-| `components/planner/StageDetailPanel.tsx` | Side panel showing stage + chain details; editable fields: vessel, start/end datetime, state; "fixed duration" and "link to next" modes (ported from VBA `ObdelavaSerija`) |
-
-This makes the planner immediately useful — users can click any batch bar and
-view/edit its properties.
-
-**Step 3 — NewChainWizard**
-
-| Component | Purpose |
-|-----------|---------|
-| `components/planner/NewChainWizard.tsx` | Guided batch creation: select product line → pick fermenter + start time (or auto-find earliest available) → back-calculate seed train → show preview with overlap warnings → confirm to add all stages |
-
-Depends on `scheduling.ts` (overlap detection, available vessel finder) and
-`seed-train.ts` (back-calculation). VBA equivalent: `NovaSer` form.
-
-**Step 4 — BulkShiftTool**
-
-| Component | Purpose |
-|-----------|---------|
-| `components/planner/BulkShiftTool.tsx` | UI: cutoff date + series number filter + hour delta (±). Calls `bulkShiftStages()` store action. Post-shift validation via `scheduling.ts` to warn about new overlaps. VBA equivalent: `Premik`. |
-
-**Step 5 (medium priority) — ChainEditor + drag interactions**
-
-| Component | Gap | Priority |
-|-----------|-----|----------|
-| `ChainEditor.tsx` | Full chain view with all linked stages, batch name, status | Medium |
-| Drag-to-move / stretch-to-resize | Canvas interaction for stage bars | Medium |
+- **LRU vessel assignment**: `findBestVessel()` prefers the machine with the longest idle time among overlap-free candidates, naturally distributing work across vessels (e.g. alternating F-2/F-3)
+- **Multi-chain cursor**: when creating multiple chains, each chain's fermenter start is the earliest available time across all fermenter candidates (not sequential from previous chain's end), avoiding large gaps when vessels alternate
+- **Stage type count expansion**: `expandStageDefaults()` repeats stage entries based on `StageTypeDefinition.count` (e.g. Seed n-1 with count=2 → two n-1 stages in the chain)
+- **Per-product-line stage types**: wizard uses `productLineStageTypes[productLineId]` when `stageTypesMode === 'per_product_line'`, correctly resolving stage names and short labels
 
 #### Dependencies diagram
 
@@ -378,16 +352,16 @@ lib/types.ts (done)
 lib/store.ts (done — CRUD for Stage, BatchChain)
     │
     ▼
-lib/scheduling.ts ◄── lib/seed-train.ts
-    │                       │
-    ▼                       ▼
-StageDetailPanel ◄── NewChainWizard
-    │                       │
-    ▼                       ▼
-Canvas click handlers   BulkShiftTool
+lib/scheduling.ts (done) ◄── lib/seed-train.ts (done)
+    │                              │
+    ▼                              ▼
+StageDetailPanel (done) ◄── NewChainWizard (done)
+    │                              │
+    ▼                              ▼
+Canvas click handlers (done)   BulkShiftTool (done)
     │
     ▼
-ChainEditor (optional)
+ChainEditor (pending)
 ```
 
 ### Pending — Data I/O

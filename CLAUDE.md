@@ -121,16 +121,19 @@ When adding a new series, the system checks:
 - Conflict vessel names are collected and shown to user for confirmation
 
 #### 2. Auto-scheduling (new chain wizard)
-- Find earliest available fermenter → suggest start = last_end + 12h
-- Back-calculate PF start = fermenter_start - PF_duration
-- Back-calculate PR start = PF_start - PR_duration
-- Auto-assign to first available (non-overlapping) PF and PR vessel in the product line's pool
-- Maximum tolerance windows (`NasPF_MAX`, `NasPR_MAX`) constrain how far back to look
+- Find earliest available fermenter → suggest start = last_end + turnaround gap
+- Back-calculate upstream stages from fermenter start using product line's `stageDefaults`
+- **LRU vessel assignment**: `findBestVessel()` collects all overlap-free candidates and picks the one with the longest idle time (earliest `lastStageEnd`), distributing work across available vessels (e.g. alternating F-2/F-3, PR-1/PR-2)
+- **Multi-chain scheduling**: when creating multiple chains via the "+" button, the next chain's production start is the earliest available time across all fermenter candidates (per-vessel cursor), not the previous chain's end — avoids large gaps when vessels alternate
+- **Stage type count expansion**: `expandStageDefaults()` repeats stage entries based on `StageTypeDefinition.count` (e.g. Seed n-1 with count=2 produces two consecutive n-1 stages in the chain)
+- **Per-product-line stage types**: wizard resolves stage type names from `productLineStageTypes[productLineId]` when in per-product-line mode (not just the global shared list)
+- Implementation: `NewChainWizard.tsx` (wizard UI) + `scheduling.ts` (`findBestVessel`, `autoScheduleChain`) + `seed-train.ts` (`backCalculateChain`, `expandStageDefaults`, `buildStageTypeCounts`)
 
 #### 3. Bulk time-shift
 - Filter: all entries where `series_number >= threshold AND start_date > cutoff_date`
 - Shift both start and end by N hours (positive or negative)
-- No re-validation of overlaps after shift (manual check needed)
+- Post-shift overlap validation via `validateBulkShift()` warns about new conflicts
+- Implementation: `BulkShiftTool.tsx` (UI) + `scheduling.ts` (`selectStagesForBulkShift`, `validateBulkShift`) + store action `bulkShiftStages()`
 
 #### 4. Batch bar editing
 - Up to 8 stages per series displayed simultaneously
@@ -879,24 +882,31 @@ function currentShiftTeam(now: Date, anchorDate: Date): number {
 
 Uses the product line's `stageDefaults` array to back-calculate from the
 final stage. Works with any number of stages and any user-defined durations.
+Supports `stageTypeCounts` for expanding stages with count > 1.
 
 ```typescript
+// Expand stage defaults by count (e.g. Seed n-1 count=2 → two n-1 entries)
+function expandStageDefaults(
+  stageDefaults: StageDefault[],
+  stageTypeCounts?: Map<string, number>
+): StageDefault[] {
+  if (!stageTypeCounts || stageTypeCounts.size === 0) return stageDefaults;
+  const expanded: StageDefault[] = [];
+  for (const sd of stageDefaults) {
+    const count = stageTypeCounts.get(sd.stageType) ?? 1;
+    for (let c = 0; c < count; c++) expanded.push(sd);
+  }
+  return expanded;
+}
+
 // Generic: works with any product line configuration
 function backCalculateChain(
   finalStageStart: Date,
-  stageDefaults: StageDefault[]  // from ProductLine.stageDefaults
-): { stageType: string; start: Date }[] {
-  const stages: { stageType: string; start: Date }[] = [];
-  let cursor = finalStageStart;
-
-  // Walk backwards through stage defaults (last = final stage)
-  for (let i = stageDefaults.length - 1; i >= 0; i--) {
-    stages.unshift({ stageType: stageDefaults[i].stageType, start: cursor });
-    if (i > 0) {
-      cursor = subHours(cursor, stageDefaults[i].defaultDurationHours);
-    }
-  }
-  return stages;
+  stageDefaults: StageDefault[],
+  stageTypeCounts?: Map<string, number>
+): BackCalculatedStage[] {
+  const expanded = expandStageDefaults(stageDefaults, stageTypeCounts);
+  // ... walks backwards from final stage, computing start/end for each
 }
 
 // Modern defaults (4-stage seed train, literature-aligned naming):
