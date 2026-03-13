@@ -70,11 +70,9 @@ export const DEFAULT_WALLBOARD_EQUIPMENT_GROUPS: string[] = [
 const PAGE_LOAD_RANDOM_PREFIX = generateRandomBatchPrefix(3);
 
 export const DEFAULT_BATCH_NAMING_CONFIG: BatchNamingConfig = {
-  mode: 'per_product_line',
-  sharedRule: { prefix: PAGE_LOAD_RANDOM_PREFIX, suffix: '', startNumber: 1, padDigits: 3, step: 1 },
-  productLineRules: {
-    GNT: { prefix: PAGE_LOAD_RANDOM_PREFIX, suffix: '', startNumber: 1, padDigits: 3, step: 1 },
-    KK:  { prefix: PAGE_LOAD_RANDOM_PREFIX, suffix: '', startNumber: 1, padDigits: 3, step: 1 },
+  const workspaceSeed = Date.now();
+  const start = workspaceSeed % DEMO_PRODUCT_CATALOG.length;
+  const count = 2 + (workspaceSeed % 2); // 2 or 3 products per workspace
   },
   counterResetMode: 'annual',
   counterResetMonth: 1,
