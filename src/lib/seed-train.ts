@@ -10,7 +10,8 @@ import type { StageDefault, StageTypeDefinition } from './types';
 
 /**
  * Expand stage defaults by the `count` field from stage type definitions.
- * E.g. if Seed (n-1) has count=2, it produces two consecutive n-1 entries.
+ * E.g. if Seed (n-1) has count=2, it produces two parallel n-1 entries.
+ * Parallel stages share the same time window but get assigned to different machines.
  * If no counts map is provided, returns defaults as-is (count=1 for all).
  */
 export function expandStageDefaults(
@@ -77,39 +78,46 @@ export function backCalculateChain(
   stageDefaults: StageDefault[],
   stageTypeCounts?: Map<string, number>
 ): BackCalculatedStage[] {
-  const expanded = expandStageDefaults(stageDefaults, stageTypeCounts);
-  if (expanded.length === 0) return [];
+  if (stageDefaults.length === 0) return [];
 
   const stages: BackCalculatedStage[] = [];
 
   // Start with the final (production) stage
-  const lastDefault = expanded[expanded.length - 1];
+  const lastDefault = stageDefaults[stageDefaults.length - 1];
+  const lastCount = stageTypeCounts?.get(lastDefault.stageType) ?? 1;
   const finalEnd = addHours(finalStageStart, lastDefault.defaultDurationHours);
 
-  stages.push({
-    stageType: lastDefault.stageType,
-    machineGroup: lastDefault.machineGroup,
-    startDatetime: new Date(finalStageStart.getTime()),
-    endDatetime: finalEnd,
-    durationHours: lastDefault.defaultDurationHours,
-  });
+  for (let c = 0; c < lastCount; c++) {
+    stages.push({
+      stageType: lastDefault.stageType,
+      machineGroup: lastDefault.machineGroup,
+      startDatetime: new Date(finalStageStart.getTime()),
+      endDatetime: new Date(finalEnd.getTime()),
+      durationHours: lastDefault.defaultDurationHours,
+    });
+  }
 
-  // Walk backwards through upstream stages
+  // Walk backwards through upstream stages.
+  // Parallel stages (count > 1) share the same time window but get
+  // assigned to different machines by autoScheduleChain.
   let nextStageStart = finalStageStart;
-  for (let i = expanded.length - 2; i >= 0; i--) {
-    const def = expanded[i];
+  for (let i = stageDefaults.length - 2; i >= 0; i--) {
+    const def = stageDefaults[i];
+    const count = stageTypeCounts?.get(def.stageType) ?? 1;
     const stageStart = subHours(nextStageStart, def.defaultDurationHours);
     const stageEnd = nextStageStart;
 
-    stages.unshift({
-      stageType: def.stageType,
-      machineGroup: def.machineGroup,
-      startDatetime: stageStart,
-      endDatetime: new Date(stageEnd.getTime()),
-      durationHours: def.defaultDurationHours,
-    });
+    for (let c = 0; c < count; c++) {
+      stages.unshift({
+        stageType: def.stageType,
+        machineGroup: def.machineGroup,
+        startDatetime: new Date(stageStart.getTime()),
+        endDatetime: new Date(stageEnd.getTime()),
+        durationHours: def.defaultDurationHours,
+      });
+    }
 
-    nextStageStart = stageStart;
+    nextStageStart = stageStart; // cursor moves back ONCE (parallel, not sequential)
   }
 
   return stages;
@@ -126,35 +134,38 @@ export function forwardCalculateChain(
   stageDefaults: StageDefault[],
   stageTypeCounts?: Map<string, number>
 ): BackCalculatedStage[] {
-  const expanded = expandStageDefaults(stageDefaults, stageTypeCounts);
-  if (expanded.length === 0) return [];
+  if (stageDefaults.length === 0) return [];
 
   const stages: BackCalculatedStage[] = [];
   let cursor = firstStageStart;
 
-  for (const def of expanded) {
+  for (const def of stageDefaults) {
+    const count = stageTypeCounts?.get(def.stageType) ?? 1;
     const stageEnd = addHours(cursor, def.defaultDurationHours);
-    stages.push({
-      stageType: def.stageType,
-      machineGroup: def.machineGroup,
-      startDatetime: new Date(cursor.getTime()),
-      endDatetime: stageEnd,
-      durationHours: def.defaultDurationHours,
-    });
-    cursor = stageEnd;
+
+    for (let c = 0; c < count; c++) {
+      stages.push({
+        stageType: def.stageType,
+        machineGroup: def.machineGroup,
+        startDatetime: new Date(cursor.getTime()),
+        endDatetime: new Date(stageEnd.getTime()),
+        durationHours: def.defaultDurationHours,
+      });
+    }
+
+    cursor = stageEnd; // advance ONCE (parallel stages share the same window)
   }
 
   return stages;
 }
 
 /**
- * Compute the total chain duration in hours (sum of all stage defaults,
- * accounting for stage type counts).
+ * Compute the total chain duration in hours.
+ * Parallel stages (count > 1) don't add extra duration — they run simultaneously.
  */
 export function chainDurationHours(
   stageDefaults: StageDefault[],
-  stageTypeCounts?: Map<string, number>
+  _stageTypeCounts?: Map<string, number>
 ): number {
-  const expanded = expandStageDefaults(stageDefaults, stageTypeCounts);
-  return expanded.reduce((sum, d) => sum + d.defaultDurationHours, 0);
+  return stageDefaults.reduce((sum, d) => sum + d.defaultDurationHours, 0);
 }
