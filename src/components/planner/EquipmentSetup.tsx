@@ -1235,8 +1235,8 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId }: 
                               className="pp-setup-input"
                               style={{ width: 64 }}
                               placeholder="Short"
-                              maxLength={6}
-                              title="Short name for toolbar chips and batch labels"
+                              maxLength={3}
+                              title="Short name (1–3 letters) for toolbar chips and batch labels"
                             />
                           </>
                         ) : (

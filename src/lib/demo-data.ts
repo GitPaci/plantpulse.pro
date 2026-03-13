@@ -1,5 +1,5 @@
-// Demo data generator — produces realistic batch schedules matching VBA legacy defaults
-// Machine configuration from VBA `imena` array; batch chains for KK + GNT lines
+// Demo data generator — produces realistic batch schedules for biotech fermentation
+// Machine configuration from VBA `imena` array; rotating product catalog for demo variety
 
 import { addHours, subHours, startOfDay, subDays } from 'date-fns';
 import type {
@@ -64,14 +64,69 @@ export const DEFAULT_WALLBOARD_EQUIPMENT_GROUPS: string[] = [
   'propagator', 'pre_fermenter', 'fermenter',
 ];
 
+// ─── PlantPulse demo product catalog ─────────────────────────────────────
+// Rotating list of realistic biotech fermentation products. Each demo session
+// picks 2 products to showcase that PlantPulse handles diverse product types.
+
+export interface DemoProduct {
+  id: string;
+  name: string;
+  shortName: string;
+}
+
+export const DEMO_PRODUCT_CATALOG: DemoProduct[] = [
+  { id: 'AD',  name: 'Adalimumab',      shortName: 'AD'  },
+  { id: 'RTX', name: 'Rituximab',       shortName: 'RTX' },
+  { id: 'TRZ', name: 'Trastuzumab',     shortName: 'TRZ' },
+  { id: 'BVZ', name: 'Bevacizumab',     shortName: 'BVZ' },
+  { id: 'INS', name: 'Insulin',         shortName: 'INS' },
+  { id: 'FIL', name: 'Filgrastim',      shortName: 'FIL' },
+  { id: 'PEN', name: 'Penicillin G',    shortName: 'PEN' },
+  { id: 'AZM', name: 'Azithromycin',    shortName: 'AZM' },
+  { id: 'VAN', name: 'Vancomycin',      shortName: 'VAN' },
+  { id: 'GNT', name: 'Gentamicin',      shortName: 'GNT' },
+  { id: 'TOB', name: 'Tobramycin',      shortName: 'TOB' },
+  { id: 'STR', name: 'Streptomycin',    shortName: 'STR' },
+  { id: 'DOX', name: 'Doxycycline',     shortName: 'DOX' },
+  { id: 'CEX', name: 'Cephalexin',      shortName: 'CEX' },
+  { id: 'CFX', name: 'Cefuroxime',      shortName: 'CFX' },
+  { id: 'CLA', name: 'Clavulanic Acid', shortName: 'CLA' },
+  { id: 'B12', name: 'Vitamin B12',     shortName: 'B12' },
+  { id: 'CAC', name: 'Citric Acid',     shortName: 'CAC' },
+  { id: 'LYS', name: 'L-Lysine',        shortName: 'LYS' },
+  { id: 'LAC', name: 'Lactic Acid',     shortName: 'LAC' },
+];
+
+/**
+ * Pick N distinct products from the catalog using a deterministic daily seed.
+ * The selection rotates each day so returning visitors see variety over time.
+ */
+function pickDemoProducts(count: number): DemoProduct[] {
+  const today = new Date();
+  // Simple date-based seed: changes daily
+  const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+  // Fisher-Yates shuffle with a seeded LCG pseudo-random
+  const catalog = [...DEMO_PRODUCT_CATALOG];
+  let rng = seed;
+  for (let i = catalog.length - 1; i > 0; i--) {
+    rng = ((rng * 1103515245 + 12345) & 0x7fffffff);
+    const j = rng % (i + 1);
+    [catalog[i], catalog[j]] = [catalog[j], catalog[i]];
+  }
+  return catalog.slice(0, count);
+}
+
+// Pick 2 demo products for this session (changes daily)
+const [DEMO_LINE_A, DEMO_LINE_B] = pickDemoProducts(2);
+
 // ─── Default batch naming configuration ──────────────────────────────────
 
 export const DEFAULT_BATCH_NAMING_CONFIG: BatchNamingConfig = {
   mode: 'per_product_line',
   sharedRule: { prefix: 'B-', suffix: '', startNumber: 1, padDigits: 3, step: 1 },
   productLineRules: {
-    GNT: { prefix: 'GNT-', suffix: '', startNumber: 1, padDigits: 3, step: 1 },
-    KK:  { prefix: 'KK-',  suffix: '', startNumber: 1, padDigits: 3, step: 1 },
+    [DEMO_LINE_A.id]: { prefix: `${DEMO_LINE_A.shortName}-`, suffix: '', startNumber: 1, padDigits: 3, step: 1 },
+    [DEMO_LINE_B.id]: { prefix: `${DEMO_LINE_B.shortName}-`, suffix: '', startNumber: 1, padDigits: 3, step: 1 },
   },
   counterResetMode: 'annual',
   counterResetMonth: 1,
@@ -97,43 +152,43 @@ export const DEFAULT_SHIFT_ROTATION: ShiftRotation = {
   operatingHoursEnd: 24,
 };
 
-// ─── Default machines (from VBA imena array) ───────────────────────────
+// ─── Default machines (from VBA imena array, tagged with demo product lines) ─
 
 export const DEFAULT_MACHINES: Machine[] = [
-  // Inoculum vessels — "B" prefix from Slovenian "Buča" (flask), lab inoculum flasks
-  { id: 'BKK', name: 'BKK', group: 'inoculum', displayOrder: 0 },
-  { id: 'BGNT', name: 'BGNT', group: 'inoculum', displayOrder: 0.5 },
-  // GNT line — propagators
-  { id: 'PR-1', name: 'PR-1', group: 'propagator', productLine: 'GNT', displayOrder: 1 },
-  { id: 'PR-2', name: 'PR-2', group: 'propagator', productLine: 'GNT', displayOrder: 2 },
-  // GNT line — pre-fermenters
-  { id: 'PF-1', name: 'PF-1', group: 'pre_fermenter', productLine: 'GNT', displayOrder: 3 },
-  { id: 'PF-2', name: 'PF-2', group: 'pre_fermenter', productLine: 'GNT', displayOrder: 4 },
-  // GNT line — fermenters
-  { id: 'F-2', name: 'F-2', group: 'fermenter', productLine: 'GNT', displayOrder: 5 },
-  { id: 'F-3', name: 'F-3', group: 'fermenter', productLine: 'GNT', displayOrder: 6 },
-  // KK line — propagators
-  { id: 'PR-3', name: 'PR-3', group: 'propagator', productLine: 'KK', displayOrder: 10 },
-  { id: 'PR-4', name: 'PR-4', group: 'propagator', productLine: 'KK', displayOrder: 11 },
-  { id: 'PR-5', name: 'PR-5', group: 'propagator', productLine: 'KK', displayOrder: 12 },
-  { id: 'PR-6', name: 'PR-6', group: 'propagator', productLine: 'KK', displayOrder: 13 },
-  { id: 'PR-7', name: 'PR-7', group: 'propagator', productLine: 'KK', displayOrder: 14 },
-  { id: 'PR-8', name: 'PR-8', group: 'propagator', productLine: 'KK', displayOrder: 15 },
-  // KK line — pre-fermenters
-  { id: 'PF-3', name: 'PF-3', group: 'pre_fermenter', productLine: 'KK', displayOrder: 16 },
-  { id: 'PF-4', name: 'PF-4', group: 'pre_fermenter', productLine: 'KK', displayOrder: 17 },
-  { id: 'PF-5', name: 'PF-5', group: 'pre_fermenter', productLine: 'KK', displayOrder: 18 },
-  { id: 'PF-6', name: 'PF-6', group: 'pre_fermenter', productLine: 'KK', displayOrder: 19 },
-  // KK line — fermenters
-  { id: 'F-1', name: 'F-1', group: 'fermenter', productLine: 'KK', displayOrder: 20 },
-  { id: 'F-4', name: 'F-4', group: 'fermenter', productLine: 'KK', displayOrder: 21 },
-  { id: 'F-5', name: 'F-5', group: 'fermenter', productLine: 'KK', displayOrder: 22 },
-  { id: 'F-6', name: 'F-6', group: 'fermenter', productLine: 'KK', displayOrder: 23 },
-  { id: 'F-7', name: 'F-7', group: 'fermenter', productLine: 'KK', displayOrder: 24 },
-  { id: 'F-8', name: 'F-8', group: 'fermenter', productLine: 'KK', displayOrder: 25 },
-  { id: 'F-9', name: 'F-9', group: 'fermenter', productLine: 'KK', displayOrder: 26 },
-  { id: 'F-10', name: 'F-10', group: 'fermenter', productLine: 'KK', displayOrder: 27 },
-  { id: 'F-11', name: 'F-11', group: 'fermenter', productLine: 'KK', displayOrder: 28 },
+  // Inoculum vessels — "B-" prefix from Slovenian "Buča" (flask), lab inoculum flasks
+  { id: `B-${DEMO_LINE_B.shortName}`, name: `B-${DEMO_LINE_B.shortName}`, group: 'inoculum', displayOrder: 0 },
+  { id: `B-${DEMO_LINE_A.shortName}`, name: `B-${DEMO_LINE_A.shortName}`, group: 'inoculum', displayOrder: 0.5 },
+  // Line A (small line) — propagators
+  { id: 'PR-1', name: 'PR-1', group: 'propagator', productLine: DEMO_LINE_A.id, displayOrder: 1 },
+  { id: 'PR-2', name: 'PR-2', group: 'propagator', productLine: DEMO_LINE_A.id, displayOrder: 2 },
+  // Line A — pre-fermenters
+  { id: 'PF-1', name: 'PF-1', group: 'pre_fermenter', productLine: DEMO_LINE_A.id, displayOrder: 3 },
+  { id: 'PF-2', name: 'PF-2', group: 'pre_fermenter', productLine: DEMO_LINE_A.id, displayOrder: 4 },
+  // Line A — fermenters
+  { id: 'F-2', name: 'F-2', group: 'fermenter', productLine: DEMO_LINE_A.id, displayOrder: 5 },
+  { id: 'F-3', name: 'F-3', group: 'fermenter', productLine: DEMO_LINE_A.id, displayOrder: 6 },
+  // Line B (large line) — propagators
+  { id: 'PR-3', name: 'PR-3', group: 'propagator', productLine: DEMO_LINE_B.id, displayOrder: 10 },
+  { id: 'PR-4', name: 'PR-4', group: 'propagator', productLine: DEMO_LINE_B.id, displayOrder: 11 },
+  { id: 'PR-5', name: 'PR-5', group: 'propagator', productLine: DEMO_LINE_B.id, displayOrder: 12 },
+  { id: 'PR-6', name: 'PR-6', group: 'propagator', productLine: DEMO_LINE_B.id, displayOrder: 13 },
+  { id: 'PR-7', name: 'PR-7', group: 'propagator', productLine: DEMO_LINE_B.id, displayOrder: 14 },
+  { id: 'PR-8', name: 'PR-8', group: 'propagator', productLine: DEMO_LINE_B.id, displayOrder: 15 },
+  // Line B — pre-fermenters
+  { id: 'PF-3', name: 'PF-3', group: 'pre_fermenter', productLine: DEMO_LINE_B.id, displayOrder: 16 },
+  { id: 'PF-4', name: 'PF-4', group: 'pre_fermenter', productLine: DEMO_LINE_B.id, displayOrder: 17 },
+  { id: 'PF-5', name: 'PF-5', group: 'pre_fermenter', productLine: DEMO_LINE_B.id, displayOrder: 18 },
+  { id: 'PF-6', name: 'PF-6', group: 'pre_fermenter', productLine: DEMO_LINE_B.id, displayOrder: 19 },
+  // Line B — fermenters
+  { id: 'F-1', name: 'F-1', group: 'fermenter', productLine: DEMO_LINE_B.id, displayOrder: 20 },
+  { id: 'F-4', name: 'F-4', group: 'fermenter', productLine: DEMO_LINE_B.id, displayOrder: 21 },
+  { id: 'F-5', name: 'F-5', group: 'fermenter', productLine: DEMO_LINE_B.id, displayOrder: 22 },
+  { id: 'F-6', name: 'F-6', group: 'fermenter', productLine: DEMO_LINE_B.id, displayOrder: 23 },
+  { id: 'F-7', name: 'F-7', group: 'fermenter', productLine: DEMO_LINE_B.id, displayOrder: 24 },
+  { id: 'F-8', name: 'F-8', group: 'fermenter', productLine: DEMO_LINE_B.id, displayOrder: 25 },
+  { id: 'F-9', name: 'F-9', group: 'fermenter', productLine: DEMO_LINE_B.id, displayOrder: 26 },
+  { id: 'F-10', name: 'F-10', group: 'fermenter', productLine: DEMO_LINE_B.id, displayOrder: 27 },
+  { id: 'F-11', name: 'F-11', group: 'fermenter', productLine: DEMO_LINE_B.id, displayOrder: 28 },
 ];
 
 // ─── Display groups (separated by sentinel in VBA) ─────────────────────
@@ -143,18 +198,18 @@ export const DEFAULT_MACHINES: Machine[] = [
 export const INOCULUM_GROUP: MachineDisplayGroup = {
   id: 'Inoculum',
   name: 'Inoculum',
-  machineIds: ['BKK', 'BGNT'],
+  machineIds: [`B-${DEMO_LINE_B.shortName}`, `B-${DEMO_LINE_A.shortName}`],
 };
 
 export const DEFAULT_GROUPS: MachineDisplayGroup[] = [
   {
-    id: 'GNT',
-    name: 'GNT Line',
+    id: DEMO_LINE_A.id,
+    name: `${DEMO_LINE_A.shortName} Line`,
     machineIds: ['PR-1', 'PR-2', 'PF-1', 'PF-2', 'F-2', 'F-3'],
   },
   {
-    id: 'KK',
-    name: 'KK Line',
+    id: DEMO_LINE_B.id,
+    name: `${DEMO_LINE_B.shortName} Line`,
     machineIds: [
       'PR-3', 'PR-4', 'PR-5', 'PR-6', 'PR-7', 'PR-8',
       'PF-3', 'PF-4', 'PF-5', 'PF-6',
@@ -167,9 +222,9 @@ export const DEFAULT_GROUPS: MachineDisplayGroup[] = [
 
 export const DEFAULT_PRODUCT_LINES: ProductLine[] = [
   {
-    id: 'GNT',
-    name: 'Gentamicin',
-    shortName: 'GNT',
+    id: DEMO_LINE_A.id,
+    name: DEMO_LINE_A.name,
+    shortName: DEMO_LINE_A.shortName,
     displayOrder: 1,
     stageDefaults: [
       { stageType: 'inoculum', defaultDurationHours: 24, minDurationHours: 22, maxDurationHours: 26, machineGroup: 'inoculum' },
@@ -179,9 +234,9 @@ export const DEFAULT_PRODUCT_LINES: ProductLine[] = [
     ],
   },
   {
-    id: 'KK',
-    name: 'KK',
-    shortName: 'KK',
+    id: DEMO_LINE_B.id,
+    name: DEMO_LINE_B.name,
+    shortName: DEMO_LINE_B.shortName,
     displayOrder: 2,
     stageDefaults: [
       { stageType: 'inoculum', defaultDurationHours: 24, minDurationHours: 22, maxDurationHours: 26, machineGroup: 'inoculum' },
@@ -194,17 +249,20 @@ export const DEFAULT_PRODUCT_LINES: ProductLine[] = [
 
 // ─── Demo data generation ───────────────────────────────────────────────
 
-const KK_FERMENTERS = ['F-1', 'F-4', 'F-5', 'F-6', 'F-7', 'F-8', 'F-9', 'F-10', 'F-11'];
-const KK_PRE_FERMENTERS = ['PF-3', 'PF-4', 'PF-5', 'PF-6'];
-const KK_PROPAGATORS = ['PR-3', 'PR-4', 'PR-5', 'PR-6', 'PR-7', 'PR-8'];
+const LINE_B_FERMENTERS = ['F-1', 'F-4', 'F-5', 'F-6', 'F-7', 'F-8', 'F-9', 'F-10', 'F-11'];
+const LINE_B_PRE_FERMENTERS = ['PF-3', 'PF-4', 'PF-5', 'PF-6'];
+const LINE_B_PROPAGATORS = ['PR-3', 'PR-4', 'PR-5', 'PR-6', 'PR-7', 'PR-8'];
 
-const GNT_FERMENTERS = ['F-2', 'F-3'];
-const GNT_PRE_FERMENTERS = ['PF-1', 'PF-2'];
-const GNT_PROPAGATORS = ['PR-1', 'PR-2'];
+const LINE_A_FERMENTERS = ['F-2', 'F-3'];
+const LINE_A_PRE_FERMENTERS = ['PF-1', 'PF-2'];
+const LINE_A_PROPAGATORS = ['PR-1', 'PR-2'];
+
+const LINE_B_INO_ID = `B-${DEMO_LINE_B.shortName}`;
+const LINE_A_INO_ID = `B-${DEMO_LINE_A.shortName}`;
 
 /**
  * Generate deterministic demo batch data centered around today.
- * Creates realistic KK and GNT line schedules.
+ * Creates realistic schedules for two rotating product lines.
  */
 export function generateDemoData(): {
   chains: BatchChain[];
@@ -222,9 +280,11 @@ export function generateDemoData(): {
   let prIdx = 0;
   let stageId = 1;
 
-  // KK line: generate 2 batches per fermenter, staggered across time
-  for (let fi = 0; fi < KK_FERMENTERS.length; fi++) {
-    const fermenter = KK_FERMENTERS[fi];
+  const bPrefix = DEMO_LINE_B.shortName;
+
+  // Line B (large line): generate 2 batches per fermenter, staggered across time
+  for (let fi = 0; fi < LINE_B_FERMENTERS.length; fi++) {
+    const fermenter = LINE_B_FERMENTERS[fi];
     // Stagger start: each fermenter starts a bit later
     const fermenterBase = addHours(baseDate, fi * 28);
 
@@ -236,33 +296,33 @@ export function generateDemoData(): {
       // Back-calculate PF: 20h before fermenter start
       const pfStart = subHours(fStart, 20);
       const pfEnd = new Date(fStart.getTime());
-      const pfMachine = KK_PRE_FERMENTERS[pfIdx % KK_PRE_FERMENTERS.length];
+      const pfMachine = LINE_B_PRE_FERMENTERS[pfIdx % LINE_B_PRE_FERMENTERS.length];
       pfIdx++;
 
       // Back-calculate PR: 44h before PF start
       const prStart = subHours(pfStart, 44);
       const prEnd = new Date(pfStart.getTime());
-      const prMachine = KK_PROPAGATORS[prIdx % KK_PROPAGATORS.length];
+      const prMachine = LINE_B_PROPAGATORS[prIdx % LINE_B_PROPAGATORS.length];
       prIdx++;
 
       // Back-calculate inoculation: 24h before PR start
       const inoStart = subHours(prStart, 24);
       const inoEnd = new Date(prStart.getTime());
 
-      const chainId = `KK-${seriesNum}`;
+      const chainId = `${bPrefix}-${seriesNum}`;
 
       chains.push({
         id: chainId,
-        batchName: `KK-${seriesNum}`,
+        batchName: `${bPrefix}-${seriesNum}`,
         seriesNumber: seriesNum,
-        productLine: 'KK',
+        productLine: DEMO_LINE_B.id,
         status: fStart < today ? 'committed' : 'proposed',
       });
 
       stages.push(
         {
           id: `s-${stageId++}`,
-          machineId: 'BKK',
+          machineId: LINE_B_INO_ID,
           batchChainId: chainId,
           stageType: 'inoculum',
           startDatetime: inoStart,
@@ -302,44 +362,45 @@ export function generateDemoData(): {
     }
   }
 
-  // GNT line: generate 1 batch per fermenter
-  let gntSeries = 10;
-  let gntPfIdx = 0;
-  let gntPrIdx = 0;
+  // Line A (small line): generate 1 batch per fermenter
+  const aPrefix = DEMO_LINE_A.shortName;
+  let aSeries = 10;
+  let aPfIdx = 0;
+  let aPrIdx = 0;
 
-  for (let fi = 0; fi < GNT_FERMENTERS.length; fi++) {
-    const fermenter = GNT_FERMENTERS[fi];
+  for (let fi = 0; fi < LINE_A_FERMENTERS.length; fi++) {
+    const fermenter = LINE_A_FERMENTERS[fi];
     const fStart = addHours(baseDate, fi * 72 + 48);
     const fEnd = addHours(fStart, 192);
 
     const pfStart = subHours(fStart, 55);
     const pfEnd = new Date(fStart.getTime());
-    const pfMachine = GNT_PRE_FERMENTERS[gntPfIdx % GNT_PRE_FERMENTERS.length];
-    gntPfIdx++;
+    const pfMachine = LINE_A_PRE_FERMENTERS[aPfIdx % LINE_A_PRE_FERMENTERS.length];
+    aPfIdx++;
 
     const prStart = subHours(pfStart, 48);
     const prEnd = new Date(pfStart.getTime());
-    const prMachine = GNT_PROPAGATORS[gntPrIdx % GNT_PROPAGATORS.length];
-    gntPrIdx++;
+    const prMachine = LINE_A_PROPAGATORS[aPrIdx % LINE_A_PROPAGATORS.length];
+    aPrIdx++;
 
     // Back-calculate inoculation: 24h before PR start
     const inoStart = subHours(prStart, 24);
     const inoEnd = new Date(prStart.getTime());
 
-    const chainId = `GNT-${gntSeries}`;
+    const chainId = `${aPrefix}-${aSeries}`;
 
     chains.push({
       id: chainId,
-      batchName: `GNT-${gntSeries}`,
-      seriesNumber: gntSeries,
-      productLine: 'GNT',
+      batchName: `${aPrefix}-${aSeries}`,
+      seriesNumber: aSeries,
+      productLine: DEMO_LINE_A.id,
       status: 'committed',
     });
 
     stages.push(
       {
         id: `s-${stageId++}`,
-        machineId: 'BGNT',
+        machineId: LINE_A_INO_ID,
         batchChainId: chainId,
         stageType: 'inoculum',
         startDatetime: inoStart,
@@ -375,7 +436,7 @@ export function generateDemoData(): {
       }
     );
 
-    gntSeries++;
+    aSeries++;
   }
 
   return { chains, stages };
