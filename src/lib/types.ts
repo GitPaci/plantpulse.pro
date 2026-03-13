@@ -283,9 +283,7 @@ export interface ShutdownPeriod {
 // Per-line naming rule (prefix, suffix, padding).
 // The final production stage sets the batch name; upstream stages inherit it.
 export interface BatchNamingRule {
-  prefix: string;           // fixed prefix when prefixMode === 'fixed'
-  prefixMode?: 'fixed' | 'random'; // random = create a new lot-style prefix per batch
-  randomPrefixMaxLetters?: number; // max letters for generated random prefixes (1-3 typical)
+  prefix: string;           // optional prefix, e.g. "LOT-", "B-" (may be empty)
   suffix: string;           // optional suffix appended after the counter
   startNumber: number;      // first counter value after reset (default 1)
   padDigits: number;        // zero-padding width, e.g. 3 → "001"
@@ -315,44 +313,27 @@ function randomLetters(length: number): string {
   return result;
 }
 
-function randomBatchPrefix(maxLetters: number, used?: Set<string>): string {
+/** Generate one random lot-style prefix (with trailing dash), e.g. "LOT-" or "AB-". */
+export function generateRandomBatchPrefix(maxLetters: number = 3): string {
   const maxLen = Math.max(1, Math.min(3, maxLetters || 3));
-  for (let i = 0; i < 10; i++) {
-    const fromTypical = Math.random() < 0.7;
-    const candidate = fromTypical
-      ? TYPICAL_BATCH_PREFIXES[Math.floor(Math.random() * TYPICAL_BATCH_PREFIXES.length)]
-      : randomLetters(1 + Math.floor(Math.random() * maxLen));
-    if (!used || !used.has(candidate)) {
-      used?.add(candidate);
-      return candidate;
-    }
-  }
-
-  const fallback = randomLetters(maxLen);
-  used?.add(fallback);
-  return fallback;
-}
-
-export function batchPrefixForRule(rule: BatchNamingRule, used?: Set<string>): string {
-  if (rule.prefixMode === 'random') {
-    return `${randomBatchPrefix(rule.randomPrefixMaxLetters ?? 3, used)}-`;
-  }
-  return rule.prefix;
+  const fromTypical = Math.random() < 0.7;
+  const base = fromTypical
+    ? TYPICAL_BATCH_PREFIXES[Math.floor(Math.random() * TYPICAL_BATCH_PREFIXES.length)]
+    : randomLetters(1 + Math.floor(Math.random() * maxLen));
+  return `${base}-`;
 }
 
 /** Build a preview batch name from a naming rule and a sample counter value. */
-export function batchNamePreview(rule: BatchNamingRule, counter: number, prefixOverride?: string): string {
+export function batchNamePreview(rule: BatchNamingRule, counter: number): string {
   const num = String(counter).padStart(rule.padDigits, '0');
-  const prefix = prefixOverride ?? batchPrefixForRule(rule);
-  return `${prefix}${num}${rule.suffix}`;
+  return `${rule.prefix}${num}${rule.suffix}`;
 }
 
 /** Build a sequence of preview batch names showing the step pattern. */
 export function batchNamePreviewSequence(rule: BatchNamingRule, startCounter: number, count: number): string[] {
   const step = rule.step || 1;
-  const used = rule.prefixMode === 'random' ? new Set<string>() : undefined;
   return Array.from({ length: count }, (_, i) =>
-    batchNamePreview(rule, startCounter + i * step, batchPrefixForRule(rule, used))
+    batchNamePreview(rule, startCounter + i * step)
   );
 }
 

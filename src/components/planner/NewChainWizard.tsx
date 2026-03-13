@@ -15,7 +15,7 @@ import { backCalculateChain, chainDurationHours, expandStageDefaults, buildStage
 import { autoScheduleChain, earliestAvailableTime, requiredTurnaroundGap } from '@/lib/scheduling';
 import { isMachineUnavailable } from '@/lib/types';
 import type { ChainAssignment } from '@/lib/scheduling';
-import { batchNamePreview, batchPrefixForRule } from '@/lib/types';
+import { batchNamePreview } from '@/lib/types';
 import type { BatchNamingRule, ProductLine, Stage } from '@/lib/types';
 import { format, addHours, startOfHour } from 'date-fns';
 
@@ -165,11 +165,9 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
   const chainNames = useMemo(() => {
     if (!namingRule) return [];
     const step = namingRule.step || 1;
-    const usedPrefixes = namingRule.prefixMode === 'random' ? new Set<string>() : undefined;
-    return Array.from({ length: chainCount }, (_, i) => {
-      const counter = baseSeriesNum + i * step;
-      return batchNamePreview(namingRule, counter, batchPrefixForRule(namingRule, usedPrefixes));
-    });
+    return Array.from({ length: chainCount }, (_, i) =>
+      batchNamePreview(namingRule, baseSeriesNum + i * step)
+    );
   }, [namingRule, baseSeriesNum, chainCount]);
 
   // Turnaround gap for fermenters

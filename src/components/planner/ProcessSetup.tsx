@@ -54,8 +54,6 @@ type Tab = 'stageTypes' | 'stages' | 'turnaround' | 'shutdowns' | 'naming';
 
 const DEFAULT_NAMING_RULE: BatchNamingRule = {
   prefix: '',
-  prefixMode: 'fixed',
-  randomPrefixMaxLetters: 3,
   suffix: '',
   startNumber: 1,
   padDigits: 3,
@@ -1942,43 +1940,16 @@ function NamingRuleEditor({
       <div className="pp-naming-rule-label">{label}</div>
       <div className="pp-naming-rule-fields">
         <div className="pp-naming-field">
-          <label className="pp-process-field-label">Prefix Mode</label>
-          <select
-            value={rule.prefixMode ?? 'fixed'}
-            onChange={(e) => onChange('prefixMode', e.target.value)}
-            className="pp-setup-select"
-            style={{ width: 120 }}
-          >
-            <option value="fixed">Fixed</option>
-            <option value="random">Random lot</option>
-          </select>
+          <label className="pp-process-field-label">Prefix</label>
+          <input
+            type="text"
+            value={rule.prefix}
+            onChange={(e) => onChange('prefix', e.target.value)}
+            placeholder="optional"
+            className="pp-setup-input"
+            style={{ width: 96 }}
+          />
         </div>
-        {(rule.prefixMode ?? 'fixed') === 'fixed' ? (
-          <div className="pp-naming-field">
-            <label className="pp-process-field-label">Prefix</label>
-            <input
-              type="text"
-              value={rule.prefix}
-              onChange={(e) => onChange('prefix', e.target.value)}
-              placeholder="optional"
-              className="pp-setup-input"
-              style={{ width: 96 }}
-            />
-          </div>
-        ) : (
-          <div className="pp-naming-field">
-            <label className="pp-process-field-label">Max letters</label>
-            <input
-              type="number"
-              min={1}
-              max={3}
-              value={Math.max(1, Math.min(3, rule.randomPrefixMaxLetters ?? 3))}
-              onChange={(e) => onChange('randomPrefixMaxLetters', Math.max(1, Math.min(3, Number(e.target.value) || 1)))}
-              className="pp-setup-input"
-              style={{ width: 72 }}
-            />
-          </div>
-        )}
         {showNextNumber ? (
           <div className="pp-naming-field">
             <label className="pp-process-field-label">Next #</label>
