@@ -64,14 +64,64 @@ export const DEFAULT_WALLBOARD_EQUIPMENT_GROUPS: string[] = [
   'propagator', 'pre_fermenter', 'fermenter',
 ];
 
+// ─── PlantPulse rotating demo product catalog ──────────────────────────────
+
+interface DemoCatalogProduct {
+  name: string;
+  shortName: string;
+}
+
+const DEMO_PRODUCT_CATALOG: DemoCatalogProduct[] = [
+  { name: 'Adalimumab', shortName: 'AD' },
+  { name: 'Rituximab', shortName: 'RTX' },
+  { name: 'Trastuzumab', shortName: 'TRZ' },
+  { name: 'Bevacizumab', shortName: 'BVZ' },
+  { name: 'Insulin', shortName: 'INS' },
+  { name: 'Filgrastim', shortName: 'FIL' },
+  { name: 'Penicillin G', shortName: 'PEN' },
+  { name: 'Azithromycin', shortName: 'AZM' },
+  { name: 'Vancomycin', shortName: 'VAN' },
+  { name: 'Gentamicin', shortName: 'GNT' },
+  { name: 'Tobramycin', shortName: 'TOB' },
+  { name: 'Streptomycin', shortName: 'STR' },
+  { name: 'Doxycycline', shortName: 'DOX' },
+  { name: 'Cephalexin', shortName: 'CEX' },
+  { name: 'Cefuroxime', shortName: 'CFX' },
+  { name: 'Clavulanic Acid', shortName: 'CLA' },
+  { name: 'Vitamin B12', shortName: 'B12' },
+  { name: 'Citric Acid', shortName: 'CAC' },
+  { name: 'L-Lysine', shortName: 'LYS' },
+  { name: 'Lactic Acid', shortName: 'LAC' },
+];
+
+function pickRotatingDemoProducts(): DemoCatalogProduct[] {
+  const now = new Date();
+  const daySeed = now.getUTCFullYear() * 1000 + Math.floor((Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - Date.UTC(now.getUTCFullYear(), 0, 0)) / 86400000);
+  const count = daySeed % 2 === 0 ? 2 : 3;
+  const start = daySeed % DEMO_PRODUCT_CATALOG.length;
+  const selected: DemoCatalogProduct[] = [];
+  for (let i = 0; i < count; i++) {
+    selected.push(DEMO_PRODUCT_CATALOG[(start + i) % DEMO_PRODUCT_CATALOG.length]);
+  }
+  return selected;
+}
+
+const SELECTED_DEMO_PRODUCTS = pickRotatingDemoProducts();
+const PRIMARY_DEMO_PRODUCT = SELECTED_DEMO_PRODUCTS[0];
+const SECONDARY_DEMO_PRODUCT = SELECTED_DEMO_PRODUCTS[1];
+const TERTIARY_DEMO_PRODUCT = SELECTED_DEMO_PRODUCTS[2];
+
 // ─── Default batch naming configuration ──────────────────────────────────
 
 export const DEFAULT_BATCH_NAMING_CONFIG: BatchNamingConfig = {
   mode: 'per_product_line',
-  sharedRule: { prefix: 'B-', suffix: '', startNumber: 1, padDigits: 3, step: 1 },
+  sharedRule: { prefix: '', suffix: '', startNumber: 1, padDigits: 3, step: 1 },
   productLineRules: {
-    GNT: { prefix: 'GNT-', suffix: '', startNumber: 1, padDigits: 3, step: 1 },
-    KK:  { prefix: 'KK-',  suffix: '', startNumber: 1, padDigits: 3, step: 1 },
+    GNT: { prefix: `${PRIMARY_DEMO_PRODUCT.shortName}-`, suffix: '', startNumber: 1, padDigits: 3, step: 1 },
+    KK:  { prefix: `${SECONDARY_DEMO_PRODUCT.shortName}-`,  suffix: '', startNumber: 1, padDigits: 3, step: 1 },
+    ...(TERTIARY_DEMO_PRODUCT
+      ? { [TERTIARY_DEMO_PRODUCT.shortName]: { prefix: `${TERTIARY_DEMO_PRODUCT.shortName}-`, suffix: '', startNumber: 1, padDigits: 3, step: 1 } }
+      : {}),
   },
   counterResetMode: 'annual',
   counterResetMonth: 1,
@@ -149,12 +199,12 @@ export const INOCULUM_GROUP: MachineDisplayGroup = {
 export const DEFAULT_GROUPS: MachineDisplayGroup[] = [
   {
     id: 'GNT',
-    name: 'GNT Line',
+    name: PRIMARY_DEMO_PRODUCT.name,
     machineIds: ['PR-1', 'PR-2', 'PF-1', 'PF-2', 'F-2', 'F-3'],
   },
   {
     id: 'KK',
-    name: 'KK Line',
+    name: SECONDARY_DEMO_PRODUCT.name,
     machineIds: [
       'PR-3', 'PR-4', 'PR-5', 'PR-6', 'PR-7', 'PR-8',
       'PF-3', 'PF-4', 'PF-5', 'PF-6',
@@ -168,8 +218,8 @@ export const DEFAULT_GROUPS: MachineDisplayGroup[] = [
 export const DEFAULT_PRODUCT_LINES: ProductLine[] = [
   {
     id: 'GNT',
-    name: 'Gentamicin',
-    shortName: 'GNT',
+    name: PRIMARY_DEMO_PRODUCT.name,
+    shortName: PRIMARY_DEMO_PRODUCT.shortName,
     displayOrder: 1,
     stageDefaults: [
       { stageType: 'inoculum', defaultDurationHours: 24, minDurationHours: 22, maxDurationHours: 26, machineGroup: 'inoculum' },
@@ -180,8 +230,8 @@ export const DEFAULT_PRODUCT_LINES: ProductLine[] = [
   },
   {
     id: 'KK',
-    name: 'KK',
-    shortName: 'KK',
+    name: SECONDARY_DEMO_PRODUCT.name,
+    shortName: SECONDARY_DEMO_PRODUCT.shortName,
     displayOrder: 2,
     stageDefaults: [
       { stageType: 'inoculum', defaultDurationHours: 24, minDurationHours: 22, maxDurationHours: 26, machineGroup: 'inoculum' },
@@ -190,6 +240,18 @@ export const DEFAULT_PRODUCT_LINES: ProductLine[] = [
       { stageType: 'production', defaultDurationHours: 192, minDurationHours: 173, maxDurationHours: 211, machineGroup: 'fermenter' },
     ],
   },
+  ...(TERTIARY_DEMO_PRODUCT ? [{
+    id: TERTIARY_DEMO_PRODUCT.shortName,
+    name: TERTIARY_DEMO_PRODUCT.name,
+    shortName: TERTIARY_DEMO_PRODUCT.shortName,
+    displayOrder: 3,
+    stageDefaults: [
+      { stageType: 'inoculum', defaultDurationHours: 24, minDurationHours: 22, maxDurationHours: 26, machineGroup: 'inoculum' },
+      { stageType: 'seed_n2', defaultDurationHours: 36, minDurationHours: 33, maxDurationHours: 40, machineGroup: 'propagator' },
+      { stageType: 'seed_n1', defaultDurationHours: 28, minDurationHours: 25, maxDurationHours: 31, machineGroup: 'pre_fermenter' },
+      { stageType: 'production', defaultDurationHours: 168, minDurationHours: 151, maxDurationHours: 185, machineGroup: 'fermenter' },
+    ],
+  }] : []),
 ];
 
 // ─── Demo data generation ───────────────────────────────────────────────
@@ -204,7 +266,7 @@ const GNT_PROPAGATORS = ['PR-1', 'PR-2'];
 
 /**
  * Generate deterministic demo batch data centered around today.
- * Creates realistic KK and GNT line schedules.
+ * Creates realistic rotating biotech product line schedules.
  */
 export function generateDemoData(): {
   chains: BatchChain[];
@@ -249,11 +311,11 @@ export function generateDemoData(): {
       const inoStart = subHours(prStart, 24);
       const inoEnd = new Date(prStart.getTime());
 
-      const chainId = `KK-${seriesNum}`;
+      const chainId = `${SECONDARY_DEMO_PRODUCT.shortName}-${seriesNum}`;
 
       chains.push({
         id: chainId,
-        batchName: `KK-${seriesNum}`,
+        batchName: `${SECONDARY_DEMO_PRODUCT.shortName}-${seriesNum}`,
         seriesNumber: seriesNum,
         productLine: 'KK',
         status: fStart < today ? 'committed' : 'proposed',
@@ -326,11 +388,11 @@ export function generateDemoData(): {
     const inoStart = subHours(prStart, 24);
     const inoEnd = new Date(prStart.getTime());
 
-    const chainId = `GNT-${gntSeries}`;
+    const chainId = `${PRIMARY_DEMO_PRODUCT.shortName}-${gntSeries}`;
 
     chains.push({
       id: chainId,
-      batchName: `GNT-${gntSeries}`,
+      batchName: `${PRIMARY_DEMO_PRODUCT.shortName}-${gntSeries}`,
       seriesNumber: gntSeries,
       productLine: 'GNT',
       status: 'committed',

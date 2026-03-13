@@ -27,6 +27,10 @@ function toDateLocal(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+function normalizeProductShortName(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+}
+
 // ─── Auto-derive display groups from product lines + machine assignments ─
 
 function buildDisplayGroups(
@@ -376,7 +380,7 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId }: 
     const newId = generateId('PL-');
     setDraftProductLines((prev) => [
       ...prev,
-      { id: newId, name: 'New Line', shortName: 'NEW', displayOrder: nextOrder, stageDefaults: [] },
+      { id: newId, name: 'New Line', shortName: 'NL', displayOrder: nextOrder, stageDefaults: [] },
     ]);
     setEditingId(newId);
     setDirty(true);
@@ -393,8 +397,12 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId }: 
   }
 
   function updateDraftProductLine(id: string, updates: Partial<ProductLine>) {
+    const normalizedUpdates = { ...updates };
+    if (typeof normalizedUpdates.shortName === 'string') {
+      normalizedUpdates.shortName = normalizeProductShortName(normalizedUpdates.shortName);
+    }
     setDraftProductLines((prev) =>
-      prev.map((pl) => (pl.id === id ? { ...pl, ...updates } : pl))
+      prev.map((pl) => (pl.id === id ? { ...pl, ...normalizedUpdates } : pl))
     );
     setDirty(true);
   }
@@ -1234,9 +1242,9 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId }: 
                               onChange={(e) => updateDraftProductLine(pl.id, { shortName: e.target.value })}
                               className="pp-setup-input"
                               style={{ width: 64 }}
-                              placeholder="Short"
-                              maxLength={6}
-                              title="Short name for toolbar chips and batch labels"
+                              placeholder="1-3"
+                              maxLength={3}
+                              title="Short name (1–3 characters) for toolbar chips and batch labels"
                             />
                           </>
                         ) : (
