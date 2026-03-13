@@ -25,6 +25,7 @@ import { batchNamePreview } from '@/lib/types';
 
 /** Generate the display label for a batch chain using the naming config. */
 function buildBatchLabel(chain: BatchChain, config: BatchNamingConfig): string {
+  if (chain.batchName) return chain.batchName;
   const rule =
     config.mode === 'per_product_line' && chain.productLine
       ? config.productLineRules[chain.productLine] ?? config.sharedRule
