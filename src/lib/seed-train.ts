@@ -6,7 +6,41 @@
 // upstream stage. Works with any number of user-defined stages and durations.
 
 import { subHours, addHours } from 'date-fns';
-import type { StageDefault } from './types';
+import type { StageDefault, StageTypeDefinition } from './types';
+
+/**
+ * Expand stage defaults by the `count` field from stage type definitions.
+ * E.g. if Seed (n-1) has count=2, it produces two consecutive n-1 entries.
+ * If no counts map is provided, returns defaults as-is (count=1 for all).
+ */
+export function expandStageDefaults(
+  stageDefaults: StageDefault[],
+  stageTypeCounts?: Map<string, number>
+): StageDefault[] {
+  if (!stageTypeCounts || stageTypeCounts.size === 0) return stageDefaults;
+  const expanded: StageDefault[] = [];
+  for (const sd of stageDefaults) {
+    const count = stageTypeCounts.get(sd.stageType) ?? 1;
+    for (let c = 0; c < count; c++) {
+      expanded.push(sd);
+    }
+  }
+  return expanded;
+}
+
+/**
+ * Build a stageType → count map from stage type definitions.
+ * Only includes entries with count > 1.
+ */
+export function buildStageTypeCounts(
+  stageTypeDefs: StageTypeDefinition[]
+): Map<string, number> | undefined {
+  const map = new Map<string, number>();
+  for (const st of stageTypeDefs) {
+    if (st.count > 1) map.set(st.id, st.count);
+  }
+  return map.size > 0 ? map : undefined;
+}
 
 /** Result of back-calculating one stage in the seed train. */
 export interface BackCalculatedStage {
@@ -40,14 +74,16 @@ export interface BackCalculatedStage {
  */
 export function backCalculateChain(
   finalStageStart: Date,
-  stageDefaults: StageDefault[]
+  stageDefaults: StageDefault[],
+  stageTypeCounts?: Map<string, number>
 ): BackCalculatedStage[] {
-  if (stageDefaults.length === 0) return [];
+  const expanded = expandStageDefaults(stageDefaults, stageTypeCounts);
+  if (expanded.length === 0) return [];
 
   const stages: BackCalculatedStage[] = [];
 
   // Start with the final (production) stage
-  const lastDefault = stageDefaults[stageDefaults.length - 1];
+  const lastDefault = expanded[expanded.length - 1];
   const finalEnd = addHours(finalStageStart, lastDefault.defaultDurationHours);
 
   stages.push({
@@ -60,8 +96,8 @@ export function backCalculateChain(
 
   // Walk backwards through upstream stages
   let nextStageStart = finalStageStart;
-  for (let i = stageDefaults.length - 2; i >= 0; i--) {
-    const def = stageDefaults[i];
+  for (let i = expanded.length - 2; i >= 0; i--) {
+    const def = expanded[i];
     const stageStart = subHours(nextStageStart, def.defaultDurationHours);
     const stageEnd = nextStageStart;
 
@@ -87,14 +123,16 @@ export function backCalculateChain(
  */
 export function forwardCalculateChain(
   firstStageStart: Date,
-  stageDefaults: StageDefault[]
+  stageDefaults: StageDefault[],
+  stageTypeCounts?: Map<string, number>
 ): BackCalculatedStage[] {
-  if (stageDefaults.length === 0) return [];
+  const expanded = expandStageDefaults(stageDefaults, stageTypeCounts);
+  if (expanded.length === 0) return [];
 
   const stages: BackCalculatedStage[] = [];
   let cursor = firstStageStart;
 
-  for (const def of stageDefaults) {
+  for (const def of expanded) {
     const stageEnd = addHours(cursor, def.defaultDurationHours);
     stages.push({
       stageType: def.stageType,
@@ -110,8 +148,13 @@ export function forwardCalculateChain(
 }
 
 /**
- * Compute the total chain duration in hours (sum of all stage defaults).
+ * Compute the total chain duration in hours (sum of all stage defaults,
+ * accounting for stage type counts).
  */
-export function chainDurationHours(stageDefaults: StageDefault[]): number {
-  return stageDefaults.reduce((sum, d) => sum + d.defaultDurationHours, 0);
+export function chainDurationHours(
+  stageDefaults: StageDefault[],
+  stageTypeCounts?: Map<string, number>
+): number {
+  const expanded = expandStageDefaults(stageDefaults, stageTypeCounts);
+  return expanded.reduce((sum, d) => sum + d.defaultDurationHours, 0);
 }
