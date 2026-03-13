@@ -69,7 +69,11 @@ export const DEFAULT_WALLBOARD_EQUIPMENT_GROUPS: string[] = [
 
 const PAGE_LOAD_RANDOM_PREFIX = generateRandomBatchPrefix(3);
 
-export const DEFAULT_BATCH_NAMING_CONFIG: BatchNamingConfig = {
+function getWorkspaceRotationSeed(): number {
+  return Date.now();
+}
+
+  const workspaceSeed = getWorkspaceRotationSeed();
   const workspaceSeed = Date.now();
   const start = workspaceSeed % DEMO_PRODUCT_CATALOG.length;
   const count = 2 + (workspaceSeed % 2); // 2 or 3 products per workspace
