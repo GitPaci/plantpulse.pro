@@ -179,6 +179,7 @@ export default function PlannerPage() {
 
   // Modal / panel state
   const [equipmentSetupOpen, setEquipmentSetupOpen] = useState(false);
+  const [equipmentSetupMachineId, setEquipmentSetupMachineId] = useState<string | null>(null);
   const [processSetupOpen, setProcessSetupOpen] = useState(false);
   const [shiftScheduleOpen, setShiftScheduleOpen] = useState(false);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
@@ -196,6 +197,12 @@ export default function PlannerPage() {
       viewStart: subDays(startOfDay(new Date()), 4),
     });
   }
+
+  // Machine label click → open Equipment Setup with that machine in edit mode
+  const handleMachineLabelClick = useCallback((machineId: string) => {
+    setEquipmentSetupMachineId(machineId);
+    setEquipmentSetupOpen(true);
+  }, []);
 
   // Horizontal scroll — pan the timeline by scrolling or dragging the scrollbar
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -333,7 +340,7 @@ export default function PlannerPage() {
             className="flex-1 min-h-0"
             onWheel={handleTimelineWheel}
           >
-            <WallboardCanvas onStageClick={(id) => setSelectedStageId(id)} />
+            <WallboardCanvas onStageClick={(id) => setSelectedStageId(id)} onMachineLabelClick={handleMachineLabelClick} />
           </div>
           {/* Horizontal scrollbar */}
           <div
@@ -441,7 +448,8 @@ export default function PlannerPage() {
       {/* Modals */}
       <EquipmentSetup
         open={equipmentSetupOpen}
-        onClose={() => setEquipmentSetupOpen(false)}
+        onClose={() => { setEquipmentSetupOpen(false); setEquipmentSetupMachineId(null); }}
+        initialEditMachineId={equipmentSetupMachineId}
       />
       <ProcessSetup
         open={processSetupOpen}
