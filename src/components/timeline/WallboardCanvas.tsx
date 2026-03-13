@@ -553,6 +553,8 @@ interface WallboardCanvasProps {
   nightMode?: boolean;
   /** Called when a batch bar is clicked — passes the stage ID. Planner uses this to open StageDetailPanel. */
   onStageClick?: (stageId: string) => void;
+  /** Called when a machine label in the left column is clicked — Planner uses this to open Equipment Setup. */
+  onMachineLabelClick?: (machineId: string) => void;
 }
 
 export default function WallboardCanvas({
@@ -564,6 +566,7 @@ export default function WallboardCanvas({
   canvasId,
   nightMode = false,
   onStageClick,
+  onMachineLabelClick,
 }: WallboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -719,9 +722,22 @@ export default function WallboardCanvas({
     [visibleStages, viewConfig, dims.width, rows]
   );
 
+  const hitTestMachineLabel = useCallback(
+    (cssX: number, cssY: number): string | null => {
+      if (cssX >= LEFT_MARGIN) return null;
+      for (const row of rows) {
+        if (row.type === 'separator') continue;
+        if (cssY >= row.y && cssY < row.y + ROW_HEIGHT) {
+          return row.machineId;
+        }
+      }
+      return null;
+    },
+    [rows]
+  );
+
   const handleCanvasClick = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
-      if (!onStageClick) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
 
@@ -729,17 +745,30 @@ export default function WallboardCanvas({
       const cssX = event.clientX - rect.left;
       const cssY = event.clientY - rect.top;
 
-      const stageId = hitTestStage(cssX, cssY);
-      if (stageId) {
-        onStageClick(stageId);
+      // Check machine label click first (left column)
+      if (onMachineLabelClick) {
+        const machineId = hitTestMachineLabel(cssX, cssY);
+        if (machineId) {
+          onMachineLabelClick(machineId);
+          return;
+        }
+      }
+
+      // Then check batch bar click
+      if (onStageClick) {
+        const stageId = hitTestStage(cssX, cssY);
+        if (stageId) {
+          onStageClick(stageId);
+        }
       }
     },
-    [onStageClick, hitTestStage]
+    [onStageClick, onMachineLabelClick, hitTestStage, hitTestMachineLabel]
   );
 
   const handleCanvasMouseMove = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
-      if (!onStageClick) return;
+      const hasAnyHandler = onStageClick || onMachineLabelClick;
+      if (!hasAnyHandler) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
 
@@ -747,9 +776,15 @@ export default function WallboardCanvas({
       const cssX = event.clientX - rect.left;
       const cssY = event.clientY - rect.top;
 
-      canvas.style.cursor = hitTestStage(cssX, cssY) ? 'pointer' : 'default';
+      if (onMachineLabelClick && hitTestMachineLabel(cssX, cssY)) {
+        canvas.style.cursor = 'pointer';
+      } else if (onStageClick && hitTestStage(cssX, cssY)) {
+        canvas.style.cursor = 'pointer';
+      } else {
+        canvas.style.cursor = 'default';
+      }
     },
-    [onStageClick, hitTestStage]
+    [onStageClick, onMachineLabelClick, hitTestStage, hitTestMachineLabel]
   );
 
   return (
@@ -761,7 +796,7 @@ export default function WallboardCanvas({
         ref={canvasRef}
         id={canvasId}
         onClick={handleCanvasClick}
-        onMouseMove={onStageClick ? handleCanvasMouseMove : undefined}
+        onMouseMove={(onStageClick || onMachineLabelClick) ? handleCanvasMouseMove : undefined}
       />
     </div>
   );

@@ -53,11 +53,13 @@ type Tab = 'machines' | 'equipmentGroups' | 'productLines' | 'wallboard';
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** When set, opens with this machine already in edit mode (Planner label click). */
+  initialEditMachineId?: string | null;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────
 
-export default function EquipmentSetup({ open, onClose }: Props) {
+export default function EquipmentSetup({ open, onClose, initialEditMachineId }: Props) {
   const machines = usePlantPulseStore((s) => s.machines);
   const equipmentGroups = usePlantPulseStore((s) => s.equipmentGroups);
   const productLines = usePlantPulseStore((s) => s.productLines);
@@ -110,10 +112,28 @@ export default function EquipmentSetup({ open, onClose }: Props) {
         stageDefaults: pl.stageDefaults.map((sd) => ({ ...sd })),
       })));
       setDraftWallboardGroups(new Set(wallboardEquipmentGroups));
-      setEditingId(null);
       setDirty(false);
+
+      // If opened with a specific machine to edit, activate it
+      if (initialEditMachineId) {
+        setActiveTab('machines');
+        setEditingId(initialEditMachineId);
+        // Set filters so the machine is visible
+        const targetMachine = machines.find((m) => m.id === initialEditMachineId);
+        if (targetMachine) {
+          setFilterGroup(targetMachine.group || 'all');
+          setFilterLine(targetMachine.productLine || 'all');
+        }
+        // Scroll to the machine row after render
+        requestAnimationFrame(() => {
+          const el = document.querySelector(`[data-machine-id="${initialEditMachineId}"]`);
+          el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      } else {
+        setEditingId(null);
+      }
     }
-  }, [open, machines, equipmentGroups, productLines, wallboardEquipmentGroups]);
+  }, [open, machines, equipmentGroups, productLines, wallboardEquipmentGroups, initialEditMachineId]);
 
   // Close on Escape
   useEffect(() => {
@@ -635,7 +655,7 @@ export default function EquipmentSetup({ open, onClose }: Props) {
                     : undefined;
 
                   return (
-                  <div key={m.id} className="pp-setup-row-wrapper">
+                  <div key={m.id} className="pp-setup-row-wrapper" data-machine-id={m.id}>
                     <div className={`pp-setup-row ${isEditing ? 'editing' : ''}`}>
                       <span className="pp-setup-col-order">
                         <button
