@@ -474,6 +474,38 @@ body {
   margin: 0;
 }
 
+/* ─── Planner horizontal scrollbar ────────────────────────────────────── */
+/* Custom scrollbar for panning the Planner timeline left/right            */
+
+.planner-hscroll-track {
+  position: relative;
+  height: 14px;
+  background: var(--pp-bg, #f8f9fa);
+  border-top: 1px solid var(--pp-border);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.planner-hscroll-thumb {
+  position: absolute;
+  top: 2px;
+  height: 10px;
+  min-width: 40px;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 5px;
+  cursor: grab;
+  transition: background 0.15s;
+}
+
+.planner-hscroll-thumb:hover {
+  background: rgba(0, 0, 0, 0.30);
+}
+
+.planner-hscroll-thumb-active {
+  background: rgba(0, 0, 0, 0.38);
+  cursor: grabbing;
+}
+
 /* ─── Stage Detail Panel ──────────────────────────────────────────────── */
 /* Slide-in panel for viewing/editing a single stage (Planner view)       */
 /* Ported from VBA: ObdelavaSerija form                                   */
