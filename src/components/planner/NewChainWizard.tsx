@@ -11,7 +11,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { usePlantPulseStore, generateId } from '@/lib/store';
-import { backCalculateChain, chainDurationHours } from '@/lib/seed-train';
+import { backCalculateChain, chainDurationHours, expandStageDefaults, buildStageTypeCounts } from '@/lib/seed-train';
 import { autoScheduleChain, earliestAvailableTime, requiredTurnaroundGap } from '@/lib/scheduling';
 import { isMachineUnavailable } from '@/lib/types';
 import type { ChainAssignment } from '@/lib/scheduling';
@@ -70,6 +70,8 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
   const batchChains = usePlantPulseStore((s) => s.batchChains);
   const turnaroundActivities = usePlantPulseStore((s) => s.turnaroundActivities);
   const stageTypeDefinitions = usePlantPulseStore((s) => s.stageTypeDefinitions);
+  const stageTypesMode = usePlantPulseStore((s) => s.stageTypesMode);
+  const productLineStageTypes = usePlantPulseStore((s) => s.productLineStageTypes);
   const batchNamingConfig = usePlantPulseStore((s) => s.batchNamingConfig);
   const addBatchChain = usePlantPulseStore((s) => s.addBatchChain);
   const addStage = usePlantPulseStore((s) => s.addStage);
@@ -90,6 +92,20 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
   const productLine: ProductLine | undefined = useMemo(
     () => productLines.find((pl) => pl.id === selectedProductLine),
     [productLines, selectedProductLine]
+  );
+
+  // Effective stage types for the selected product line (per-PL or shared)
+  const effectiveStageTypes = useMemo(() => {
+    if (stageTypesMode === 'per_product_line' && selectedProductLine) {
+      return productLineStageTypes[selectedProductLine] ?? stageTypeDefinitions;
+    }
+    return stageTypeDefinitions;
+  }, [stageTypesMode, selectedProductLine, productLineStageTypes, stageTypeDefinitions]);
+
+  // Stage type counts (for expanding stages with count > 1, e.g. 2× Seed n-1)
+  const stageTypeCounts = useMemo(
+    () => buildStageTypeCounts(effectiveStageTypes),
+    [effectiveStageTypes]
   );
 
   // Fermenter machines for the selected product line
@@ -197,7 +213,7 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
     const step = namingRule.step || 1;
 
     for (let i = 0; i < chainCount; i++) {
-      const backCalc = backCalculateChain(cursor, productLine.stageDefaults);
+      const backCalc = backCalculateChain(cursor, productLine.stageDefaults, stageTypeCounts);
       const fermId = selectedFermenter === 'auto' ? undefined : selectedFermenter;
 
       const result = autoScheduleChain(
@@ -255,7 +271,7 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
 
     setChainPreviews(previews);
     setStep('preview');
-  }, [productLine, startTime, selectedFermenter, chainCount, machines, stages, turnaroundActivities, namingRule, baseSeriesNum, fermenterTurnaroundGap]);
+  }, [productLine, startTime, selectedFermenter, chainCount, machines, stages, turnaroundActivities, namingRule, baseSeriesNum, fermenterTurnaroundGap, stageTypeCounts]);
 
   const handleCreate = useCallback(() => {
     if (!productLine || chainPreviews.length === 0) return;
@@ -390,12 +406,13 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
 
                   {/* Seed train summary */}
                   <div className="pp-wizard-info">
-                    Seed train: {productLine.stageDefaults.length} stages
+                    Seed train: {expandStageDefaults(productLine.stageDefaults, stageTypeCounts).length} stages
                     {productLine.stageDefaults.map((sd) => {
-                      const stDef = stageTypeDefinitions.find((st) => st.id === sd.stageType);
+                      const stDef = effectiveStageTypes.find((st) => st.id === sd.stageType);
+                      const count = stageTypeCounts?.get(sd.stageType) ?? 1;
                       return (
                         <span key={sd.stageType} className="pp-wizard-stage-chip">
-                          {stDef?.shortName ?? sd.stageType} {sd.defaultDurationHours}h
+                          {count > 1 && `${count}× `}{stDef?.shortName ?? sd.stageType} {sd.defaultDurationHours}h
                         </span>
                       );
                     })}
@@ -457,7 +474,7 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
                   {(() => {
                     const st = new Date(startTime);
                     if (isNaN(st.getTime()) || !productLine.stageDefaults.length) return null;
-                    const totalHours = chainDurationHours(productLine.stageDefaults);
+                    const totalHours = chainDurationHours(productLine.stageDefaults, stageTypeCounts);
                     const firstProdEnd = addHours(st, prodDuration);
                     // For multi-chain: last chain's production end
                     const lastProdEnd = chainCount === 1
@@ -544,7 +561,7 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
                       <span className="pp-wizard-col-dur">Duration</span>
                     </div>
                     {cp.assignments.map((a, i) => {
-                      const stDef = stageTypeDefinitions.find((st) => st.id === a.stageType);
+                      const stDef = effectiveStageTypes.find((st) => st.id === a.stageType);
                       const hasOverlap = a.overlaps.length > 0;
                       return (
                         <div
