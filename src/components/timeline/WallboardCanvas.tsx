@@ -555,6 +555,8 @@ interface WallboardCanvasProps {
   onStageClick?: (stageId: string) => void;
   /** Called when a machine label in the left column is clicked — Planner uses this to open Equipment Setup. */
   onMachineLabelClick?: (machineId: string) => void;
+  /** Called when the shift band at the top is clicked — Planner uses this to open Shift Schedule modal. */
+  onShiftBandClick?: () => void;
 }
 
 export default function WallboardCanvas({
@@ -567,6 +569,7 @@ export default function WallboardCanvas({
   nightMode = false,
   onStageClick,
   onMachineLabelClick,
+  onShiftBandClick,
 }: WallboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -745,6 +748,12 @@ export default function WallboardCanvas({
       const cssX = event.clientX - rect.left;
       const cssY = event.clientY - rect.top;
 
+      // Check shift band click (top strip)
+      if (onShiftBandClick && cssY <= SHIFT_BAND_H) {
+        onShiftBandClick();
+        return;
+      }
+
       // Check machine label click first (left column)
       if (onMachineLabelClick) {
         const machineId = hitTestMachineLabel(cssX, cssY);
@@ -762,12 +771,12 @@ export default function WallboardCanvas({
         }
       }
     },
-    [onStageClick, onMachineLabelClick, hitTestStage, hitTestMachineLabel]
+    [onStageClick, onMachineLabelClick, onShiftBandClick, hitTestStage, hitTestMachineLabel]
   );
 
   const handleCanvasMouseMove = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
-      const hasAnyHandler = onStageClick || onMachineLabelClick;
+      const hasAnyHandler = onStageClick || onMachineLabelClick || onShiftBandClick;
       if (!hasAnyHandler) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -776,7 +785,9 @@ export default function WallboardCanvas({
       const cssX = event.clientX - rect.left;
       const cssY = event.clientY - rect.top;
 
-      if (onMachineLabelClick && hitTestMachineLabel(cssX, cssY)) {
+      if (onShiftBandClick && cssY <= SHIFT_BAND_H) {
+        canvas.style.cursor = 'pointer';
+      } else if (onMachineLabelClick && hitTestMachineLabel(cssX, cssY)) {
         canvas.style.cursor = 'pointer';
       } else if (onStageClick && hitTestStage(cssX, cssY)) {
         canvas.style.cursor = 'pointer';
@@ -784,7 +795,7 @@ export default function WallboardCanvas({
         canvas.style.cursor = 'default';
       }
     },
-    [onStageClick, onMachineLabelClick, hitTestStage, hitTestMachineLabel]
+    [onStageClick, onMachineLabelClick, onShiftBandClick, hitTestStage, hitTestMachineLabel]
   );
 
   return (
@@ -796,7 +807,7 @@ export default function WallboardCanvas({
         ref={canvasRef}
         id={canvasId}
         onClick={handleCanvasClick}
-        onMouseMove={(onStageClick || onMachineLabelClick) ? handleCanvasMouseMove : undefined}
+        onMouseMove={(onStageClick || onMachineLabelClick || onShiftBandClick) ? handleCanvasMouseMove : undefined}
       />
     </div>
   );
