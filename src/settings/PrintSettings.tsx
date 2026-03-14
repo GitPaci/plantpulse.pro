@@ -1,9 +1,9 @@
 'use client';
 
 // Print Settings modal for Schedule PDF export.
-// Persists settings to localStorage; enterprise fields are visible but disabled.
+// Persists settings to localStorage; enterprise features shown as CTA card.
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   loadPrintSettings,
   savePrintSettings,
@@ -23,20 +23,8 @@ const TOGGLE_FIELDS = [
   ['showPageNumbers', 'Show page numbers'],
 ] as const;
 
-const ENTERPRISE_FIELDS = [
-  'Company logo (top-left)',
-  'Custom corporate color theme',
-  'Custom footer text presets',
-  'Watermark overlay',
-  'Multi-page export',
-  'Automatic user ID from SSO',
-  'Electronic signatures',
-  'Document control number / revision',
-];
-
 export default function PrintSettings({ open, onClose }: PrintSettingsProps) {
   const [settings, setSettings] = useState<SchedulePrintSettings>(loadPrintSettings);
-  const overlayRef = useRef<HTMLDivElement>(null);
 
   // Reload settings each time the modal opens
   useEffect(() => {
@@ -55,10 +43,9 @@ export default function PrintSettings({ open, onClose }: PrintSettingsProps) {
     return () => document.removeEventListener('keydown', handleKey);
   }, [open, onClose]);
 
-  // Close on overlay click
-  const handleOverlayClick = useCallback(
+  const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
-      if (e.target === overlayRef.current) onClose();
+      if (e.target === e.currentTarget) onClose();
     },
     [onClose]
   );
@@ -78,28 +65,18 @@ export default function PrintSettings({ open, onClose }: PrintSettingsProps) {
   if (!open) return null;
 
   return (
-    <div
-      ref={overlayRef}
-      onClick={handleOverlayClick}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30"
-    >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+    <div className="pp-modal-backdrop" onClick={handleBackdropClick}>
+      <div className="pp-modal" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--pp-border)]">
-          <h2 className="text-sm font-semibold text-[var(--pp-pharma)]">
-            Print Settings
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 text-lg leading-none"
-            aria-label="Close settings"
-          >
-            &times;
+        <div className="pp-modal-header">
+          <h2>Print Settings</h2>
+          <button className="pp-modal-close" onClick={onClose} aria-label="Close">
+            &#x2715;
           </button>
         </div>
 
         {/* Body */}
-        <div className="px-5 py-4 space-y-5">
+        <div className="pp-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* --- Free editable fields --- */}
           <fieldset className="space-y-3">
             <legend className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
@@ -147,47 +124,32 @@ export default function PrintSettings({ open, onClose }: PrintSettingsProps) {
             ))}
           </fieldset>
 
-          {/* --- Enterprise-locked fields (visible but disabled) --- */}
-          <fieldset className="space-y-2 opacity-60">
-            <legend className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-2">
-              Enterprise Features
-              <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 normal-case tracking-normal">
-                Enterprise
-              </span>
-            </legend>
-
-            {ENTERPRISE_FIELDS.map((label) => (
-              <label
-                key={label}
-                className="flex items-center gap-2.5 cursor-not-allowed"
-                title="Available in Enterprise — contact us for custom branding and multi-site deployment."
-              >
-                <input
-                  type="checkbox"
-                  disabled
-                  className="rounded border-slate-300 opacity-50"
-                />
-                <span className="text-sm text-slate-400">{label}</span>
-                <span className="ml-auto inline-block px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 text-slate-400">
-                  Enterprise
-                </span>
-              </label>
-            ))}
-          </fieldset>
+          {/* --- Enterprise CTA card --- */}
+          <div className="pp-naming-erp-cta">
+            <div className="pp-naming-erp-header">
+              <span className="pp-naming-erp-icon">&#x1F5A8;</span>
+              <span className="pp-naming-erp-title">Advanced Print &amp; Branding</span>
+              <span className="pp-naming-erp-badge">Enterprise</span>
+            </div>
+            <p className="pp-naming-erp-desc">
+              Company logo, custom color themes, watermark overlay, multi-page export,
+              electronic signatures, and document control — tailored to your GxP requirements.
+            </p>
+            <a
+              href="mailto:hello@plantpulse.pro?subject=Enterprise%20Print%20Features%20Inquiry"
+              className="pp-naming-erp-link"
+            >
+              Ask for a quote &rarr; hello@plantpulse.pro
+            </a>
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[var(--pp-border)]">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 text-xs rounded border border-[var(--pp-border)] text-slate-600 hover:bg-slate-50"
-          >
+        <div className="pp-modal-footer" style={{ justifyContent: 'flex-end' }}>
+          <button className="pp-modal-btn pp-modal-btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button
-            onClick={handleSave}
-            className="px-3 py-1.5 text-xs rounded bg-[var(--pp-pharma)] text-white hover:opacity-90"
-          >
+          <button className="pp-modal-btn pp-modal-btn-primary" onClick={handleSave}>
             Save Settings
           </button>
         </div>
