@@ -4,7 +4,7 @@
 // Ported from VBA: InfoTabla20180201 PowerPoint shape rendering
 // Renders: row backgrounds, calendar grid, shift band, batch bars, now-line
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { usePlantPulseStore } from '@/lib/store';
 import { getWallboardBorderColor, SHIFT_GAP_COLOR, SHIFT_TEAM_COLORS } from '@/lib/colors';
 import { stageBarPosition, nowLineX, pixelsPerDay as getPPD } from '@/lib/timeline-math';
@@ -18,8 +18,8 @@ import {
   getDate,
   getMonth,
 } from 'date-fns';
-import type { Machine, Stage, MachineDisplayGroup, ShutdownPeriod, BatchChain, BatchNamingConfig } from '@/lib/types';
-import { batchNamePreview } from '@/lib/types';
+import type { Machine, Stage, MachineDisplayGroup, ShutdownPeriod, BatchChain, BatchNamingConfig, DowntimeWindow } from '@/lib/types';
+import { batchNamePreview, collectDowntimeWindows } from '@/lib/types';
 
 // ─── Batch naming helper ────────────────────────────────────────────────
 
@@ -68,6 +68,8 @@ interface CanvasTheme {
   shutdown: string;
   barBorder: string;
   barHourText: string;
+  downtime: string;
+  downtimeHatch: string;
 }
 
 const DAY_THEME: CanvasTheme = {
@@ -92,6 +94,8 @@ const DAY_THEME: CanvasTheme = {
   headerBg: '#FFFFFF',
   barBorder: 'rgba(0,0,0,0.12)',
   barHourText: '#000000',
+  downtime: 'rgba(234, 179, 8, 0.12)',
+  downtimeHatch: 'rgba(234, 179, 8, 0.25)',
 };
 
 const NIGHT_THEME: CanvasTheme = {
@@ -116,6 +120,8 @@ const NIGHT_THEME: CanvasTheme = {
   headerBg: '#0c1021',
   barBorder: 'rgba(255,255,255,0.10)',
   barHourText: '#d1d5db',
+  downtime: 'rgba(234, 179, 8, 0.15)',
+  downtimeHatch: 'rgba(234, 179, 8, 0.30)',
 };
 
 // ─── Row layout ─────────────────────────────────────────────────────────
@@ -257,6 +263,54 @@ function drawCalendarColumns(
     ctx.moveTo(x, TOP_MARGIN);
     ctx.lineTo(x, totalHeight);
     ctx.stroke();
+  }
+}
+
+function drawDowntimeBlocks(
+  ctx: CanvasRenderingContext2D,
+  windows: DowntimeWindow[],
+  rows: RowInfo[],
+  viewStart: Date,
+  numDays: number,
+  width: number,
+  theme: CanvasTheme
+) {
+  if (windows.length === 0) return;
+
+  const machineRowMap = new Map<string, RowInfo>();
+  for (const r of rows) {
+    if (r.type === 'machine') machineRowMap.set(r.machineId, r);
+  }
+
+  for (const win of windows) {
+    const row = machineRowMap.get(win.machineId);
+    if (!row) continue;
+
+    const pos = stageBarPosition(viewStart, win.start, win.end, width, LEFT_MARGIN, numDays);
+    if (pos.offScreen) continue;
+
+    const y = row.y;
+    const h = ROW_HEIGHT;
+
+    // Semi-transparent amber fill (full row height, behind batch bars)
+    ctx.fillStyle = theme.downtime;
+    ctx.fillRect(pos.left, y, pos.width, h);
+
+    // Diagonal hatch pattern (135°, 6px step) — distinct from shutdown hatch (45°, 8px)
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pos.left, y, pos.width, h);
+    ctx.clip();
+    ctx.strokeStyle = theme.downtimeHatch;
+    ctx.lineWidth = 0.5;
+    const step = 6;
+    for (let i = -h; i < pos.width + h; i += step) {
+      ctx.beginPath();
+      ctx.moveTo(pos.left + i + h, y);
+      ctx.lineTo(pos.left + i, y + h);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }
 
@@ -557,6 +611,10 @@ interface WallboardCanvasProps {
   onMachineLabelClick?: (machineId: string) => void;
   /** Called when the shift band at the top is clicked — Planner uses this to open Shift Schedule modal. */
   onShiftBandClick?: () => void;
+  /** When true, draws machine downtime blocks on the timeline (Planner only). */
+  showDowntime?: boolean;
+  /** Called when a downtime block is clicked — Planner uses this to open Equipment Setup unavailability. */
+  onDowntimeClick?: (machineId: string, ruleId?: string) => void;
 }
 
 export default function WallboardCanvas({
@@ -570,6 +628,8 @@ export default function WallboardCanvas({
   onStageClick,
   onMachineLabelClick,
   onShiftBandClick,
+  showDowntime = false,
+  onDowntimeClick,
 }: WallboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -627,6 +687,21 @@ export default function WallboardCanvas({
   );
   const visibleStages = stages.filter((s) => visibleMachineIds.has(s.machineId));
 
+  // Precompute downtime windows for visible machines
+  const downtimeWindows = useMemo(() => {
+    if (!showDowntime) return [];
+    const rangeStart = viewConfig.viewStart;
+    const rangeEnd = addDays(viewConfig.viewStart, viewConfig.numberOfDays);
+    const wins: DowntimeWindow[] = [];
+    for (const m of machines) {
+      if (!visibleMachineIds.has(m.id)) continue;
+      const mWins = collectDowntimeWindows(m, rangeStart, rangeEnd);
+      for (const w of mWins) wins.push(w);
+    }
+    return wins;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showDowntime, machines, viewConfig.viewStart, viewConfig.numberOfDays, visibleMachineIds]);
+
   // Calculate total canvas height
   const lastRow = rows[rows.length - 1];
   const totalHeight = lastRow
@@ -662,6 +737,9 @@ export default function WallboardCanvas({
     // Draw layers (back to front)
     drawRowBackgrounds(ctx, rows, dims.width, theme);
     drawCalendarColumns(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, showTodayHighlight, theme, shutdownPeriods);
+    if (showDowntime && downtimeWindows.length > 0) {
+      drawDowntimeBlocks(ctx, downtimeWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
+    }
     drawBatchBars(ctx, visibleStages, batchSeriesMap, batchLabelMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     if (showNowLineProp) {
       drawNowLine(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, theme);
@@ -671,7 +749,7 @@ export default function WallboardCanvas({
       drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, shiftRotation.anchorDate, shiftRotation.cyclePattern, shiftRotation.teams.map((t) => t.color), shiftRotation.shiftLengthHours, shiftRotation);
     }
     drawDateHeader(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
-  }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods, shiftRotation]);
+  }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods, shiftRotation, showDowntime, downtimeWindows]);
 
   // Redraw on any change
   useEffect(() => {
@@ -739,6 +817,43 @@ export default function WallboardCanvas({
     [rows]
   );
 
+  const hitTestDowntime = useCallback(
+    (cssX: number, cssY: number): DowntimeWindow | null => {
+      if (!showDowntime || cssX < LEFT_MARGIN) return null;
+      for (const win of downtimeWindows) {
+        const row = machineRowMap.get(win.machineId);
+        if (!row) continue;
+        const pos = stageBarPosition(
+          viewConfig.viewStart,
+          win.start,
+          win.end,
+          dims.width,
+          LEFT_MARGIN,
+          viewConfig.numberOfDays
+        );
+        if (pos.offScreen) continue;
+        if (
+          cssX >= pos.left &&
+          cssX <= pos.left + pos.width &&
+          cssY >= row.y &&
+          cssY <= row.y + ROW_HEIGHT
+        ) {
+          return win;
+        }
+      }
+      return null;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [showDowntime, downtimeWindows, viewConfig, dims.width, rows]
+  );
+
+  // Tooltip state for downtime hover
+  const [downtimeTooltip, setDowntimeTooltip] = useState<{
+    x: number;
+    y: number;
+    window: DowntimeWindow;
+  } | null>(null);
+
   const handleCanvasClick = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current;
@@ -763,21 +878,30 @@ export default function WallboardCanvas({
         }
       }
 
-      // Then check batch bar click
+      // Then check batch bar click (takes priority over downtime)
       if (onStageClick) {
         const stageId = hitTestStage(cssX, cssY);
         if (stageId) {
           onStageClick(stageId);
+          return;
+        }
+      }
+
+      // Then check downtime block click
+      if (onDowntimeClick) {
+        const win = hitTestDowntime(cssX, cssY);
+        if (win) {
+          onDowntimeClick(win.machineId, win.ruleId);
         }
       }
     },
-    [onStageClick, onMachineLabelClick, onShiftBandClick, hitTestStage, hitTestMachineLabel]
+    [onStageClick, onMachineLabelClick, onShiftBandClick, onDowntimeClick, hitTestStage, hitTestMachineLabel, hitTestDowntime]
   );
 
   const handleCanvasMouseMove = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
-      const hasAnyHandler = onStageClick || onMachineLabelClick || onShiftBandClick;
-      if (!hasAnyHandler) return;
+      const hasAnyHandler = onStageClick || onMachineLabelClick || onShiftBandClick || onDowntimeClick;
+      if (!hasAnyHandler && !showDowntime) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
 
@@ -787,28 +911,71 @@ export default function WallboardCanvas({
 
       if (onShiftBandClick && cssY <= SHIFT_BAND_H) {
         canvas.style.cursor = 'pointer';
+        setDowntimeTooltip(null);
       } else if (onMachineLabelClick && hitTestMachineLabel(cssX, cssY)) {
         canvas.style.cursor = 'pointer';
+        setDowntimeTooltip(null);
       } else if (onStageClick && hitTestStage(cssX, cssY)) {
         canvas.style.cursor = 'pointer';
+        setDowntimeTooltip(null);
       } else {
-        canvas.style.cursor = 'default';
+        // Check downtime hover (for tooltip and cursor)
+        const win = showDowntime ? hitTestDowntime(cssX, cssY) : null;
+        if (win) {
+          canvas.style.cursor = onDowntimeClick ? 'pointer' : 'default';
+          setDowntimeTooltip({ x: cssX, y: cssY, window: win });
+        } else {
+          canvas.style.cursor = 'default';
+          setDowntimeTooltip(null);
+        }
       }
     },
-    [onStageClick, onMachineLabelClick, onShiftBandClick, hitTestStage, hitTestMachineLabel]
+    [onStageClick, onMachineLabelClick, onShiftBandClick, onDowntimeClick, showDowntime, hitTestStage, hitTestMachineLabel, hitTestDowntime]
   );
+
+  const handleCanvasMouseLeave = useCallback(() => {
+    setDowntimeTooltip(null);
+  }, []);
+
+  // Format downtime tooltip content
+  const formatDowntimeTime = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+  const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
     <div
       ref={containerRef}
-      style={{ width: '100%', height: '100%', overflow: 'auto' }}
+      style={{ width: '100%', height: '100%', overflow: 'auto', position: 'relative' }}
     >
       <canvas
         ref={canvasRef}
         id={canvasId}
         onClick={handleCanvasClick}
-        onMouseMove={(onStageClick || onMachineLabelClick || onShiftBandClick) ? handleCanvasMouseMove : undefined}
+        onMouseMove={(onStageClick || onMachineLabelClick || onShiftBandClick || showDowntime) ? handleCanvasMouseMove : undefined}
+        onMouseLeave={showDowntime ? handleCanvasMouseLeave : undefined}
       />
+      {downtimeTooltip && (
+        <div
+          className="pp-downtime-tooltip"
+          style={{
+            left: Math.min(downtimeTooltip.x + 12, dims.width - 200),
+            top: downtimeTooltip.y - 8,
+          }}
+        >
+          <div className="pp-downtime-tooltip-title">
+            {downtimeTooltip.window.type === 'recurring' ? 'Recurring maintenance' : 'Machine unavailable'}
+          </div>
+          {downtimeTooltip.window.reason && (
+            <div className="pp-downtime-tooltip-reason">{downtimeTooltip.window.reason}</div>
+          )}
+          <div className="pp-downtime-tooltip-time">
+            {downtimeTooltip.window.type === 'recurring'
+              ? `Every ${DAY_NAMES[downtimeTooltip.window.start.getDay()]}, ${formatDowntimeTime(downtimeTooltip.window.start)} — ${formatDowntimeTime(downtimeTooltip.window.end)}`
+              : `${formatDowntimeTime(downtimeTooltip.window.start)} — ${formatDowntimeTime(downtimeTooltip.window.end)}`}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
