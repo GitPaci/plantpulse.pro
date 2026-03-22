@@ -212,6 +212,7 @@ export interface DowntimeWindow {
   type: 'one_time' | 'recurring';
   ruleId?: string;  // RecurringDowntimeRule.id for click-to-edit
   blocksPlanning: boolean; // true = planning-blocking (solid hatch); false = informational (dashed, reduced opacity)
+  notifyShift: boolean;   // true = render arrow indicator at start of downtime for shift team awareness
 }
 
 /** Expand a recurring rule into concrete [start, end] windows within a date range. */
@@ -286,6 +287,7 @@ export function collectDowntimeWindows(
         reason: dt.reason,
         type: 'one_time',
         blocksPlanning: dt.blocksPlanning !== false,
+        notifyShift: dt.notifyShift === true,
       });
     }
   }
@@ -303,6 +305,7 @@ export function collectDowntimeWindows(
           type: 'recurring',
           ruleId: rule.id,
           blocksPlanning: rule.blocksPlanning !== false,
+          notifyShift: rule.notifyShift === true,
         });
       }
     }

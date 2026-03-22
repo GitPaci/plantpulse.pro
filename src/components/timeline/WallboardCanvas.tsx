@@ -72,6 +72,7 @@ interface CanvasTheme {
   downtimeHatch: string;
   downtimeNonBlocking: string;
   downtimeHatchNonBlocking: string;
+  notifyShiftArrow: string;
 }
 
 const DAY_THEME: CanvasTheme = {
@@ -100,6 +101,7 @@ const DAY_THEME: CanvasTheme = {
   downtimeHatch: 'rgba(234, 179, 8, 0.25)',
   downtimeNonBlocking: 'rgba(234, 179, 8, 0.06)',
   downtimeHatchNonBlocking: 'rgba(234, 179, 8, 0.12)',
+  notifyShiftArrow: '#D946EF',
 };
 
 const NIGHT_THEME: CanvasTheme = {
@@ -128,6 +130,7 @@ const NIGHT_THEME: CanvasTheme = {
   downtimeHatch: 'rgba(234, 179, 8, 0.30)',
   downtimeNonBlocking: 'rgba(234, 179, 8, 0.08)',
   downtimeHatchNonBlocking: 'rgba(234, 179, 8, 0.15)',
+  notifyShiftArrow: '#E879F9',
 };
 
 // ─── Row layout ─────────────────────────────────────────────────────────
@@ -326,6 +329,54 @@ function drawDowntimeBlocks(
       ctx.setLineDash([]);
     }
     ctx.restore();
+  }
+}
+
+function drawNotifyShiftArrows(
+  ctx: CanvasRenderingContext2D,
+  windows: DowntimeWindow[],
+  rows: RowInfo[],
+  viewStart: Date,
+  numDays: number,
+  width: number,
+  theme: CanvasTheme
+) {
+  const notifyWindows = windows.filter(w => w.notifyShift);
+  if (notifyWindows.length === 0) return;
+
+  const machineRowMap = new Map<string, RowInfo>();
+  for (const r of rows) {
+    if (r.type === 'machine') machineRowMap.set(r.machineId, r);
+  }
+
+  const ARROW_W = 10;
+  const ARROW_H = 12;
+
+  for (const win of notifyWindows) {
+    const row = machineRowMap.get(win.machineId);
+    if (!row) continue;
+
+    const pos = stageBarPosition(viewStart, win.start, win.end, width, LEFT_MARGIN, numDays);
+    if (pos.offScreen) continue;
+
+    const arrowX = pos.left;
+    if (arrowX < LEFT_MARGIN) continue;
+
+    const arrowY = row.y;
+
+    // Downward-pointing triangle
+    ctx.fillStyle = theme.notifyShiftArrow;
+    ctx.beginPath();
+    ctx.moveTo(arrowX - ARROW_W / 2, arrowY);
+    ctx.lineTo(arrowX + ARROW_W / 2, arrowY);
+    ctx.lineTo(arrowX, arrowY + ARROW_H);
+    ctx.closePath();
+    ctx.fill();
+
+    // Subtle stroke for definition
+    ctx.strokeStyle = theme.notifyShiftArrow;
+    ctx.lineWidth = 1;
+    ctx.stroke();
   }
 }
 
@@ -756,6 +807,9 @@ export default function WallboardCanvas({
       drawDowntimeBlocks(ctx, downtimeWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     }
     drawBatchBars(ctx, visibleStages, batchSeriesMap, batchLabelMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
+    if (showDowntime && downtimeWindows.length > 0) {
+      drawNotifyShiftArrows(ctx, downtimeWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
+    }
     if (showNowLineProp) {
       drawNowLine(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, theme);
     }
@@ -986,6 +1040,11 @@ export default function WallboardCanvas({
           </div>
           {downtimeTooltip.window.reason && (
             <div className="pp-downtime-tooltip-reason">{downtimeTooltip.window.reason}</div>
+          )}
+          {downtimeTooltip.window.notifyShift && (
+            <div style={{ fontSize: '10px', color: '#D946EF', fontWeight: 500, marginTop: '2px' }}>
+              &#9660; Shift notification active
+            </div>
           )}
           <div className="pp-downtime-tooltip-time">
             {downtimeTooltip.window.type === 'recurring'
