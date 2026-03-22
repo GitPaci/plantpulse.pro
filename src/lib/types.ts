@@ -196,6 +196,113 @@ export function isRecurringRuleExpired(rule: RecurringDowntimeRule): boolean {
   return rule.endDate < new Date();
 }
 
+// ─── Downtime window expansion (for timeline visualization) ─────────
+
+/** A concrete downtime window resolved from one-time or recurring rules. */
+export interface DowntimeWindow {
+  machineId: string;
+  start: Date;
+  end: Date;
+  reason?: string;
+  type: 'one_time' | 'recurring';
+  ruleId?: string;  // RecurringDowntimeRule.id for click-to-edit
+}
+
+/** Expand a recurring rule into concrete [start, end] windows within a date range. */
+export function expandRecurringRule(
+  rule: RecurringDowntimeRule,
+  rangeStart: Date,
+  rangeEnd: Date
+): Array<{ start: Date; end: Date }> {
+  if (isRecurringRuleExpired(rule)) return [];
+
+  const results: Array<{ start: Date; end: Date }> = [];
+  // Start 1 day before range to catch midnight-spanning windows
+  const scanStart = new Date(rangeStart);
+  scanStart.setDate(scanStart.getDate() - 1);
+  const scanEnd = rangeEnd;
+
+  for (let d = new Date(scanStart); d <= scanEnd; d.setDate(d.getDate() + 1)) {
+    // Check validity window
+    if (d < new Date(rule.startDate.getFullYear(), rule.startDate.getMonth(), rule.startDate.getDate())) continue;
+    if (rule.endDate) {
+      const ruleEndDay = new Date(rule.endDate.getFullYear(), rule.endDate.getMonth(), rule.endDate.getDate());
+      if (d > ruleEndDay) continue;
+    }
+
+    // Check day-of-week or day-of-month pattern
+    let matchesPattern = false;
+    if (rule.recurrenceType === 'weekly') {
+      matchesPattern = d.getDay() === (rule.dayOfWeek ?? 0);
+    } else {
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      const targetDay = Math.min(rule.dayOfMonth ?? 1, lastDay);
+      matchesPattern = d.getDate() === targetDay;
+    }
+
+    if (!matchesPattern) continue;
+
+    // Build concrete window
+    const winStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), rule.startHour, rule.startMinute);
+    const winEnd = new Date(winStart.getTime() + rule.durationHours * 3600000);
+
+    // Clip to view range — skip windows entirely outside
+    if (winEnd <= rangeStart || winStart >= rangeEnd) continue;
+
+    results.push({
+      start: winStart < rangeStart ? rangeStart : winStart,
+      end: winEnd > rangeEnd ? rangeEnd : winEnd,
+    });
+  }
+
+  return results;
+}
+
+/** Collect all downtime windows for a machine within a date range. */
+export function collectDowntimeWindows(
+  machine: Machine,
+  rangeStart: Date,
+  rangeEnd: Date
+): DowntimeWindow[] {
+  const windows: DowntimeWindow[] = [];
+
+  // One-time downtime
+  if (machine.downtime) {
+    const dt = machine.downtime;
+    const dtStart = dt.startDate;
+    const dtEnd = dt.endDate ?? rangeEnd; // indefinite → extends to range end
+    // Check overlap with range
+    if (dtStart < rangeEnd && dtEnd > rangeStart) {
+      windows.push({
+        machineId: machine.id,
+        start: dtStart < rangeStart ? rangeStart : dtStart,
+        end: dtEnd > rangeEnd ? rangeEnd : dtEnd,
+        reason: dt.reason,
+        type: 'one_time',
+      });
+    }
+  }
+
+  // Recurring rules
+  if (machine.recurringDowntime) {
+    for (const rule of machine.recurringDowntime) {
+      const expanded = expandRecurringRule(rule, rangeStart, rangeEnd);
+      for (const win of expanded) {
+        windows.push({
+          machineId: machine.id,
+          start: win.start,
+          end: win.end,
+          reason: rule.reason,
+          type: 'recurring',
+          ruleId: rule.id,
+        });
+      }
+    }
+  }
+
+  return windows;
+}
+
 export interface BatchChain {
   id: string;
   batchName: string;

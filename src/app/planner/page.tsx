@@ -185,6 +185,7 @@ export default function PlannerPage() {
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [newChainWizardOpen, setNewChainWizardOpen] = useState(false);
   const [bulkShiftOpen, setBulkShiftOpen] = useState(false);
+  const [equipmentSetupFocusSection, setEquipmentSetupFocusSection] = useState<string | null>(null);
 
   function shiftView(days: number) {
     setViewConfig({
@@ -201,6 +202,14 @@ export default function PlannerPage() {
   // Machine label click → open Equipment Setup with that machine in edit mode
   const handleMachineLabelClick = useCallback((machineId: string) => {
     setEquipmentSetupMachineId(machineId);
+    setEquipmentSetupFocusSection(null);
+    setEquipmentSetupOpen(true);
+  }, []);
+
+  // Downtime block click → open Equipment Setup with unavailability section focused
+  const handleDowntimeClick = useCallback((machineId: string, _ruleId?: string) => {
+    setEquipmentSetupMachineId(machineId);
+    setEquipmentSetupFocusSection('unavailability');
     setEquipmentSetupOpen(true);
   }, []);
 
@@ -340,7 +349,7 @@ export default function PlannerPage() {
             className="flex-1 min-h-0"
             onWheel={handleTimelineWheel}
           >
-            <WallboardCanvas onStageClick={(id) => setSelectedStageId(id)} onMachineLabelClick={handleMachineLabelClick} onShiftBandClick={() => setShiftScheduleOpen(true)} />
+            <WallboardCanvas onStageClick={(id) => setSelectedStageId(id)} onMachineLabelClick={handleMachineLabelClick} onShiftBandClick={() => setShiftScheduleOpen(true)} showDowntime={true} onDowntimeClick={handleDowntimeClick} />
           </div>
           {/* Horizontal scrollbar */}
           <div
@@ -448,8 +457,9 @@ export default function PlannerPage() {
       {/* Modals */}
       <EquipmentSetup
         open={equipmentSetupOpen}
-        onClose={() => { setEquipmentSetupOpen(false); setEquipmentSetupMachineId(null); }}
+        onClose={() => { setEquipmentSetupOpen(false); setEquipmentSetupMachineId(null); setEquipmentSetupFocusSection(null); }}
         initialEditMachineId={equipmentSetupMachineId}
+        initialFocusSection={equipmentSetupFocusSection}
       />
       <ProcessSetup
         open={processSetupOpen}

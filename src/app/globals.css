@@ -1600,6 +1600,39 @@ body {
   border: 2px solid #eab308;
 }
 
+/* ─── Downtime tooltip (canvas overlay) ──────────────────────────────── */
+
+.pp-downtime-tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 50;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 8px 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  font-size: 12px;
+  line-height: 1.4;
+  max-width: 280px;
+  color: #334155;
+}
+
+.pp-downtime-tooltip-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+  color: #92400e;
+}
+
+.pp-downtime-tooltip-reason {
+  color: #6b7280;
+}
+
+.pp-downtime-tooltip-time {
+  color: #6b7280;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
 /* ─── Downtime editor panel ───────────────────────────────────────────── */
 
 .pp-downtime-panel {

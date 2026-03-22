@@ -55,11 +55,13 @@ interface Props {
   onClose: () => void;
   /** When set, opens with this machine already in edit mode (Planner label click). */
   initialEditMachineId?: string | null;
+  /** When set, auto-scrolls to this section within the machine's edit panel (e.g. 'unavailability'). */
+  initialFocusSection?: string | null;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────
 
-export default function EquipmentSetup({ open, onClose, initialEditMachineId }: Props) {
+export default function EquipmentSetup({ open, onClose, initialEditMachineId, initialFocusSection }: Props) {
   const machines = usePlantPulseStore((s) => s.machines);
   const equipmentGroups = usePlantPulseStore((s) => s.equipmentGroups);
   const productLines = usePlantPulseStore((s) => s.productLines);
@@ -128,12 +130,21 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId }: 
         requestAnimationFrame(() => {
           const el = document.querySelector(`[data-machine-id="${initialEditMachineId}"]`);
           el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // If a focus section is specified, scroll to it after the machine row is visible
+          if (initialFocusSection === 'unavailability') {
+            requestAnimationFrame(() => {
+              const panel = el?.querySelector('.pp-downtime-panel');
+              if (panel) {
+                panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            });
+          }
         });
       } else {
         setEditingId(null);
       }
     }
-  }, [open, machines, equipmentGroups, productLines, wallboardEquipmentGroups, initialEditMachineId]);
+  }, [open, machines, equipmentGroups, productLines, wallboardEquipmentGroups, initialEditMachineId, initialFocusSection]);
 
   // Close on Escape
   useEffect(() => {
