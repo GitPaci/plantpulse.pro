@@ -53,6 +53,7 @@ export interface MachineDowntime {
   startDate: Date;
   endDate?: Date;         // undefined = indefinite (until manually cleared)
   reason?: string;        // optional note, e.g. "CIP rebuild", "Inspection"
+  blocksPlanning?: boolean; // true (default) = excludes from scheduling; false = informational only (shown with reduced opacity + dashed hatch)
 }
 
 // Recurring machine unavailability rule — generates periodic downtime windows.
@@ -70,6 +71,7 @@ export interface RecurringDowntimeRule {
   startDate: Date;        // recurrence validity start (first occurrence on or after this date)
   endDate?: Date;         // optional recurrence validity end (undefined = indefinite)
   reason?: string;
+  blocksPlanning?: boolean; // true (default) = excludes from scheduling; false = informational only
 }
 
 export interface Machine {
@@ -152,16 +154,17 @@ export function isDateInRecurringRule(rule: RecurringDowntimeRule, atDate: Date)
 export function isMachineUnavailable(m: Machine, atDate?: Date): boolean {
   const now = atDate ?? new Date();
 
-  // Check one-time downtime
-  if (m.downtime) {
+  // Check one-time downtime (only planning-blocking downtime)
+  if (m.downtime && m.downtime.blocksPlanning !== false) {
     if (m.downtime.startDate <= now && (!m.downtime.endDate || m.downtime.endDate >= now)) {
       return true;
     }
   }
 
-  // Check recurring rules
+  // Check recurring rules (only planning-blocking rules)
   if (m.recurringDowntime) {
     for (const rule of m.recurringDowntime) {
+      if (rule.blocksPlanning === false) continue;
       if (isDateInRecurringRule(rule, now)) return true;
     }
   }
@@ -206,6 +209,7 @@ export interface DowntimeWindow {
   reason?: string;
   type: 'one_time' | 'recurring';
   ruleId?: string;  // RecurringDowntimeRule.id for click-to-edit
+  blocksPlanning: boolean; // true = planning-blocking (solid hatch); false = informational (dashed, reduced opacity)
 }
 
 /** Expand a recurring rule into concrete [start, end] windows within a date range. */
@@ -279,6 +283,7 @@ export function collectDowntimeWindows(
         end: dtEnd > rangeEnd ? rangeEnd : dtEnd,
         reason: dt.reason,
         type: 'one_time',
+        blocksPlanning: dt.blocksPlanning !== false,
       });
     }
   }
@@ -295,6 +300,7 @@ export function collectDowntimeWindows(
           reason: rule.reason,
           type: 'recurring',
           ruleId: rule.id,
+          blocksPlanning: rule.blocksPlanning !== false,
         });
       }
     }
