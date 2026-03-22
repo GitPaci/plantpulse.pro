@@ -54,6 +54,7 @@ export interface MachineDowntime {
   endDate?: Date;         // undefined = indefinite (until manually cleared)
   reason?: string;        // optional note, e.g. "CIP rebuild", "Inspection"
   blocksPlanning?: boolean; // true (default) = excludes from scheduling; false = informational only (shown with reduced opacity + dashed hatch)
+  notifyShift?: boolean;    // false (default) = no shift notification; true = alert on-shift team
 }
 
 // Recurring machine unavailability rule — generates periodic downtime windows.
@@ -72,6 +73,7 @@ export interface RecurringDowntimeRule {
   endDate?: Date;         // optional recurrence validity end (undefined = indefinite)
   reason?: string;
   blocksPlanning?: boolean; // true (default) = excludes from scheduling; false = informational only
+  notifyShift?: boolean;    // false (default) = no shift notification; true = alert on-shift team
 }
 
 export interface Machine {
