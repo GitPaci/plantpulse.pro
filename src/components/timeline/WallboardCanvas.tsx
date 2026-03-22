@@ -70,6 +70,8 @@ interface CanvasTheme {
   barHourText: string;
   downtime: string;
   downtimeHatch: string;
+  downtimeNonBlocking: string;
+  downtimeHatchNonBlocking: string;
 }
 
 const DAY_THEME: CanvasTheme = {
@@ -96,6 +98,8 @@ const DAY_THEME: CanvasTheme = {
   barHourText: '#000000',
   downtime: 'rgba(234, 179, 8, 0.12)',
   downtimeHatch: 'rgba(234, 179, 8, 0.25)',
+  downtimeNonBlocking: 'rgba(234, 179, 8, 0.06)',
+  downtimeHatchNonBlocking: 'rgba(234, 179, 8, 0.12)',
 };
 
 const NIGHT_THEME: CanvasTheme = {
@@ -122,6 +126,8 @@ const NIGHT_THEME: CanvasTheme = {
   barHourText: '#d1d5db',
   downtime: 'rgba(234, 179, 8, 0.15)',
   downtimeHatch: 'rgba(234, 179, 8, 0.30)',
+  downtimeNonBlocking: 'rgba(234, 179, 8, 0.08)',
+  downtimeHatchNonBlocking: 'rgba(234, 179, 8, 0.15)',
 };
 
 // ─── Row layout ─────────────────────────────────────────────────────────
@@ -291,24 +297,33 @@ function drawDowntimeBlocks(
 
     const y = row.y;
     const h = ROW_HEIGHT;
+    const isBlocking = win.blocksPlanning;
 
     // Semi-transparent amber fill (full row height, behind batch bars)
-    ctx.fillStyle = theme.downtime;
+    // Non-blocking downtime uses halved opacity for visual distinction
+    ctx.fillStyle = isBlocking ? theme.downtime : theme.downtimeNonBlocking;
     ctx.fillRect(pos.left, y, pos.width, h);
 
     // Diagonal hatch pattern (135°, 6px step) — distinct from shutdown hatch (45°, 8px)
+    // Non-blocking downtime uses dashed lines + reduced opacity
     ctx.save();
     ctx.beginPath();
     ctx.rect(pos.left, y, pos.width, h);
     ctx.clip();
-    ctx.strokeStyle = theme.downtimeHatch;
+    ctx.strokeStyle = isBlocking ? theme.downtimeHatch : theme.downtimeHatchNonBlocking;
     ctx.lineWidth = 0.5;
+    if (!isBlocking) {
+      ctx.setLineDash([3, 3]);
+    }
     const step = 6;
     for (let i = -h; i < pos.width + h; i += step) {
       ctx.beginPath();
       ctx.moveTo(pos.left + i + h, y);
       ctx.lineTo(pos.left + i, y + h);
       ctx.stroke();
+    }
+    if (!isBlocking) {
+      ctx.setLineDash([]);
     }
     ctx.restore();
   }
@@ -965,6 +980,9 @@ export default function WallboardCanvas({
         >
           <div className="pp-downtime-tooltip-title">
             {downtimeTooltip.window.type === 'recurring' ? 'Recurring maintenance' : 'Machine unavailable'}
+            {!downtimeTooltip.window.blocksPlanning && (
+              <span style={{ fontWeight: 400, fontSize: '10px', marginLeft: '6px', opacity: 0.7 }}>(informational)</span>
+            )}
           </div>
           {downtimeTooltip.window.reason && (
             <div className="pp-downtime-tooltip-reason">{downtimeTooltip.window.reason}</div>
