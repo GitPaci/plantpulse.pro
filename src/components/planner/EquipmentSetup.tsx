@@ -270,7 +270,7 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
     id: string,
     current: MachineDowntime,
     field: keyof MachineDowntime,
-    value: Date | string | undefined
+    value: Date | string | boolean | undefined
   ) {
     setMachineDowntime(id, { ...current, [field]: value });
   }
@@ -864,6 +864,30 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
                                 placeholder="e.g. CIP rebuild, Inspection"
                               />
                             </div>
+                            <div className="pp-downtime-toggles">
+                              <label className="pp-downtime-toggle-label">
+                                <input
+                                  type="checkbox"
+                                  checked={m.downtime.blocksPlanning !== false}
+                                  onChange={(e) =>
+                                    updateDowntimeField(m.id, m.downtime!, 'blocksPlanning', e.target.checked)
+                                  }
+                                  className="rounded border-slate-300 text-[var(--pp-pharma)] focus:ring-[var(--pp-pharma)]"
+                                />
+                                <span>Affects Planning</span>
+                              </label>
+                              <label className="pp-downtime-toggle-label">
+                                <input
+                                  type="checkbox"
+                                  checked={m.downtime.notifyShift === true}
+                                  onChange={(e) =>
+                                    updateDowntimeField(m.id, m.downtime!, 'notifyShift', e.target.checked)
+                                  }
+                                  className="rounded border-slate-300 text-[var(--pp-pharma)] focus:ring-[var(--pp-pharma)]"
+                                />
+                                <span>Notify Shift</span>
+                              </label>
+                            </div>
                           </div>
                         )}
 
@@ -1045,6 +1069,31 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
                                     Del
                                   </button>
                                 </div>
+                              </div>
+
+                              <div className="pp-downtime-toggles">
+                                <label className="pp-downtime-toggle-label">
+                                  <input
+                                    type="checkbox"
+                                    checked={rule.blocksPlanning !== false}
+                                    onChange={(e) =>
+                                      updateRecurringRule(m.id, rule.id, { blocksPlanning: e.target.checked })
+                                    }
+                                    className="rounded border-slate-300 text-[var(--pp-pharma)] focus:ring-[var(--pp-pharma)]"
+                                  />
+                                  <span>Affects Planning</span>
+                                </label>
+                                <label className="pp-downtime-toggle-label">
+                                  <input
+                                    type="checkbox"
+                                    checked={rule.notifyShift === true}
+                                    onChange={(e) =>
+                                      updateRecurringRule(m.id, rule.id, { notifyShift: e.target.checked })
+                                    }
+                                    className="rounded border-slate-300 text-[var(--pp-pharma)] focus:ring-[var(--pp-pharma)]"
+                                  />
+                                  <span>Notify Shift</span>
+                                </label>
                               </div>
 
                               <div className="pp-downtime-recurring-summary">
