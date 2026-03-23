@@ -768,6 +768,25 @@ export default function WallboardCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showDowntime, machines, viewConfig.viewStart, viewConfig.numberOfDays, visibleMachineIds]);
 
+  // Notify-shift windows — always computed (operators need these on Wallboard)
+  const notifyShiftWindows = useMemo(() => {
+    if (showDowntime) {
+      // Full downtime already computed — just filter
+      return downtimeWindows.filter(w => w.notifyShift);
+    }
+    const rangeStart = viewConfig.viewStart;
+    const rangeEnd = addDays(viewConfig.viewStart, viewConfig.numberOfDays);
+    const wins: DowntimeWindow[] = [];
+    for (const m of machines) {
+      if (!visibleMachineIds.has(m.id)) continue;
+      for (const w of collectDowntimeWindows(m, rangeStart, rangeEnd)) {
+        if (w.notifyShift) wins.push(w);
+      }
+    }
+    return wins;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showDowntime, downtimeWindows, machines, viewConfig.viewStart, viewConfig.numberOfDays, visibleMachineIds]);
+
   // Calculate total canvas height
   const lastRow = rows[rows.length - 1];
   const totalHeight = lastRow
@@ -807,8 +826,8 @@ export default function WallboardCanvas({
       drawDowntimeBlocks(ctx, downtimeWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     }
     drawBatchBars(ctx, visibleStages, batchSeriesMap, batchLabelMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
-    if (showDowntime && downtimeWindows.length > 0) {
-      drawNotifyShiftArrows(ctx, downtimeWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
+    if (notifyShiftWindows.length > 0) {
+      drawNotifyShiftArrows(ctx, notifyShiftWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     }
     if (showNowLineProp) {
       drawNowLine(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, theme);
@@ -818,7 +837,7 @@ export default function WallboardCanvas({
       drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, shiftRotation.anchorDate, shiftRotation.cyclePattern, shiftRotation.teams.map((t) => t.color), shiftRotation.shiftLengthHours, shiftRotation);
     }
     drawDateHeader(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
-  }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods, shiftRotation, showDowntime, downtimeWindows]);
+  }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods, shiftRotation, showDowntime, downtimeWindows, notifyShiftWindows]);
 
   // Redraw on any change
   useEffect(() => {
@@ -888,8 +907,11 @@ export default function WallboardCanvas({
 
   const hitTestDowntime = useCallback(
     (cssX: number, cssY: number): DowntimeWindow | null => {
-      if (!showDowntime || cssX < LEFT_MARGIN) return null;
-      for (const win of downtimeWindows) {
+      if (cssX < LEFT_MARGIN) return null;
+      // When showDowntime is on, hit-test full downtime blocks; otherwise only notify-shift arrows
+      const windowsToTest = showDowntime ? downtimeWindows : notifyShiftWindows;
+      if (windowsToTest.length === 0) return null;
+      for (const win of windowsToTest) {
         const row = machineRowMap.get(win.machineId);
         if (!row) continue;
         const pos = stageBarPosition(
@@ -901,19 +923,32 @@ export default function WallboardCanvas({
           viewConfig.numberOfDays
         );
         if (pos.offScreen) continue;
-        if (
-          cssX >= pos.left &&
-          cssX <= pos.left + pos.width &&
-          cssY >= row.y &&
-          cssY <= row.y + ROW_HEIGHT
-        ) {
-          return win;
+        if (showDowntime) {
+          // Full downtime block hit region
+          if (
+            cssX >= pos.left &&
+            cssX <= pos.left + pos.width &&
+            cssY >= row.y &&
+            cssY <= row.y + ROW_HEIGHT
+          ) {
+            return win;
+          }
+        } else {
+          // Tight hit region around the arrow indicator (±8px horizontal, 14px vertical)
+          if (
+            cssX >= pos.left - 8 &&
+            cssX <= pos.left + 8 &&
+            cssY >= row.y &&
+            cssY <= row.y + 14
+          ) {
+            return win;
+          }
         }
       }
       return null;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [showDowntime, downtimeWindows, viewConfig, dims.width, rows]
+    [showDowntime, downtimeWindows, notifyShiftWindows, viewConfig, dims.width, rows]
   );
 
   // Tooltip state for downtime hover
@@ -970,7 +1005,8 @@ export default function WallboardCanvas({
   const handleCanvasMouseMove = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       const hasAnyHandler = onStageClick || onMachineLabelClick || onShiftBandClick || onDowntimeClick;
-      if (!hasAnyHandler && !showDowntime) return;
+      const hasNotifyShift = notifyShiftWindows.length > 0;
+      if (!hasAnyHandler && !showDowntime && !hasNotifyShift) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
 
@@ -989,7 +1025,7 @@ export default function WallboardCanvas({
         setDowntimeTooltip(null);
       } else {
         // Check downtime hover (for tooltip and cursor)
-        const win = showDowntime ? hitTestDowntime(cssX, cssY) : null;
+        const win = (showDowntime || notifyShiftWindows.length > 0) ? hitTestDowntime(cssX, cssY) : null;
         if (win) {
           canvas.style.cursor = onDowntimeClick ? 'pointer' : 'default';
           setDowntimeTooltip({ x: cssX, y: cssY, window: win });
@@ -999,7 +1035,7 @@ export default function WallboardCanvas({
         }
       }
     },
-    [onStageClick, onMachineLabelClick, onShiftBandClick, onDowntimeClick, showDowntime, hitTestStage, hitTestMachineLabel, hitTestDowntime]
+    [onStageClick, onMachineLabelClick, onShiftBandClick, onDowntimeClick, showDowntime, notifyShiftWindows, hitTestStage, hitTestMachineLabel, hitTestDowntime]
   );
 
   const handleCanvasMouseLeave = useCallback(() => {
@@ -1021,8 +1057,8 @@ export default function WallboardCanvas({
         ref={canvasRef}
         id={canvasId}
         onClick={handleCanvasClick}
-        onMouseMove={(onStageClick || onMachineLabelClick || onShiftBandClick || showDowntime) ? handleCanvasMouseMove : undefined}
-        onMouseLeave={showDowntime ? handleCanvasMouseLeave : undefined}
+        onMouseMove={(onStageClick || onMachineLabelClick || onShiftBandClick || showDowntime || notifyShiftWindows.length > 0) ? handleCanvasMouseMove : undefined}
+        onMouseLeave={(showDowntime || notifyShiftWindows.length > 0) ? handleCanvasMouseLeave : undefined}
       />
       {downtimeTooltip && (
         <div
