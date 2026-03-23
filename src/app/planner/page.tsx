@@ -601,9 +601,8 @@ export default function PlannerPage() {
 
       {/* Import confirmation modal */}
       {importConfirm && (
-        <>
-          <div className="pp-modal-backdrop" onClick={() => setImportConfirm(null)} />
-          <div className="pp-modal pp-modal-sm">
+        <div className="pp-modal-backdrop" onClick={() => setImportConfirm(null)}>
+          <div className="pp-modal" onClick={e => e.stopPropagation()}>
             <div className="pp-modal-header">
               <h3>Import {importConfirm.type === 'schedule' ? 'Schedule' : 'Maintenance'}</h3>
               <button className="pp-modal-close" onClick={() => setImportConfirm(null)}>✕</button>
@@ -643,7 +642,7 @@ export default function PlannerPage() {
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

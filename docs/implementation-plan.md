@@ -32,8 +32,8 @@ Phases 8-12 are Enterprise-only.
 - `lib/colors.ts` — 12-color batch cycle + 5-color wallboard border cycle
 - `lib/shift-rotation.ts` — 4-team, 12h, 8-step cycle
 - `lib/timeline-math.ts` — Pixel geometry (bar positioning, clipping, now-line)
-- `lib/scheduling.ts` — Overlap detection, conflict checking, auto-vessel assignment, turnaround gap enforcement (pending)
-- `lib/seed-train.ts` — Chain creation with back-calculation using ProductLine.stageDefaults (pending)
+- `lib/scheduling.ts` — Overlap detection, conflict checking, auto-vessel assignment, turnaround gap enforcement (done)
+- `lib/seed-train.ts` — Chain creation with back-calculation using ProductLine.stageDefaults (done)
 - `lib/shift-rotation.ts` — Configurable shift rotation with presets, plant coverage, gap detection, shift continuity (done)
 - Unit tests for all of the above
 
@@ -64,16 +64,17 @@ Phases 8-12 are Enterprise-only.
   - No persistence (state resets on page reload)
   - Helper: `generateId(prefix)` for unique ID generation
 
-### Phase 3 — Excel import/export
+### Phase 3 — Excel import/export (implemented)
 
 - Create schedule Excel template (`public/templates/schedule-template.xlsx`):
   - Sheet1: stages (pososda, nacep, precep, serija)
   - Sheet2: checkpoint tasks (pososda, nacep, opis, status)
 - Create maintenance Excel template (`public/templates/maintenance-template.xlsx`)
-- `lib/excel-io.ts` — SheetJS import/export:
-  - Import validator (headers, dates, machine names, start <= end)
-  - Schedule export (stages + tasks + audit sheet)
-  - Maintenance export
+- `lib/excel-io.ts` — SheetJS import/export (implemented):
+  - `parseScheduleXlsx` / `exportScheduleXlsx` — schedule I/O with header validation, machine matching, series grouping
+  - `parseMaintenanceXlsx` / `exportMaintenanceXlsx` — maintenance task I/O
+  - Planner sidebar Import/Export buttons wired to handlers with confirmation modal
+  - `maintenanceTasks` CRUD added to Zustand store
 - Integration test: generate -> export -> import -> compare
 
 ### Phase 4 — Core timeline engine
@@ -170,21 +171,35 @@ Phases 8-12 are Enterprise-only.
 
 ### Phase 6 — Planner View page
 
-- `app/planner/page.tsx` — Interactive schedule editor (partially implemented):
+- `app/planner/page.tsx` — Interactive schedule editor (implemented):
   - Sidebar with collapsible tool sections: Batch Operations, Schedule Data, Setup
   - Toolbar with day/week navigation and Today reset
-  - Drag to move stage blocks (pending)
-  - Stretch to change duration (pending)
+  - Drag to move stage blocks (implemented — ghost overlay, snap-to-hour)
+  - Stretch to change duration (implemented — edge detection for resize)
   - Click to edit in side panel (implemented — StageDetailPanel)
-  - Delete / reassign machine (pending)
-- **Batch operations** (Steps 1–4 implemented):
+  - Click machine label to open Equipment Setup in edit mode (implemented)
+  - Click shift band to open Shift Schedule modal (implemented)
+- **Batch operations** (Steps 1–5 implemented):
   1. `lib/scheduling.ts` + `lib/seed-train.ts` — Pure business logic engines (implemented):
      - `scheduling.ts`: `detectOverlaps()`, `findBestVessel()` (LRU heuristic for vessel distribution), `autoScheduleChain()`, `validateBulkShift()`, `selectStagesForBulkShift()`, `requiredTurnaroundGap()`, `earliestAvailableTime()` — integrates turnaround durations + machine downtime
      - `seed-train.ts`: `backCalculateChain(finalStageStart, stageDefaults, stageTypeCounts?)`, `forwardCalculateChain()`, `expandStageDefaults()` (count > 1 support), `buildStageTypeCounts()`, `chainDurationHours()`
   2. Canvas click handlers + `StageDetailPanel.tsx` (implemented) — Hit-test batch bars, open side panel for view/edit stage properties (vessel, start/end, state, fixed-duration mode, link-to-next mode)
   3. `NewChainWizard.tsx` (implemented) — Guided batch creation: select product line → pick fermenter + start (auto-suggested from earliest available) → back-calculate seed train → overlap preview → confirm; multi-chain creation via "+" button (up to 10); per-vessel earliest-availability cursor; per-product-line stage type resolution; stage type count expansion; production end/span timing display
   4. `BulkShiftTool.tsx` (implemented) — Cutoff date + series filter + hour delta; calls `bulkShiftStages()` store action; post-shift overlap validation via `validateBulkShift()`
-  5. `ChainEditor.tsx` — Full chain view with all linked stages (pending — medium priority)
+  5. `ChainEditor.tsx` (implemented) — Full batch chain editor modal with up to 8 stages; fixed-duration mode; link-to-next mode; real-time overlap detection
+- **Data I/O** (implemented):
+  - `lib/excel-io.ts` — Schedule + maintenance .xlsx import/export via SheetJS
+  - Planner sidebar Import/Export buttons wired with confirmation modal + warnings
+  - `maintenanceTasks` CRUD in Zustand store
+- **Machine downtime visualization on Planner** (implemented):
+  - Amber-tinted overlays with diagonal hatch (135°, 6px step) behind batch bars
+  - Hover tooltip with reason/time details; click-to-edit opens Equipment Setup
+  - `blocksPlanning` field: non-blocking downtime renders with halved opacity + dashed hatch
+  - `notifyShift` field: fuchsia shift-notification arrows on Planner + Wallboard
+  - "Affects Planning" / "Notify Shift" toggles in Equipment Setup downtime editor
+- **Rotating demo product catalog** (implemented):
+  - 20-product biotech catalog in `lib/demo-data.ts` with daily-rotating seeded shuffle
+  - Product line shortName limited to 3 chars; Naming tab auto-defaults prefix from shortName
 - **Equipment Setup modal** (implemented):
   - `components/planner/EquipmentSetup.tsx` — full CRUD modal for facility equipment (4 tabs)
   - **Machines tab**: inline editing of name, equipment group, product line assignment, display order (up/down reorder), add/delete
