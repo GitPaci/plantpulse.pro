@@ -162,7 +162,7 @@ before building the import validator.
   runs overlap detection on all affected stages and highlights any new conflicts.
   Conflicts are shown as warnings (not blocking) — the user decides whether to fix them.
 - **Store action implemented:** `bulkShiftStages(stageIds[], deltaHours)` in
-  `lib/store.ts`. Re-validation after shift is still pending (needs `scheduling.ts`).
+  `lib/store.ts`. Post-shift re-validation implemented via `validateBulkShift()` in `scheduling.ts`.
 
 ### 4. Test Strategy (Phase 1-2)
 
@@ -322,11 +322,11 @@ timeline canvas. The following tracks what is implemented vs. pending.
 | `NewChainWizard.tsx` | Done | Multi-chain creation (+ button), auto-suggest start, per-vessel cursor, per-PL stage type resolution, count expansion |
 | `BulkShiftTool.tsx` | Done | Cutoff date + series filter + delta hours; post-shift overlap validation |
 
-### Implemented — Batch Operations (Steps 1–4)
+### Implemented — Batch Operations (Steps 1–5)
 
-> **Status:** Core batch operations are implemented. Steps 1–4 complete: scheduling
-> engine, canvas click handlers, NewChainWizard (with multi-chain support), and
-> BulkShiftTool. Remaining: ChainEditor and drag interactions (medium priority).
+> **Status:** All batch operation steps (1–5) are complete: scheduling engine,
+> canvas click handlers, NewChainWizard, BulkShiftTool, ChainEditor, and
+> drag-to-move / stretch-to-resize interactions.
 
 | Step | Component | Status | Notes |
 |------|-----------|--------|-------|
@@ -335,8 +335,8 @@ timeline canvas. The following tracks what is implemented vs. pending.
 | 2 | Canvas click handlers + `StageDetailPanel.tsx` | Done | Hit-test batch bars, side panel for view/edit stage properties |
 | 3 | `NewChainWizard.tsx` | Done | Multi-chain via "+" button (up to 10), auto-suggest production start, per-vessel earliest-availability cursor, per-product-line stage type resolution, stage type count expansion, production end/span timing display |
 | 4 | `BulkShiftTool.tsx` | Done | Cutoff date + series filter + hour delta; post-shift overlap validation |
-| 5 | `ChainEditor.tsx` | Pending | Full chain view with linked stages, batch name, status (medium priority) |
-| 5 | Drag-to-move / stretch-to-resize | Pending | Canvas interaction for stage bars (medium priority) |
+| 5 | `ChainEditor.tsx` | Done | Full batch chain editor modal with up to 8 stages; fixed-duration mode (changing start auto-adjusts end); link-to-next mode (end of stage N syncs to start of stage N+1); real-time overlap detection against other chains |
+| 5 | Drag-to-move / stretch-to-resize | Done | Ghost overlay during drag with semi-transparent highlight; snap-to-hour for consistent scheduling; edge detection for stretch-to-resize |
 
 #### Key implementation details
 
@@ -361,16 +361,40 @@ StageDetailPanel (done) ◄── NewChainWizard (done)
 Canvas click handlers (done)   BulkShiftTool (done)
     │
     ▼
-ChainEditor (pending)
+ChainEditor (done)
+    │
+    ▼
+Drag-to-move / stretch-to-resize (done)
 ```
 
-### Pending — Data I/O
+### Implemented — Data I/O
 
-| Component | Gap | Priority |
-|-----------|-----|----------|
-| Import Schedule (xlsx) | Wire `lib/excel-io.ts` to sidebar button | High |
-| Export Schedule (xlsx) | Wire `lib/excel-io.ts` to sidebar button | High |
-| Import/Export Maintenance | Separate template, separate button | Medium |
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `lib/excel-io.ts` | Done | Schedule + maintenance .xlsx import/export via SheetJS; `parseScheduleXlsx`, `exportScheduleXlsx`, `parseMaintenanceXlsx`, `exportMaintenanceXlsx` |
+| Import Schedule (xlsx) | Done | Sidebar button wired to file picker + confirmation modal with warnings |
+| Export Schedule (xlsx) | Done | Sidebar button wired to `exportScheduleXlsx()` |
+| Import/Export Maintenance | Done | Separate sidebar buttons for maintenance task .xlsx I/O |
+| `maintenanceTasks` store CRUD | Done | `set/add/update/deleteMaintenanceTask` actions in Zustand store |
+
+### Implemented — Downtime & Shift Enhancements
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Machine downtime visualization on Planner | Done | Amber-tinted overlays with diagonal hatch (135°, 6px step); hover tooltip with reason/time details; click-to-edit opens Equipment Setup scrolled to machine |
+| `blocksPlanning` field | Done | `MachineDowntime.blocksPlanning` + `RecurringDowntimeRule.blocksPlanning` (default true); non-blocking downtime renders with halved opacity + dashed hatch; scheduling engine skips non-blocking downtime |
+| `notifyShift` field | Done | `MachineDowntime.notifyShift` + `RecurringDowntimeRule.notifyShift` (default false); fuchsia shift-notification arrows on Planner + Wallboard |
+| "Affects Planning" / "Notify Shift" toggles | Done | Two checkbox toggles in Equipment Setup downtime editor |
+| `DowntimeWindow` type + helpers | Done | `expandRecurringRule()`, `collectDowntimeWindows()` in `lib/types.ts` |
+| Notify shift arrows | Done | Fuchsia triangular arrows (10×12px) rendered via `drawNotifyShiftArrows()` on both Planner and Wallboard canvases; tooltip shows "Shift notification active" badge; decoupled from downtime block visibility |
+
+### Implemented — Planner Interactions & Demo
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Click machine label → Equipment Setup | Done | `onMachineLabelClick` callback with left-column hit-testing; opens Equipment Setup in edit mode for that machine |
+| Click shift band → Shift Schedule modal | Done | `onShiftBandClick` callback with top-strip hit-testing; opens Shift Schedule configuration modal |
+| Rotating biotech demo product catalog | Done | 20-product catalog in `lib/demo-data.ts` with daily-rotating seeded shuffle; product line shortName limited to 3 chars; Naming tab auto-defaults prefix from shortName |
 
 ---
 

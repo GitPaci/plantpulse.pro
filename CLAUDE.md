@@ -142,6 +142,9 @@ When adding a new series, the system checks:
 - "Link to next" mode: end of stage N syncs to start of stage N+1
 - Validation: start must be <= end
 - Delete: removes entry from array, shifts remaining entries down
+- **Drag-to-move**: ghost overlay during drag with semi-transparent highlight, snap-to-hour
+- **Stretch-to-resize**: edge detection for duration changes via canvas interaction
+- Implementation: `ChainEditor.tsx` (modal editor with real-time overlap detection) + `WallboardCanvas.tsx` (drag/resize handlers)
 
 #### 5. Color cycling
 - Planner: `series_id mod 12` cycles through 12 colors (Lek/Novartis palette)
@@ -209,13 +212,25 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
   - `RecurringDowntimeRule`: recurrenceType (`weekly` | `monthly`), dayOfWeek/dayOfMonth, startHour, startMinute, durationHours, validity window (startDate + optional endDate), optional reason
   - `isDateInRecurringRule(rule, atDate)` — checks if a date falls within any occurrence of a recurring rule
   - Expired rules (endDate in past) are visually dimmed; `isRecurringRuleExpired()` helper
+- **Affects Planning toggle** (`blocksPlanning`, default true): controls whether downtime excludes machine from auto-scheduling
+  - Non-blocking downtime (`blocksPlanning: false`): renders with halved opacity + dashed diagonal hatch; scheduling engine skips; tooltip shows "(informational)" tag
+  - Blocking downtime (`blocksPlanning: true`, default): full opacity + solid diagonal hatch
+- **Notify Shift toggle** (`notifyShift`, default false): flags unavailability for shift team notification
+  - When enabled, renders fuchsia triangular arrows (10×12px) at downtime start on both Planner and Wallboard canvases
+  - `drawNotifyShiftArrows()` in `WallboardCanvas.tsx`; decoupled from downtime block visibility
+  - Tooltip shows "Shift notification active" badge
 - Three visual states for yellow dot indicator:
   - **Active**: solid yellow dot (start ≤ now ≤ end or no end)
   - **Scheduled/upcoming**: outlined yellow dot (start > now)
   - **Ended**: no indicator (past finite windows suppressed by `isDowntimeEnded()`)
-- `isMachineUnavailable(machine, atDate?)` — checks both one-time downtime and recurring rules
+- **Planner canvas visualization**: amber-tinted overlays with diagonal hatch (135°, 6px step) rendered behind batch bars
+  - Hover tooltip with reason/time details
+  - Click-to-edit opens Equipment Setup scrolled to machine's unavailability section
+  - `DowntimeWindow` type + `expandRecurringRule()` + `collectDowntimeWindows()` in `lib/types.ts`
+  - `drawDowntimeBlocks()` in `WallboardCanvas.tsx`; `showDowntime`/`onDowntimeClick` props (Planner-only)
+- `isMachineUnavailable(machine, atDate?)` — checks both one-time downtime and recurring rules; only considers `blocksPlanning !== false` windows
 - `hasMachineDowntime(machine)` — checks if machine has active or future downtime (excludes past windows); also considers recurring rules
-- Machines with active downtime are excluded from auto-scheduling vessel assignment
+- Machines with active blocking downtime are excluded from auto-scheduling vessel assignment
 
 #### 12. Turnaround activities (modern, no VBA equivalent)
 - User-defined gap activities between consecutive batches on the same vessel (e.g. CIP, SIP, Cleaning)
