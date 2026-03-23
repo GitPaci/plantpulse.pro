@@ -35,9 +35,10 @@ function toDatetimeLocal(date: Date): string {
 interface StageDetailPanelProps {
   stageId: string | null;
   onClose: () => void;
+  onEditChain?: (chainId: string) => void;
 }
 
-export default function StageDetailPanel({ stageId, onClose }: StageDetailPanelProps) {
+export default function StageDetailPanel({ stageId, onClose, onEditChain }: StageDetailPanelProps) {
   const stages = usePlantPulseStore((s) => s.stages);
   const batchChains = usePlantPulseStore((s) => s.batchChains);
   const machines = usePlantPulseStore((s) => s.machines);
@@ -336,7 +337,17 @@ export default function StageDetailPanel({ stageId, onClose }: StageDetailPanelP
           {/* ── Batch chain stages ───────────────────────── */}
           {chainStages.length > 1 && (
             <div className="pp-detail-section">
-              <div className="pp-detail-section-title">Batch Chain Stages</div>
+              <div className="pp-detail-section-title">
+                Batch Chain Stages
+                {onEditChain && stage.batchChainId && (
+                  <button
+                    className="pp-detail-edit-chain-btn"
+                    onClick={() => { onEditChain(stage.batchChainId); onClose(); }}
+                  >
+                    Edit Full Chain
+                  </button>
+                )}
+              </div>
               <div className="pp-detail-chain-list">
                 {chainStages.map((cs) => {
                   const csMachine = machines.find((m) => m.id === cs.machineId);

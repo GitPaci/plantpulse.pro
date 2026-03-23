@@ -16,6 +16,7 @@ import type {
   StageTypeDefinition,
   BatchNamingConfig,
   ShiftRotation,
+  MaintenanceTask,
 } from './types';
 import {
   DEFAULT_MACHINES,
@@ -55,6 +56,7 @@ interface PlantPulseState {
   wallboardEquipmentGroups: string[];  // equipment group IDs visible on wallboard
   batchNamingConfig: BatchNamingConfig;
   shiftRotation: ShiftRotation;
+  maintenanceTasks: MaintenanceTask[];
   viewConfig: ViewConfig;
 
   // ── View actions ──────────────────────────────────────────────────
@@ -129,6 +131,12 @@ interface PlantPulseState {
   // ── Batch naming config ─────────────────────────────────────────
   setBatchNamingConfig: (config: BatchNamingConfig) => void;
 
+  // ── Maintenance tasks ─────────────────────────────────────────
+  setMaintenanceTasks: (tasks: MaintenanceTask[]) => void;
+  addMaintenanceTask: (task: MaintenanceTask) => void;
+  updateMaintenanceTask: (id: string, updates: Partial<Omit<MaintenanceTask, 'id'>>) => void;
+  deleteMaintenanceTask: (id: string) => void;
+
   // ── Shift rotation ────────────────────────────────────────────
   setShiftRotation: (rotation: ShiftRotation) => void;
 }
@@ -150,6 +158,7 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   wallboardEquipmentGroups: DEFAULT_WALLBOARD_EQUIPMENT_GROUPS,
   batchNamingConfig: DEFAULT_BATCH_NAMING_CONFIG,
   shiftRotation: DEFAULT_SHIFT_ROTATION,
+  maintenanceTasks: [],
   viewConfig: {
     viewStart: subDays(startOfDay(new Date()), 4),
     numberOfDays: 21,
@@ -388,6 +397,25 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
   setBatchNamingConfig: (config) => set({ batchNamingConfig: config }),
 
   // ── Shift rotation ────────────────────────────────────────────
+
+  // ── Maintenance tasks ─────────────────────────────────────────
+
+  setMaintenanceTasks: (tasks) => set({ maintenanceTasks: tasks }),
+
+  addMaintenanceTask: (task) =>
+    set((state) => ({ maintenanceTasks: [...state.maintenanceTasks, task] })),
+
+  updateMaintenanceTask: (id, updates) =>
+    set((state) => ({
+      maintenanceTasks: state.maintenanceTasks.map((t) =>
+        t.id === id ? { ...t, ...updates } : t
+      ),
+    })),
+
+  deleteMaintenanceTask: (id) =>
+    set((state) => ({
+      maintenanceTasks: state.maintenanceTasks.filter((t) => t.id !== id),
+    })),
 
   setShiftRotation: (rotation) => set({ shiftRotation: rotation }),
 }));
