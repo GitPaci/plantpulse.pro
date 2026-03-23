@@ -13,10 +13,12 @@ import { isShiftCoveredAt, shiftBands } from '@/lib/shift-rotation';
 import type { ShiftCoverageConfig } from '@/lib/shift-rotation';
 import {
   addDays,
+  addHours,
   startOfDay,
   format,
   getDate,
   getMonth,
+  differenceInHours,
 } from 'date-fns';
 import type { Machine, Stage, MachineDisplayGroup, ShutdownPeriod, BatchChain, BatchNamingConfig, DowntimeWindow } from '@/lib/types';
 import { batchNamePreview, collectDowntimeWindows } from '@/lib/types';
@@ -681,6 +683,10 @@ interface WallboardCanvasProps {
   showDowntime?: boolean;
   /** Called when a downtime block is clicked — Planner uses this to open Equipment Setup unavailability. */
   onDowntimeClick?: (machineId: string, ruleId?: string) => void;
+  /** Enable drag-to-move and stretch-to-resize for stage bars (Planner only). */
+  enableDragResize?: boolean;
+  /** Called when a stage bar is dragged or resized to a new time window. */
+  onStageDragEnd?: (stageId: string, newStart: Date, newEnd: Date) => void;
 }
 
 export default function WallboardCanvas({
@@ -696,6 +702,8 @@ export default function WallboardCanvas({
   onShiftBandClick,
   showDowntime = false,
   onDowntimeClick,
+  enableDragResize = false,
+  onStageDragEnd,
 }: WallboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -951,6 +959,160 @@ export default function WallboardCanvas({
     [showDowntime, downtimeWindows, notifyShiftWindows, viewConfig, dims.width, rows]
   );
 
+  // ── Drag/resize state (Planner only) ────────────────────────────────
+  // Edge detection: if click is within EDGE_PX of left/right edge of bar → resize
+  const EDGE_PX = 6;
+  const DRAG_THRESHOLD_PX = 3;
+
+  type DragType = 'move' | 'resize-start' | 'resize-end';
+  const dragRef = useRef<{
+    type: DragType;
+    stageId: string;
+    originalStart: Date;
+    originalEnd: Date;
+    startMouseX: number;
+    pixelsPerHour: number;
+    committed: boolean; // past drag threshold?
+  } | null>(null);
+
+  const [dragGhost, setDragGhost] = useState<{
+    left: number; top: number; width: number; height: number;
+  } | null>(null);
+
+  const hitTestStageEdge = useCallback(
+    (cssX: number, cssY: number): { stageId: string; type: DragType } | null => {
+      if (!enableDragResize) return null;
+      for (const stage of visibleStages) {
+        const row = machineRowMap.get(stage.machineId);
+        if (!row) continue;
+        const pos = stageBarPosition(
+          viewConfig.viewStart, stage.startDatetime, stage.endDatetime,
+          dims.width, LEFT_MARGIN, viewConfig.numberOfDays
+        );
+        if (pos.offScreen) continue;
+        const barY = row.y + BAR_Y_PAD;
+        if (cssY < barY || cssY > barY + BAR_HEIGHT) continue;
+        if (cssX < pos.left || cssX > pos.left + pos.width) continue;
+
+        // Determine if near edge
+        if (cssX <= pos.left + EDGE_PX) return { stageId: stage.id, type: 'resize-start' };
+        if (cssX >= pos.left + pos.width - EDGE_PX) return { stageId: stage.id, type: 'resize-end' };
+        return { stageId: stage.id, type: 'move' };
+      }
+      return null;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [enableDragResize, visibleStages, viewConfig, dims.width, rows]
+  );
+
+  const handleCanvasMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!enableDragResize || !onStageDragEnd) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const cssX = event.clientX - rect.left;
+      const cssY = event.clientY - rect.top;
+
+      const hit = hitTestStageEdge(cssX, cssY);
+      if (!hit) return;
+
+      const stage = visibleStages.find((s) => s.id === hit.stageId);
+      if (!stage) return;
+
+      const ppd = getPPD(dims.width, LEFT_MARGIN, viewConfig.numberOfDays);
+      const pixelsPerHour = ppd / 24;
+
+      dragRef.current = {
+        type: hit.type,
+        stageId: hit.stageId,
+        originalStart: stage.startDatetime,
+        originalEnd: stage.endDatetime,
+        startMouseX: event.clientX,
+        pixelsPerHour,
+        committed: false,
+      };
+
+      event.preventDefault();
+    },
+    [enableDragResize, onStageDragEnd, hitTestStageEdge, visibleStages, dims.width, viewConfig.numberOfDays]
+  );
+
+  // Track latest drag coordinates for mouseup handler
+  const latestDragDelta = useRef<{ newStart: Date; newEnd: Date } | null>(null);
+
+  useEffect(() => {
+    if (!enableDragResize) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+
+      const dx = e.clientX - drag.startMouseX;
+      if (!drag.committed && Math.abs(dx) < DRAG_THRESHOLD_PX) return;
+      drag.committed = true;
+
+      const deltaHours = Math.round(dx / drag.pixelsPerHour);
+
+      let newStart = drag.originalStart;
+      let newEnd = drag.originalEnd;
+
+      if (drag.type === 'move') {
+        newStart = addHours(drag.originalStart, deltaHours);
+        newEnd = addHours(drag.originalEnd, deltaHours);
+      } else if (drag.type === 'resize-start') {
+        newStart = addHours(drag.originalStart, deltaHours);
+        if (newStart >= drag.originalEnd) newStart = addHours(drag.originalEnd, -1);
+        newEnd = drag.originalEnd;
+      } else if (drag.type === 'resize-end') {
+        newEnd = addHours(drag.originalEnd, deltaHours);
+        if (newEnd <= drag.originalStart) newEnd = addHours(drag.originalStart, 1);
+        newStart = drag.originalStart;
+      }
+
+      latestDragDelta.current = { newStart, newEnd };
+
+      // Compute ghost position
+      const stage = visibleStages.find((s) => s.id === drag.stageId);
+      const row = stage ? machineRowMap.get(stage.machineId) : null;
+      if (row) {
+        const pos = stageBarPosition(
+          viewConfig.viewStart, newStart, newEnd,
+          dims.width, LEFT_MARGIN, viewConfig.numberOfDays
+        );
+        setDragGhost({
+          left: pos.left,
+          top: row.y + BAR_Y_PAD,
+          width: Math.max(pos.width, 4),
+          height: BAR_HEIGHT,
+        });
+      }
+    };
+
+    const handleMouseUp = () => {
+      const drag = dragRef.current;
+      dragRef.current = null;
+      setDragGhost(null);
+
+      if (!drag || !drag.committed || !onStageDragEnd || !latestDragDelta.current) {
+        latestDragDelta.current = null;
+        return;
+      }
+
+      wasDragging.current = true;
+      onStageDragEnd(drag.stageId, latestDragDelta.current.newStart, latestDragDelta.current.newEnd);
+      latestDragDelta.current = null;
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enableDragResize, onStageDragEnd, viewConfig, dims.width, visibleStages, rows]);
+
   // Tooltip state for downtime hover
   const [downtimeTooltip, setDowntimeTooltip] = useState<{
     x: number;
@@ -958,8 +1120,16 @@ export default function WallboardCanvas({
     window: DowntimeWindow;
   } | null>(null);
 
+  // Track whether last mousedown was a drag start (suppress click)
+  const wasDragging = useRef(false);
+
   const handleCanvasClick = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
+      // Suppress click if we just finished a drag
+      if (wasDragging.current) {
+        wasDragging.current = false;
+        return;
+      }
       const canvas = canvasRef.current;
       if (!canvas) return;
 
@@ -1020,6 +1190,11 @@ export default function WallboardCanvas({
       } else if (onMachineLabelClick && hitTestMachineLabel(cssX, cssY)) {
         canvas.style.cursor = 'pointer';
         setDowntimeTooltip(null);
+      } else if (enableDragResize && hitTestStageEdge(cssX, cssY)) {
+        const edge = hitTestStageEdge(cssX, cssY);
+        if (edge?.type === 'move') canvas.style.cursor = 'grab';
+        else canvas.style.cursor = 'ew-resize';
+        setDowntimeTooltip(null);
       } else if (onStageClick && hitTestStage(cssX, cssY)) {
         canvas.style.cursor = 'pointer';
         setDowntimeTooltip(null);
@@ -1035,7 +1210,7 @@ export default function WallboardCanvas({
         }
       }
     },
-    [onStageClick, onMachineLabelClick, onShiftBandClick, onDowntimeClick, showDowntime, notifyShiftWindows, hitTestStage, hitTestMachineLabel, hitTestDowntime]
+    [onStageClick, onMachineLabelClick, onShiftBandClick, onDowntimeClick, showDowntime, notifyShiftWindows, hitTestStage, hitTestMachineLabel, hitTestDowntime, enableDragResize, hitTestStageEdge]
   );
 
   const handleCanvasMouseLeave = useCallback(() => {
@@ -1057,9 +1232,27 @@ export default function WallboardCanvas({
         ref={canvasRef}
         id={canvasId}
         onClick={handleCanvasClick}
-        onMouseMove={(onStageClick || onMachineLabelClick || onShiftBandClick || showDowntime || notifyShiftWindows.length > 0) ? handleCanvasMouseMove : undefined}
+        onMouseDown={enableDragResize ? handleCanvasMouseDown : undefined}
+        onMouseMove={(onStageClick || onMachineLabelClick || onShiftBandClick || showDowntime || notifyShiftWindows.length > 0 || enableDragResize) ? handleCanvasMouseMove : undefined}
         onMouseLeave={(showDowntime || notifyShiftWindows.length > 0) ? handleCanvasMouseLeave : undefined}
       />
+      {/* Drag ghost overlay */}
+      {dragGhost && (
+        <div
+          style={{
+            position: 'absolute',
+            left: dragGhost.left,
+            top: dragGhost.top,
+            width: dragGhost.width,
+            height: dragGhost.height,
+            background: 'rgba(49, 130, 206, 0.35)',
+            border: '2px solid rgba(49, 130, 206, 0.7)',
+            borderRadius: 3,
+            pointerEvents: 'none',
+            zIndex: 10,
+          }}
+        />
+      )}
       {downtimeTooltip && (
         <div
           className="pp-downtime-tooltip"

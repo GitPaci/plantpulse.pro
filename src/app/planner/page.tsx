@@ -12,8 +12,16 @@ import ShiftSchedule from '@/components/planner/ShiftSchedule';
 import StageDetailPanel from '@/components/planner/StageDetailPanel';
 import NewChainWizard from '@/components/planner/NewChainWizard';
 import BulkShiftTool from '@/components/planner/BulkShiftTool';
+import ChainEditor from '@/components/planner/ChainEditor';
 import { usePlantPulseStore } from '@/lib/store';
-import { subDays, addDays, startOfDay, differenceInDays } from 'date-fns';
+import {
+  parseScheduleXlsx,
+  exportScheduleXlsx,
+  parseMaintenanceXlsx,
+  exportMaintenanceXlsx,
+  downloadXlsx,
+} from '@/lib/excel-io';
+import { subDays, addDays, startOfDay, differenceInDays, format } from 'date-fns';
 import { useState, useCallback, useRef } from 'react';
 
 // ─── Inline SVG icons (16×16, stroke-based) ───────────────────────────
@@ -176,6 +184,12 @@ export default function PlannerPage() {
   const setViewConfig = usePlantPulseStore((s) => s.setViewConfig);
   const stages = usePlantPulseStore((s) => s.stages);
   const batchChains = usePlantPulseStore((s) => s.batchChains);
+  const machines = usePlantPulseStore((s) => s.machines);
+  const maintenanceTasks = usePlantPulseStore((s) => s.maintenanceTasks);
+  const setStages = usePlantPulseStore((s) => s.setStages);
+  const setBatchChains = usePlantPulseStore((s) => s.setBatchChains);
+  const setMaintenanceTasks = usePlantPulseStore((s) => s.setMaintenanceTasks);
+  const updateStage = usePlantPulseStore((s) => s.updateStage);
 
   // Modal / panel state
   const [equipmentSetupOpen, setEquipmentSetupOpen] = useState(false);
@@ -185,7 +199,20 @@ export default function PlannerPage() {
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [newChainWizardOpen, setNewChainWizardOpen] = useState(false);
   const [bulkShiftOpen, setBulkShiftOpen] = useState(false);
+  const [chainEditorOpen, setChainEditorOpen] = useState(false);
+  const [chainEditorChainId, setChainEditorChainId] = useState<string | null>(null);
   const [equipmentSetupFocusSection, setEquipmentSetupFocusSection] = useState<string | null>(null);
+
+  // Import/export state
+  const scheduleFileRef = useRef<HTMLInputElement>(null);
+  const maintenanceFileRef = useRef<HTMLInputElement>(null);
+  const [importConfirm, setImportConfirm] = useState<{
+    type: 'schedule' | 'maintenance';
+    chains?: import('@/lib/types').BatchChain[];
+    stages?: import('@/lib/types').Stage[];
+    tasks?: import('@/lib/types').MaintenanceTask[];
+    warnings: string[];
+  } | null>(null);
 
   function shiftView(days: number) {
     setViewConfig({
@@ -289,13 +316,78 @@ export default function PlannerPage() {
     [currentOffset, maxOffset, scrollMin, setViewConfig]
   );
 
-  // Placeholder handlers — will be wired to modals/panels in next phases
-  function handleNotImplemented(feature: string) {
-    return () => {
-      // These will be replaced with actual modal/panel opens
-      console.log(`[Planner] ${feature} — coming in next phase`);
-    };
-  }
+  // ── Import/Export handlers ──────────────────────────────────────────
+
+  const handleImportSchedule = useCallback(() => {
+    scheduleFileRef.current?.click();
+  }, []);
+
+  const handleScheduleFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      e.target.value = ''; // reset so same file can be re-selected
+      const buffer = await file.arrayBuffer();
+      const result = parseScheduleXlsx(buffer, machines);
+      setImportConfirm({
+        type: 'schedule',
+        chains: result.chains,
+        stages: result.stages,
+        warnings: result.warnings,
+      });
+    },
+    [machines]
+  );
+
+  const handleExportSchedule = useCallback(() => {
+    const buffer = exportScheduleXlsx(stages, batchChains, machines);
+    const dateStr = format(new Date(), 'yyyy-MM-dd');
+    downloadXlsx(buffer, `PlantPulse_Schedule_${dateStr}.xlsx`);
+  }, [stages, batchChains, machines]);
+
+  const handleImportMaintenance = useCallback(() => {
+    maintenanceFileRef.current?.click();
+  }, []);
+
+  const handleMaintenanceFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      e.target.value = '';
+      const buffer = await file.arrayBuffer();
+      const result = parseMaintenanceXlsx(buffer, machines);
+      setImportConfirm({
+        type: 'maintenance',
+        tasks: result.tasks,
+        warnings: result.warnings,
+      });
+    },
+    [machines]
+  );
+
+  const handleExportMaintenance = useCallback(() => {
+    const buffer = exportMaintenanceXlsx(maintenanceTasks, machines);
+    const dateStr = format(new Date(), 'yyyy-MM-dd');
+    downloadXlsx(buffer, `PlantPulse_Maintenance_${dateStr}.xlsx`);
+  }, [maintenanceTasks, machines]);
+
+  const handleStageDragEnd = useCallback(
+    (stageId: string, newStart: Date, newEnd: Date) => {
+      updateStage(stageId, { startDatetime: newStart, endDatetime: newEnd });
+    },
+    [updateStage]
+  );
+
+  const handleImportConfirm = useCallback(() => {
+    if (!importConfirm) return;
+    if (importConfirm.type === 'schedule' && importConfirm.chains && importConfirm.stages) {
+      setBatchChains(importConfirm.chains);
+      setStages(importConfirm.stages);
+    } else if (importConfirm.type === 'maintenance' && importConfirm.tasks) {
+      setMaintenanceTasks(importConfirm.tasks);
+    }
+    setImportConfirm(null);
+  }, [importConfirm, setBatchChains, setStages, setMaintenanceTasks]);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -349,7 +441,7 @@ export default function PlannerPage() {
             className="flex-1 min-h-0"
             onWheel={handleTimelineWheel}
           >
-            <WallboardCanvas onStageClick={(id) => setSelectedStageId(id)} onMachineLabelClick={handleMachineLabelClick} onShiftBandClick={() => setShiftScheduleOpen(true)} showDowntime={true} onDowntimeClick={handleDowntimeClick} />
+            <WallboardCanvas onStageClick={(id) => setSelectedStageId(id)} onMachineLabelClick={handleMachineLabelClick} onShiftBandClick={() => setShiftScheduleOpen(true)} showDowntime={true} onDowntimeClick={handleDowntimeClick} enableDragResize={true} onStageDragEnd={handleStageDragEnd} />
           </div>
           {/* Horizontal scrollbar */}
           <div
@@ -397,26 +489,26 @@ export default function PlannerPage() {
                 icon={<IconUpload />}
                 label="Import Schedule"
                 description="Load schedule from .xlsx file"
-                onClick={handleNotImplemented('Import Schedule')}
+                onClick={handleImportSchedule}
               />
               <ToolButton
                 icon={<IconDownload />}
                 label="Export Schedule"
                 description="Download schedule as .xlsx"
-                onClick={handleNotImplemented('Export Schedule')}
+                onClick={handleExportSchedule}
               />
               <ToolButton
                 icon={<IconUpload />}
                 label="Import Maintenance"
                 description="Load maintenance tasks from .xlsx"
-                onClick={handleNotImplemented('Import Maintenance')}
+                onClick={handleImportMaintenance}
                 badge="MT"
               />
               <ToolButton
                 icon={<IconDownload />}
                 label="Export Maintenance"
                 description="Download maintenance tasks as .xlsx"
-                onClick={handleNotImplemented('Export Maintenance')}
+                onClick={handleExportMaintenance}
                 badge="MT"
               />
             </SidebarSection>
@@ -472,6 +564,15 @@ export default function PlannerPage() {
       <StageDetailPanel
         stageId={selectedStageId}
         onClose={() => setSelectedStageId(null)}
+        onEditChain={(chainId) => {
+          setChainEditorChainId(chainId);
+          setChainEditorOpen(true);
+        }}
+      />
+      <ChainEditor
+        open={chainEditorOpen}
+        batchChainId={chainEditorChainId}
+        onClose={() => { setChainEditorOpen(false); setChainEditorChainId(null); }}
       />
       <NewChainWizard
         open={newChainWizardOpen}
@@ -481,6 +582,69 @@ export default function PlannerPage() {
         open={bulkShiftOpen}
         onClose={() => setBulkShiftOpen(false)}
       />
+
+      {/* Hidden file inputs for import */}
+      <input
+        ref={scheduleFileRef}
+        type="file"
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={handleScheduleFileChange}
+      />
+      <input
+        ref={maintenanceFileRef}
+        type="file"
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={handleMaintenanceFileChange}
+      />
+
+      {/* Import confirmation modal */}
+      {importConfirm && (
+        <>
+          <div className="pp-modal-backdrop" onClick={() => setImportConfirm(null)} />
+          <div className="pp-modal pp-modal-sm">
+            <div className="pp-modal-header">
+              <h3>Import {importConfirm.type === 'schedule' ? 'Schedule' : 'Maintenance'}</h3>
+              <button className="pp-modal-close" onClick={() => setImportConfirm(null)}>✕</button>
+            </div>
+            <div className="pp-modal-body" style={{ padding: '16px 20px' }}>
+              <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--pp-text)' }}>
+                {importConfirm.type === 'schedule'
+                  ? `Found ${importConfirm.chains?.length ?? 0} batch chains with ${importConfirm.stages?.length ?? 0} stages.`
+                  : `Found ${importConfirm.tasks?.length ?? 0} maintenance tasks.`}
+              </p>
+              {importConfirm.type === 'schedule' && (importConfirm.chains?.length ?? 0) > 0 && (
+                <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--pp-muted)' }}>
+                  This will replace the current schedule data.
+                </p>
+              )}
+              {importConfirm.warnings.length > 0 && (
+                <div style={{ margin: '0 0 12px', padding: '8px 10px', background: '#fef3cd', border: '1px solid #ffc107', borderRadius: '4px', fontSize: '12px', maxHeight: '120px', overflowY: 'auto' }}>
+                  <strong>Warnings ({importConfirm.warnings.length}):</strong>
+                  {importConfirm.warnings.map((w, i) => (
+                    <div key={i} style={{ marginTop: '4px' }}>{w}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="pp-modal-footer">
+              <button className="pp-modal-btn" onClick={() => setImportConfirm(null)}>Cancel</button>
+              <button
+                className="pp-modal-btn pp-modal-btn-primary"
+                onClick={handleImportConfirm}
+                disabled={
+                  importConfirm.type === 'schedule'
+                    ? (importConfirm.chains?.length ?? 0) === 0
+                    : (importConfirm.tasks?.length ?? 0) === 0
+                }
+              >
+                Import
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
