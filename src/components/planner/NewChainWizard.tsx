@@ -59,11 +59,12 @@ interface ChainPreview {
 interface NewChainWizardProps {
   open: boolean;
   onClose: () => void;
+  onOpenProcessSetup?: () => void;
 }
 
 type WizardStep = 'select' | 'preview';
 
-export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
+export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: NewChainWizardProps) {
   const productLines = usePlantPulseStore((s) => s.productLines);
   const machines = usePlantPulseStore((s) => s.machines);
   const stages = usePlantPulseStore((s) => s.stages);
@@ -420,6 +421,16 @@ export default function NewChainWizard({ open, onClose }: NewChainWizardProps) {
                       <span className="pp-wizard-stage-chip">
                         + {fermenterTurnaroundGap}h turnaround
                       </span>
+                    )}
+                    {onOpenProcessSetup && (
+                      <button
+                        type="button"
+                        className="pp-wizard-edit-stages-link"
+                        onClick={onOpenProcessSetup}
+                        title="Edit stage defaults in Process Setup"
+                      >
+                        edit
+                      </button>
                     )}
                   </div>
 

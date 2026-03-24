@@ -201,6 +201,7 @@ export default function PlannerPage() {
   const [equipmentSetupOpen, setEquipmentSetupOpen] = useState(false);
   const [equipmentSetupMachineId, setEquipmentSetupMachineId] = useState<string | null>(null);
   const [processSetupOpen, setProcessSetupOpen] = useState(false);
+  const [processSetupInitialTab, setProcessSetupInitialTab] = useState<string | undefined>();
   const [shiftScheduleOpen, setShiftScheduleOpen] = useState(false);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [newChainWizardOpen, setNewChainWizardOpen] = useState(false);
@@ -561,7 +562,8 @@ export default function PlannerPage() {
       />
       <ProcessSetup
         open={processSetupOpen}
-        onClose={() => setProcessSetupOpen(false)}
+        onClose={() => { setProcessSetupOpen(false); setProcessSetupInitialTab(undefined); }}
+        initialTab={processSetupInitialTab as any}
       />
       <ShiftSchedule
         open={shiftScheduleOpen}
@@ -583,6 +585,11 @@ export default function PlannerPage() {
       <NewChainWizard
         open={newChainWizardOpen}
         onClose={() => setNewChainWizardOpen(false)}
+        onOpenProcessSetup={() => {
+          setNewChainWizardOpen(false);
+          setProcessSetupInitialTab('stages');
+          setProcessSetupOpen(true);
+        }}
       />
       <BulkShiftTool
         open={bulkShiftOpen}
