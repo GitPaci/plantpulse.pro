@@ -1171,6 +1171,142 @@ body {
   justify-content: flex-end;
 }
 
+/* ── Horizon editor ── */
+.pp-wizard-horizon-editor {
+  background: #f0f4f8;
+  border: 1px solid var(--pp-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.pp-wizard-horizon-label {
+  font-weight: 600;
+  color: var(--pp-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pp-wizard-horizon-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pp-wizard-horizon-preset-btn {
+  background: white;
+  border: 1px solid var(--pp-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--pp-text, #1a202c);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.pp-wizard-horizon-preset-btn:hover {
+  border-color: var(--pp-accent, #3182ce);
+  color: var(--pp-accent, #3182ce);
+}
+.pp-wizard-horizon-preset-active {
+  border-color: var(--pp-accent, #3182ce);
+  color: var(--pp-accent, #3182ce);
+  background: rgba(49, 130, 206, 0.06);
+}
+
+.pp-wizard-horizon-datepicker {
+  max-width: 220px;
+}
+
+.pp-wizard-horizon-estimate {
+  color: var(--pp-accent, #3182ce);
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.pp-wizard-horizon-warning {
+  background: #fffbeb;
+  border: 1px solid #fbbf24;
+  border-radius: 4px;
+  padding: 6px 10px;
+  color: #92400e;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.pp-wizard-horizon-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.pp-wizard-horizon-action-btn {
+  font-size: 12px !important;
+  padding: 4px 10px !important;
+}
+
+.pp-wizard-horizon-confirm-btn {
+  background: #d97706 !important;
+  border-color: #d97706 !important;
+}
+.pp-wizard-horizon-confirm-btn:hover {
+  background: #b45309 !important;
+  border-color: #b45309 !important;
+}
+
+/* ── Batch list collapse ── */
+.pp-wizard-batch-show-more {
+  background: none;
+  border: none;
+  color: var(--pp-accent, #3182ce);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 2px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.pp-wizard-batch-show-more:hover {
+  color: #2b6cb0;
+}
+
+/* ── Progress indicator ── */
+.pp-wizard-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.pp-wizard-progress-bar {
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.pp-wizard-progress-fill {
+  height: 100%;
+  width: 30%;
+  background: var(--pp-accent, #3182ce);
+  border-radius: 2px;
+  animation: pp-progress-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes pp-progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.pp-wizard-progress-text {
+  font-size: 11px;
+  color: var(--pp-muted);
+  text-align: center;
+}
+
 /* ─── Bulk Shift Tool ─────────────────────────────────────────────────── */
 
 .pp-bulk-desc {
