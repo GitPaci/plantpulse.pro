@@ -17,7 +17,7 @@ import { isMachineUnavailable } from '@/lib/types';
 import type { ChainAssignment } from '@/lib/scheduling';
 import { batchNamePreview } from '@/lib/types';
 import type { BatchNamingRule, ProductLine, Stage } from '@/lib/types';
-import { format, addHours, startOfHour } from 'date-fns';
+import { format, addHours, startOfHour, endOfMonth, endOfQuarter, endOfYear, differenceInHours } from 'date-fns';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -85,6 +85,14 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
     toDatetimeLocal(addHours(startOfHour(new Date()), 12))
   );
   const [chainCount, setChainCount] = useState(1);
+
+  // ── Horizon editor state ──
+  const [horizonMode, setHorizonMode] = useState(false);
+  const [horizonTargetDate, setHorizonTargetDate] = useState('');
+  const [horizonApplied, setHorizonApplied] = useState(false);
+  const [horizonConfirmed, setHorizonConfirmed] = useState(false);
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [batchListPage, setBatchListPage] = useState(1);
 
   // ── Step 2 state: preview for all chains ──
   const [chainPreviews, setChainPreviews] = useState<ChainPreview[]>([]);
@@ -185,6 +193,49 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
     return productLine.stageDefaults[productLine.stageDefaults.length - 1].defaultDurationHours;
   }, [productLine]);
 
+  // Horizon presets: end-of-month, end-of-quarter, end-of-year from start time
+  const horizonPresets = useMemo(() => {
+    const st = new Date(startTime);
+    if (isNaN(st.getTime()) || !productLine) return null;
+    return {
+      endOfMonth: endOfMonth(st),
+      endOfQuarter: endOfQuarter(st),
+      endOfYear: endOfYear(st),
+    };
+  }, [startTime, productLine]);
+
+  // Quick estimate: how many chains fit before a target date
+  const estimateChainCount = useCallback((targetDate: Date): number => {
+    if (!productLine || prodDuration <= 0) return 0;
+    const st = new Date(startTime);
+    if (isNaN(st.getTime())) return 0;
+    const cycleDuration = prodDuration + fermenterTurnaroundGap;
+    if (cycleDuration <= 0) return 0;
+    const parallelism = selectedFermenter === 'auto'
+      ? Math.max(1, fermenterMachines.length)
+      : 1;
+    const totalHoursAvailable = differenceInHours(targetDate, st);
+    if (totalHoursAvailable <= 0) return 0;
+    return Math.min(999, Math.max(1, Math.floor((totalHoursAvailable / cycleDuration) * parallelism)));
+  }, [productLine, prodDuration, fermenterTurnaroundGap, startTime, selectedFermenter, fermenterMachines]);
+
+  // Check if horizon exceeds 12 months
+  const horizonExceeds12Months = useMemo(() => {
+    if (!horizonTargetDate || !startTime) return false;
+    const target = new Date(horizonTargetDate);
+    const start = new Date(startTime);
+    if (isNaN(target.getTime()) || isNaN(start.getTime())) return false;
+    return differenceInHours(target, start) > 12 * 30.44 * 24;
+  }, [horizonTargetDate, startTime]);
+
+  // Current horizon estimate for display
+  const horizonEstimate = useMemo(() => {
+    if (!horizonTargetDate) return null;
+    const target = new Date(horizonTargetDate);
+    if (isNaN(target.getTime())) return null;
+    return estimateChainCount(target);
+  }, [horizonTargetDate, estimateChainCount]);
+
   // Total overlap count across all chain previews
   const totalOverlaps = useMemo(
     () => chainPreviews.reduce(
@@ -274,6 +325,33 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
     setStep('preview');
   }, [productLine, startTime, selectedFermenter, chainCount, machines, stages, turnaroundActivities, namingRule, baseSeriesNum, fermenterTurnaroundGap, stageTypeCounts]);
 
+  // Horizon apply: set chainCount from estimate
+  const handleHorizonApply = useCallback(() => {
+    if (!horizonTargetDate) return;
+    const target = new Date(horizonTargetDate);
+    if (isNaN(target.getTime())) return;
+    const est = estimateChainCount(target);
+    if (est <= 0) return;
+    setChainCount(est);
+    setHorizonApplied(true);
+    setHorizonMode(false);
+    setBatchListPage(1);
+  }, [horizonTargetDate, estimateChainCount]);
+
+  // Wrapper for Calculate that shows progress bar for large counts
+  const handleCalculateWithProgress = useCallback(() => {
+    if (chainCount > 20) {
+      setIsCalculating(true);
+      // Defer to let React render the progress indicator
+      setTimeout(() => {
+        handleCalculate();
+        setIsCalculating(false);
+      }, 50);
+    } else {
+      handleCalculate();
+    }
+  }, [chainCount, handleCalculate]);
+
   const handleCreate = useCallback(() => {
     if (!productLine || chainPreviews.length === 0) return;
 
@@ -310,12 +388,19 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
     setStartTime(toDatetimeLocal(addHours(startOfHour(new Date()), 12)));
     setChainCount(1);
     setChainPreviews([]);
+    setHorizonMode(false);
+    setHorizonTargetDate('');
+    setHorizonApplied(false);
+    setHorizonConfirmed(false);
+    setIsCalculating(false);
+    setBatchListPage(1);
     onClose();
   }, [onClose]);
 
   const handleBack = useCallback(() => {
     setStep('select');
     setChainPreviews([]);
+    setIsCalculating(false);
   }, []);
 
   if (!open) return null;
@@ -345,6 +430,11 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
                     setSelectedProductLine(e.target.value);
                     setSelectedFermenter('auto');
                     setChainCount(1);
+                    setHorizonMode(false);
+                    setHorizonApplied(false);
+                    setHorizonTargetDate('');
+                    setHorizonConfirmed(false);
+                    setBatchListPage(1);
                   }}
                   className="pp-detail-input"
                 >
@@ -373,12 +463,21 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
                         ) : (
                           <>
                             <strong>{chainCount} batches:</strong>{' '}
-                            {chainNames.map((name, i) => (
+                            {chainNames.slice(0, 10 * batchListPage).map((name, i) => (
                               <span key={i}>
                                 {i > 0 && ', '}
                                 <strong>{name}</strong>
                               </span>
                             ))}
+                            {chainNames.length > 10 * batchListPage && (
+                              <button
+                                type="button"
+                                className="pp-wizard-batch-show-more"
+                                onClick={() => setBatchListPage((p) => p + 1)}
+                              >
+                                {' '}... +{chainNames.length - 10 * batchListPage} more
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -387,7 +486,12 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
                           <button
                             type="button"
                             className="pp-wizard-count-btn"
-                            onClick={() => setChainCount((c) => Math.max(1, c - 1))}
+                            onClick={() => {
+                              setChainCount((c) => Math.max(1, c - 1));
+                              setHorizonApplied(false);
+                              setHorizonMode(false);
+                              setBatchListPage(1);
+                            }}
                             title="Remove last batch"
                           >
                             −
@@ -396,7 +500,14 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
                         <button
                           type="button"
                           className="pp-wizard-count-btn pp-wizard-count-btn-add"
-                          onClick={() => setChainCount((c) => Math.min(10, c + 1))}
+                          onClick={() => {
+                            setChainCount((c) => {
+                              const max = horizonApplied ? 999 : 10;
+                              return Math.min(max, c + 1);
+                            });
+                            setHorizonApplied(false);
+                            setHorizonMode(false);
+                          }}
                           title="Add another batch"
                         >
                           +
@@ -501,6 +612,17 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
                           <span className="pp-wizard-timing-value">
                             {format(lastProdEnd, 'MMM d, yyyy HH:mm')}
                           </span>
+                          <button
+                            type="button"
+                            className="pp-wizard-edit-stages-link"
+                            onClick={() => {
+                              setHorizonMode((prev) => !prev);
+                              setHorizonConfirmed(false);
+                            }}
+                            title="Set a target end date to auto-calculate batch count"
+                          >
+                            {horizonMode ? 'close' : 'edit'}
+                          </button>
                           <span className="pp-wizard-timing-dur">
                             {chainCount === 1
                               ? formatDuration(prodDuration)
@@ -519,8 +641,114 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
                       </div>
                     );
                   })()}
+
+                  {/* Horizon editor — extend planning to a target end date */}
+                  {horizonMode && (() => {
+                    const st = new Date(startTime);
+                    if (isNaN(st.getTime()) || !productLine) return null;
+                    const needsConfirmation = horizonExceeds12Months && !horizonConfirmed;
+                    return (
+                      <div className="pp-wizard-horizon-editor">
+                        <div className="pp-wizard-horizon-label">Target End Date</div>
+
+                        <div className="pp-wizard-horizon-presets">
+                          {horizonPresets && (
+                            <>
+                              <button
+                                type="button"
+                                className={`pp-wizard-horizon-preset-btn${horizonTargetDate === toDatetimeLocal(horizonPresets.endOfMonth) ? ' pp-wizard-horizon-preset-active' : ''}`}
+                                onClick={() => { setHorizonTargetDate(toDatetimeLocal(horizonPresets.endOfMonth)); setHorizonConfirmed(false); }}
+                              >
+                                End of Month ({format(horizonPresets.endOfMonth, 'MMM d')})
+                              </button>
+                              <button
+                                type="button"
+                                className={`pp-wizard-horizon-preset-btn${horizonTargetDate === toDatetimeLocal(horizonPresets.endOfQuarter) ? ' pp-wizard-horizon-preset-active' : ''}`}
+                                onClick={() => { setHorizonTargetDate(toDatetimeLocal(horizonPresets.endOfQuarter)); setHorizonConfirmed(false); }}
+                              >
+                                End of Quarter ({format(horizonPresets.endOfQuarter, 'MMM d')})
+                              </button>
+                              <button
+                                type="button"
+                                className={`pp-wizard-horizon-preset-btn${horizonTargetDate === toDatetimeLocal(horizonPresets.endOfYear) ? ' pp-wizard-horizon-preset-active' : ''}`}
+                                onClick={() => { setHorizonTargetDate(toDatetimeLocal(horizonPresets.endOfYear)); setHorizonConfirmed(false); }}
+                              >
+                                End of Year ({format(horizonPresets.endOfYear, 'MMM d')})
+                              </button>
+                            </>
+                          )}
+                        </div>
+
+                        <input
+                          type="datetime-local"
+                          value={horizonTargetDate}
+                          onChange={(e) => { setHorizonTargetDate(e.target.value); setHorizonConfirmed(false); }}
+                          className="pp-detail-input pp-wizard-horizon-datepicker"
+                          min={toDatetimeLocal(st)}
+                        />
+
+                        {horizonEstimate !== null && horizonEstimate > 0 && (
+                          <div className="pp-wizard-horizon-estimate">
+                            ~{horizonEstimate} batch{horizonEstimate !== 1 ? 'es' : ''} fit within this horizon
+                          </div>
+                        )}
+
+                        {horizonTargetDate && new Date(horizonTargetDate) <= st && (
+                          <div className="pp-wizard-horizon-warning">
+                            Target date must be after the production start time.
+                          </div>
+                        )}
+
+                        {horizonExceeds12Months && !horizonConfirmed && (
+                          <div className="pp-wizard-horizon-warning">
+                            This horizon exceeds 12 months. Large schedules may increase calculation time and browser memory usage.
+                          </div>
+                        )}
+
+                        <div className="pp-wizard-horizon-actions">
+                          <button
+                            type="button"
+                            className="pp-detail-btn pp-detail-btn-cancel pp-wizard-horizon-action-btn"
+                            onClick={() => { setHorizonMode(false); setHorizonTargetDate(''); setHorizonConfirmed(false); }}
+                          >
+                            Cancel
+                          </button>
+                          {needsConfirmation ? (
+                            <button
+                              type="button"
+                              className="pp-detail-btn pp-detail-btn-save pp-wizard-horizon-action-btn pp-wizard-horizon-confirm-btn"
+                              onClick={() => setHorizonConfirmed(true)}
+                              disabled={!horizonTargetDate || !horizonEstimate}
+                            >
+                              Continue
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="pp-detail-btn pp-detail-btn-save pp-wizard-horizon-action-btn"
+                              onClick={handleHorizonApply}
+                              disabled={!horizonTargetDate || !horizonEstimate || (horizonTargetDate ? new Date(horizonTargetDate) <= new Date(startTime) : true)}
+                            >
+                              Apply
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </>
               )}
+            </div>
+          )}
+
+          {isCalculating && (
+            <div className="pp-wizard-progress">
+              <div className="pp-wizard-progress-bar">
+                <div className="pp-wizard-progress-fill" />
+              </div>
+              <span className="pp-wizard-progress-text">
+                Calculating {chainCount} chain{chainCount !== 1 ? 's' : ''}...
+              </span>
             </div>
           )}
 
@@ -618,10 +846,10 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
               </button>
               <button
                 className="pp-detail-btn pp-detail-btn-save"
-                onClick={handleCalculate}
-                disabled={!productLine || !startTime}
+                onClick={handleCalculateWithProgress}
+                disabled={!productLine || !startTime || isCalculating}
               >
-                Calculate &rarr;
+                {isCalculating ? 'Calculating...' : 'Calculate \u2192'}
               </button>
             </>
           ) : (
