@@ -172,9 +172,11 @@ function StageTypeTable({
 export default function ProcessSetup({
   open,
   onClose,
+  initialTab,
 }: {
   open: boolean;
   onClose: () => void;
+  initialTab?: Tab;
 }) {
   // Store data
   const storeProductLines = usePlantPulseStore((s) => s.productLines);
@@ -261,6 +263,7 @@ export default function ProcessSetup({
           Object.entries(storeBatchNamingConfig.productLineRules).map(([k, v]) => [k, { ...v }])
         ),
       });
+      setTab(initialTab ?? 'stageTypes');
       setDirty(false);
       setEditingShutdownId(null);
       setDeleteConfirm(null);
