@@ -22,6 +22,12 @@ export default function WallboardPage() {
   const machineGroups = usePlantPulseStore((s) => s.machineGroups);
   const wallboardEquipmentGroups = usePlantPulseStore((s) => s.wallboardEquipmentGroups);
   const shiftRotation = usePlantPulseStore((s) => s.shiftRotation);
+  const loadDemoData = usePlantPulseStore((s) => s.loadDemoData);
+
+  // Load demo data on mount (page-level, not inside WallboardCanvas)
+  useEffect(() => {
+    loadDemoData();
+  }, [loadDemoData]);
 
   // Reset timeline to today on every mount (direct nav, reload, returning from another page)
   useEffect(() => {

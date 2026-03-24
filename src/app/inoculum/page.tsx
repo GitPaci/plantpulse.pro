@@ -421,7 +421,8 @@ export default function SchedulePage() {
           top: 0,
           width: `${SCHEDULE_PDF_VIEWPORT.widthPx}px`,
           height: `${SCHEDULE_PDF_VIEWPORT.heightPx}px`,
-          visibility: 'hidden',
+          opacity: 0,
+          overflow: 'hidden',
         }}
       >
         <WallboardCanvas
