@@ -13,13 +13,17 @@ import StageDetailPanel from '@/components/planner/StageDetailPanel';
 import NewChainWizard from '@/components/planner/NewChainWizard';
 import BulkShiftTool from '@/components/planner/BulkShiftTool';
 import ChainEditor from '@/components/planner/ChainEditor';
-import { usePlantPulseStore } from '@/lib/store';
+import { usePlantPulseStore, generateId } from '@/lib/store';
 import {
   parseScheduleXlsx,
   exportScheduleXlsx,
   parseMaintenanceXlsx,
   exportMaintenanceXlsx,
   downloadXlsx,
+  resolveAndBuildStages,
+  inferStageTypeFromMachine,
+  type UnknownMachineInfo,
+  type PendingRow,
 } from '@/lib/excel-io';
 import { subDays, addDays, startOfDay, differenceInDays, format } from 'date-fns';
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -189,6 +193,10 @@ export default function PlannerPage() {
   const setStages = usePlantPulseStore((s) => s.setStages);
   const setBatchChains = usePlantPulseStore((s) => s.setBatchChains);
   const setMaintenanceTasks = usePlantPulseStore((s) => s.setMaintenanceTasks);
+  const addMachine = usePlantPulseStore((s) => s.addMachine);
+  const equipmentGroups = usePlantPulseStore((s) => s.equipmentGroups);
+  const productLines = usePlantPulseStore((s) => s.productLines);
+  const setMachineGroups = usePlantPulseStore((s) => s.setMachineGroups);
   const updateStage = usePlantPulseStore((s) => s.updateStage);
   const loadDemoData = usePlantPulseStore((s) => s.loadDemoData);
 
@@ -219,7 +227,15 @@ export default function PlannerPage() {
     stages?: import('@/lib/types').Stage[];
     tasks?: import('@/lib/types').MaintenanceTask[];
     warnings: string[];
+    unknownMachines?: UnknownMachineInfo[];
+    pendingRows?: PendingRow[];
+    existingChainIds?: Map<number, string>;
   } | null>(null);
+
+  // Machine resolution state for unknown machines during import
+  const [machineResolutions, setMachineResolutions] = useState<
+    Map<string, { action: 'create' | 'map' | 'skip'; group?: string; mapTo?: string }>
+  >(new Map());
 
   function shiftView(days: number) {
     setViewConfig({
@@ -341,9 +357,25 @@ export default function PlannerPage() {
         chains: result.chains,
         stages: result.stages,
         warnings: result.warnings,
+        unknownMachines: result.unknownMachines,
+        pendingRows: result.pendingRows,
+        existingChainIds: result.existingChainIds,
       });
+      // Initialize resolutions: default to "create" with suggested group
+      if (result.unknownMachines.length > 0) {
+        const initial = new Map<string, { action: 'create' | 'map' | 'skip'; group?: string; mapTo?: string }>();
+        for (const um of result.unknownMachines) {
+          initial.set(um.name.toLowerCase(), {
+            action: 'create',
+            group: um.suggestedGroup ?? equipmentGroups[0]?.id ?? 'fermenter',
+          });
+        }
+        setMachineResolutions(initial);
+      } else {
+        setMachineResolutions(new Map());
+      }
     },
-    [machines]
+    [machines, equipmentGroups]
   );
 
   const handleExportSchedule = useCallback(() => {
@@ -388,13 +420,73 @@ export default function PlannerPage() {
   const handleImportConfirm = useCallback(() => {
     if (!importConfirm) return;
     if (importConfirm.type === 'schedule' && importConfirm.chains && importConfirm.stages) {
-      setBatchChains(importConfirm.chains);
-      setStages(importConfirm.stages);
+      let finalChains = [...importConfirm.chains];
+      let finalStages = [...importConfirm.stages];
+
+      // Resolve unknown machines if any
+      const unknowns = importConfirm.unknownMachines ?? [];
+      const pending = importConfirm.pendingRows ?? [];
+      if (unknowns.length > 0 && pending.length > 0) {
+        const resolver = new Map<string, import('@/lib/types').Machine>();
+        const currentMachines = usePlantPulseStore.getState().machines;
+        let maxOrder = Math.max(0, ...currentMachines.map((m) => m.displayOrder));
+
+        for (const um of unknowns) {
+          const key = um.name.toLowerCase();
+          const res = machineResolutions.get(key);
+          if (!res || res.action === 'skip') continue;
+
+          if (res.action === 'create') {
+            const newMachine: import('@/lib/types').Machine = {
+              id: generateId('m-'),
+              name: um.name,
+              group: res.group ?? 'fermenter',
+              displayOrder: maxOrder + 10,
+            };
+            maxOrder = newMachine.displayOrder;
+            addMachine(newMachine);
+            resolver.set(key, newMachine);
+          } else if (res.action === 'map' && res.mapTo) {
+            const target = currentMachines.find((m) => m.id === res.mapTo);
+            if (target) resolver.set(key, target);
+          }
+        }
+
+        if (resolver.size > 0) {
+          const { newChains, newStages } = resolveAndBuildStages(
+            pending,
+            resolver,
+            importConfirm.existingChainIds ?? new Map(),
+            inferStageTypeFromMachine,
+          );
+          finalChains = [...finalChains, ...newChains];
+          finalStages = [...finalStages, ...newStages];
+        }
+
+        // Re-derive display groups with new machines
+        const updatedMachines = usePlantPulseStore.getState().machines;
+        const derivedGroups = [...productLines]
+          .sort((a, b) => a.displayOrder - b.displayOrder)
+          .map((pl) => ({
+            id: pl.id,
+            name: pl.name,
+            machineIds: updatedMachines
+              .filter((m) => m.productLine === pl.id)
+              .sort((a, b) => a.displayOrder - b.displayOrder)
+              .map((m) => m.id),
+          }))
+          .filter((g) => g.machineIds.length > 0);
+        setMachineGroups(derivedGroups);
+      }
+
+      setBatchChains(finalChains);
+      setStages(finalStages);
     } else if (importConfirm.type === 'maintenance' && importConfirm.tasks) {
       setMaintenanceTasks(importConfirm.tasks);
     }
     setImportConfirm(null);
-  }, [importConfirm, setBatchChains, setStages, setMaintenanceTasks]);
+    setMachineResolutions(new Map());
+  }, [importConfirm, machineResolutions, setBatchChains, setStages, setMaintenanceTasks, addMachine, productLines, setMachineGroups]);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -625,12 +717,162 @@ export default function PlannerPage() {
                 {importConfirm.type === 'schedule'
                   ? `Found ${importConfirm.chains?.length ?? 0} batch chains with ${importConfirm.stages?.length ?? 0} stages.`
                   : `Found ${importConfirm.tasks?.length ?? 0} maintenance tasks.`}
+                {importConfirm.type === 'schedule' && (importConfirm.pendingRows?.length ?? 0) > 0 && (
+                  <span style={{ color: '#8a6500' }}>
+                    {' '}+ {importConfirm.pendingRows!.length} stages pending machine resolution.
+                  </span>
+                )}
               </p>
-              {importConfirm.type === 'schedule' && (importConfirm.chains?.length ?? 0) > 0 && (
+              {importConfirm.type === 'schedule' && ((importConfirm.chains?.length ?? 0) > 0 || (importConfirm.pendingRows?.length ?? 0) > 0) && (
                 <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--pp-muted)' }}>
                   This will replace the current schedule data.
                 </p>
               )}
+
+              {/* Unknown machines resolution UI */}
+              {importConfirm.type === 'schedule' && (importConfirm.unknownMachines?.length ?? 0) > 0 && (
+                <div className="pp-import-resolve">
+                  <div className="pp-import-resolve-header">
+                    <span>&#9888;</span>
+                    <span>{importConfirm.unknownMachines!.length} unknown machine{importConfirm.unknownMachines!.length > 1 ? 's' : ''} — resolve below to include</span>
+                  </div>
+
+                  {importConfirm.unknownMachines!.map((um) => {
+                    const key = um.name.toLowerCase();
+                    const res = machineResolutions.get(key) ?? { action: 'create' as const };
+                    const similarMachine = um.similarExisting ? machines.find((m) => m.id === um.similarExisting) : undefined;
+
+                    return (
+                      <div key={key} className="pp-import-resolve-card">
+                        <div className="pp-import-resolve-card-name">
+                          {um.name}
+                          <span className="pp-import-resolve-card-rows">
+                            ({um.rowNumbers.length} row{um.rowNumbers.length > 1 ? 's' : ''})
+                          </span>
+                        </div>
+
+                        <div className="pp-import-resolve-actions">
+                          <label>
+                            <input
+                              type="radio"
+                              name={`resolve-${key}`}
+                              checked={res.action === 'create'}
+                              onChange={() => setMachineResolutions((prev) => {
+                                const next = new Map(prev);
+                                next.set(key, { action: 'create', group: res.group ?? um.suggestedGroup ?? equipmentGroups[0]?.id });
+                                return next;
+                              })}
+                            />
+                            Create
+                          </label>
+                          <label>
+                            <input
+                              type="radio"
+                              name={`resolve-${key}`}
+                              checked={res.action === 'map'}
+                              onChange={() => setMachineResolutions((prev) => {
+                                const next = new Map(prev);
+                                next.set(key, { action: 'map', mapTo: um.similarExisting ?? machines[0]?.id });
+                                return next;
+                              })}
+                            />
+                            Map to existing
+                          </label>
+                          <label>
+                            <input
+                              type="radio"
+                              name={`resolve-${key}`}
+                              checked={res.action === 'skip'}
+                              onChange={() => setMachineResolutions((prev) => {
+                                const next = new Map(prev);
+                                next.set(key, { action: 'skip' });
+                                return next;
+                              })}
+                            />
+                            Skip
+                          </label>
+                        </div>
+
+                        {res.action === 'create' && (
+                          <div className="pp-import-resolve-detail">
+                            <span>Group:</span>
+                            <select
+                              value={res.group ?? ''}
+                              onChange={(ev) => setMachineResolutions((prev) => {
+                                const next = new Map(prev);
+                                next.set(key, { ...res, group: ev.target.value });
+                                return next;
+                              })}
+                            >
+                              {equipmentGroups.map((eg) => (
+                                <option key={eg.id} value={eg.id}>{eg.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {res.action === 'map' && (
+                          <div className="pp-import-resolve-detail">
+                            <span>Target:</span>
+                            <select
+                              value={res.mapTo ?? ''}
+                              onChange={(ev) => setMachineResolutions((prev) => {
+                                const next = new Map(prev);
+                                next.set(key, { ...res, mapTo: ev.target.value });
+                                return next;
+                              })}
+                            >
+                              {machines.map((m) => (
+                                <option key={m.id} value={m.id}>{m.name}</option>
+                              ))}
+                            </select>
+                            {similarMachine && (
+                              <span className="pp-import-resolve-hint">Similar: {similarMachine.name}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Bulk action: if 2+ unknowns share a prefix */}
+                  {(() => {
+                    const unknowns = importConfirm.unknownMachines!;
+                    if (unknowns.length < 2) return null;
+                    // Find most common prefix
+                    const prefixCounts = new Map<string, number>();
+                    for (const um of unknowns) {
+                      const p = um.namePrefix ?? um.name;
+                      prefixCounts.set(p, (prefixCounts.get(p) ?? 0) + 1);
+                    }
+                    const [commonPrefix, count] = [...prefixCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+                    if (count < 2) return null;
+                    // Find suggested group for this prefix
+                    const sugGroup = unknowns.find((um) => (um.namePrefix ?? um.name) === commonPrefix)?.suggestedGroup;
+                    const groupName = equipmentGroups.find((eg) => eg.id === sugGroup)?.name ?? equipmentGroups[0]?.name ?? 'Fermenter';
+                    const groupId = sugGroup ?? equipmentGroups[0]?.id ?? 'fermenter';
+
+                    return (
+                      <div className="pp-import-resolve-bulk">
+                        <button
+                          onClick={() => setMachineResolutions((prev) => {
+                            const next = new Map(prev);
+                            for (const um of unknowns) {
+                              if ((um.namePrefix ?? um.name) === commonPrefix) {
+                                next.set(um.name.toLowerCase(), { action: 'create', group: groupId });
+                              }
+                            }
+                            return next;
+                          })}
+                        >
+                          Create all {count} &quot;{commonPrefix}&quot; machines as {groupName}
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
               {importConfirm.warnings.length > 0 && (
                 <div style={{ margin: '0 0 12px', padding: '8px 10px', background: '#fef3cd', border: '1px solid #ffc107', borderRadius: '4px', fontSize: '12px', maxHeight: '120px', overflowY: 'auto' }}>
                   <strong>Warnings ({importConfirm.warnings.length}):</strong>
@@ -641,13 +883,13 @@ export default function PlannerPage() {
               )}
             </div>
             <div className="pp-modal-footer">
-              <button className="pp-modal-btn" onClick={() => setImportConfirm(null)}>Cancel</button>
+              <button className="pp-modal-btn" onClick={() => { setImportConfirm(null); setMachineResolutions(new Map()); }}>Cancel</button>
               <button
                 className="pp-modal-btn pp-modal-btn-primary"
                 onClick={handleImportConfirm}
                 disabled={
                   importConfirm.type === 'schedule'
-                    ? (importConfirm.chains?.length ?? 0) === 0
+                    ? (importConfirm.chains?.length ?? 0) === 0 && (importConfirm.pendingRows?.length ?? 0) === 0
                     : (importConfirm.tasks?.length ?? 0) === 0
                 }
               >

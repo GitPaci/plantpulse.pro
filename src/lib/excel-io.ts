@@ -16,12 +16,34 @@ import type {
 } from './types';
 import { generateId } from './store';
 
+// ─── Smart Machine Resolution Types ─────────────────────────────────────
+
+export interface UnknownMachineInfo {
+  name: string;               // original name from Excel (e.g. "B-RTX01")
+  rowNumbers: number[];        // which rows reference this machine
+  suggestedGroup?: string;     // auto-grouping hint from prefix matching
+  similarExisting?: string;    // ID of most similar existing machine (fuzzy)
+  namePrefix?: string;         // extracted prefix for bulk-grouping (e.g. "B-RTX")
+}
+
+export interface PendingRow {
+  rowNum: number;
+  vesselName: string;          // original machine name
+  seriesNum: number;
+  startDate: Date;
+  endDate: Date;
+}
+
 // ─── Schedule Import ──────────────────────────────────────────────────────
 
 interface ScheduleImportResult {
   chains: BatchChain[];
   stages: Stage[];
   warnings: string[];
+  unknownMachines: UnknownMachineInfo[];
+  pendingRows: PendingRow[];
+  /** Map from seriesNum to chainId for the first-pass chains (used by resolveAndBuildStages) */
+  existingChainIds: Map<number, string>;
 }
 
 /**
@@ -41,7 +63,7 @@ export function parseScheduleXlsx(
   const sheetName = wb.SheetNames[0];
   if (!sheetName) {
     warnings.push('Workbook has no sheets.');
-    return { chains: [], stages: [], warnings };
+    return { chains: [], stages: [], warnings, unknownMachines: [], pendingRows: [], existingChainIds: new Map() };
   }
 
   const sheet = wb.Sheets[sheetName];
@@ -49,7 +71,7 @@ export function parseScheduleXlsx(
 
   if (rows.length === 0) {
     warnings.push('Sheet is empty.');
-    return { chains: [], stages: [], warnings };
+    return { chains: [], stages: [], warnings, unknownMachines: [], pendingRows: [], existingChainIds: new Map() };
   }
 
   // Validate headers
@@ -62,7 +84,7 @@ export function parseScheduleXlsx(
     }
   }
   if (warnings.length > 0) {
-    return { chains: [], stages: [], warnings };
+    return { chains: [], stages: [], warnings, unknownMachines: [], pendingRows: [], existingChainIds: new Map() };
   }
 
   // Build machine lookup by name (case-insensitive)
@@ -71,7 +93,7 @@ export function parseScheduleXlsx(
     machineByName.set(m.name.toLowerCase().trim(), m);
   }
 
-  // Infer stage type from equipment group
+  // Infer stage type from equipment group (also exported standalone below)
   function inferStageType(machine: Machine): string {
     const group = machine.group.toLowerCase();
     if (group.includes('inocul')) return 'inoculum';
@@ -85,6 +107,8 @@ export function parseScheduleXlsx(
   const stagesByChain = new Map<number, Stage[]>();
   const chainProductLines = new Map<number, string>();
   const seenKeys = new Set<string>();
+  const unknownMachinesMap = new Map<string, UnknownMachineInfo>();
+  const pendingRows: PendingRow[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -106,19 +130,15 @@ export function parseScheduleXlsx(
 
     // Validate vessel
     const machine = machineByName.get(vesselRaw.toLowerCase());
-    if (!machine) {
-      warnings.push(`Row ${rowNum}: Unknown machine "${vesselRaw}" — skipped.`);
-      continue;
-    }
 
-    // Validate series number
+    // Validate series number (needed for both known and unknown machines)
     const seriesNum = typeof seriesRaw === 'number' ? seriesRaw : parseInt(String(seriesRaw), 10);
     if (!Number.isInteger(seriesNum) || seriesNum <= 0) {
       warnings.push(`Row ${rowNum}: Invalid series number "${seriesRaw}" — skipped.`);
       continue;
     }
 
-    // Parse dates
+    // Parse dates (needed for both known and unknown machines)
     const startDate = parseExcelDate(startRaw);
     const endDate = parseExcelDate(endRaw);
 
@@ -133,6 +153,25 @@ export function parseScheduleXlsx(
 
     if (startDate > endDate) {
       warnings.push(`Row ${rowNum}: Start (${format(startDate, 'yyyy-MM-dd HH:mm')}) is after end (${format(endDate, 'yyyy-MM-dd HH:mm')}) — skipped.`);
+      continue;
+    }
+
+    // Unknown machine → collect for resolution instead of skipping
+    if (!machine) {
+      const key = vesselRaw.toLowerCase();
+      const existing = unknownMachinesMap.get(key);
+      if (existing) {
+        existing.rowNumbers.push(rowNum);
+      } else {
+        unknownMachinesMap.set(key, {
+          name: vesselRaw,
+          rowNumbers: [rowNum],
+          namePrefix: extractMachinePrefix(vesselRaw),
+          suggestedGroup: suggestEquipmentGroup(vesselRaw, existingMachines),
+          similarExisting: findSimilarMachine(vesselRaw, existingMachines)?.id,
+        });
+      }
+      pendingRows.push({ rowNum, vesselName: vesselRaw, seriesNum, startDate, endDate });
       continue;
     }
 
@@ -169,10 +208,12 @@ export function parseScheduleXlsx(
   // Build batch chains and link stages
   const chains: BatchChain[] = [];
   const allStages: Stage[] = [];
+  const existingChainIds = new Map<number, string>();
 
   for (const [seriesNum, chainStages] of stagesByChain) {
     const chainId = generateId('bc-');
     const productLine = chainProductLines.get(seriesNum) ?? '';
+    existingChainIds.set(seriesNum, chainId);
 
     chains.push({
       id: chainId,
@@ -190,7 +231,9 @@ export function parseScheduleXlsx(
     }
   }
 
-  return { chains, stages: allStages, warnings };
+  const unknownMachines = Array.from(unknownMachinesMap.values());
+
+  return { chains, stages: allStages, warnings, unknownMachines, pendingRows, existingChainIds };
 }
 
 // ─── Schedule Export ──────────────────────────────────────────────────────
@@ -377,6 +420,127 @@ export function exportMaintenanceXlsx(
   XLSX.utils.book_append_sheet(wb, ws, 'Maintenance');
 
   return XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+}
+
+// ─── Smart Machine Resolution Helpers ─────────────────────────────────────
+
+/**
+ * Infer stage type from a machine's equipment group. Exported for use by resolveAndBuildStages.
+ */
+export function inferStageTypeFromMachine(machine: Machine): string {
+  const group = machine.group.toLowerCase();
+  if (group.includes('inocul')) return 'inoculum';
+  if (group.includes('propag')) return 'seed_n2';
+  if (group.includes('pre_ferment') || group.includes('pre-ferment') || group.includes('preferment')) return 'seed_n1';
+  if (group.includes('ferment')) return 'production';
+  return 'production';
+}
+
+/**
+ * Extract a prefix from a machine name by splitting at the numeric suffix.
+ * E.g. "B-RTX01" → "B-RTX", "F-2" → "F", "PR-1" → "PR", "PF-3" → "PF"
+ */
+export function extractMachinePrefix(name: string): string {
+  // Remove trailing digits (and optional dash before them)
+  const match = name.match(/^(.+?)[-\s]?\d+$/);
+  return match ? match[1] : name;
+}
+
+/**
+ * Normalize a machine name for fuzzy comparison:
+ * strip hyphens, spaces, underscores; lowercase.
+ */
+function normalizeMachineName(name: string): string {
+  return name.replace(/[-_\s]/g, '').toLowerCase();
+}
+
+/**
+ * Find the most similar existing machine by normalized name comparison.
+ * Returns the matching Machine or undefined if no close match.
+ */
+export function findSimilarMachine(name: string, machines: Machine[]): Machine | undefined {
+  const normalized = normalizeMachineName(name);
+  // First try exact normalized match (e.g. "F2" matches "F-2")
+  for (const m of machines) {
+    if (normalizeMachineName(m.name) === normalized) {
+      return m;
+    }
+  }
+  // Then try prefix match: if the unknown name starts with or is a prefix of an existing name
+  for (const m of machines) {
+    const mNorm = normalizeMachineName(m.name);
+    if (mNorm.startsWith(normalized) || normalized.startsWith(mNorm)) {
+      return m;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Suggest an equipment group for an unknown machine by matching its prefix
+ * against existing machines' name prefixes.
+ */
+function suggestEquipmentGroup(name: string, machines: Machine[]): string | undefined {
+  const prefix = extractMachinePrefix(name).toLowerCase();
+  for (const m of machines) {
+    const mPrefix = extractMachinePrefix(m.name).toLowerCase();
+    if (mPrefix === prefix) {
+      return m.group;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Resolve pending rows (from unknown machines) into stages and chains
+ * after the user has chosen create/map/skip for each unknown machine.
+ *
+ * @param pendingRows - Rows that were deferred during first parse pass
+ * @param machineResolver - Map from lowercase vessel name to the resolved Machine
+ * @param existingChainIds - Map from seriesNum to chainId from the first pass
+ * @param inferStageTypeFn - Stage type inference function
+ */
+export function resolveAndBuildStages(
+  pendingRows: PendingRow[],
+  machineResolver: Map<string, Machine>,
+  existingChainIds: Map<number, string>,
+  inferStageTypeFn: (machine: Machine) => string,
+): { newChains: BatchChain[]; newStages: Stage[] } {
+  const newChains: BatchChain[] = [];
+  const newStages: Stage[] = [];
+  const newChainIds = new Map<number, string>();
+
+  for (const row of pendingRows) {
+    const machine = machineResolver.get(row.vesselName.toLowerCase());
+    if (!machine) continue; // user chose "skip"
+
+    // Find or create chain
+    let chainId = existingChainIds.get(row.seriesNum) ?? newChainIds.get(row.seriesNum);
+    if (!chainId) {
+      chainId = generateId('bc-');
+      newChainIds.set(row.seriesNum, chainId);
+      const productLine = machine.productLine ?? '';
+      newChains.push({
+        id: chainId,
+        batchName: `${productLine ? productLine + '-' : ''}${String(row.seriesNum).padStart(3, '0')}`,
+        seriesNumber: row.seriesNum,
+        productLine,
+        status: 'draft' as BatchStatus,
+      });
+    }
+
+    newStages.push({
+      id: generateId('stg-'),
+      machineId: machine.id,
+      batchChainId: chainId,
+      stageType: inferStageTypeFn(machine),
+      startDatetime: row.startDate,
+      endDatetime: row.endDate,
+      state: 'planned' as StageState,
+    });
+  }
+
+  return { newChains, newStages };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
