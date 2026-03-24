@@ -1508,6 +1508,114 @@ body {
   background: #1e4a7a;
 }
 
+/* ─── Import Machine Resolution UI ────────────────────────────────────── */
+
+.pp-import-resolve {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: #fff8e6;
+  border: 1px solid #f0c040;
+  border-left: 3px solid #e6a800;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.pp-import-resolve-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #8a6500;
+}
+
+.pp-import-resolve-card {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1px solid #e8dcc0;
+  border-radius: 4px;
+}
+
+.pp-import-resolve-card-name {
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pp-import-resolve-card-rows {
+  font-size: 11px;
+  color: var(--pp-muted);
+  font-weight: 400;
+}
+
+.pp-import-resolve-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.pp-import-resolve-actions label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pp-import-resolve-actions input[type="radio"] {
+  margin: 0;
+  accent-color: var(--pp-pharma);
+}
+
+.pp-import-resolve-detail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding-left: 20px;
+}
+
+.pp-import-resolve-detail select {
+  padding: 2px 6px;
+  font-size: 12px;
+  border: 1px solid var(--pp-border);
+  border-radius: 3px;
+  background: #ffffff;
+}
+
+.pp-import-resolve-hint {
+  font-size: 11px;
+  color: #6b7280;
+  font-style: italic;
+  margin-left: 4px;
+}
+
+.pp-import-resolve-bulk {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e8dcc0;
+}
+
+.pp-import-resolve-bulk button {
+  padding: 4px 10px;
+  font-size: 12px;
+  background: #f7f0dd;
+  border: 1px solid #e0d4b0;
+  border-radius: 3px;
+  cursor: pointer;
+  color: #6b5800;
+}
+
+.pp-import-resolve-bulk button:hover {
+  background: #eee5c8;
+}
+
 /* ─── Setup shared styles ─────────────────────────────────────────────── */
 
 .pp-setup-filter-bar {
