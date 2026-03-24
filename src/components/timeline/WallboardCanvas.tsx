@@ -717,12 +717,8 @@ export default function WallboardCanvas({
   const shutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
   const batchNamingConfig = usePlantPulseStore((s) => s.batchNamingConfig);
   const shiftRotation = usePlantPulseStore((s) => s.shiftRotation);
-  const loadDemoData = usePlantPulseStore((s) => s.loadDemoData);
-
-  // Load demo data on mount
-  useEffect(() => {
-    loadDemoData();
-  }, [loadDemoData]);
+  // NOTE: loadDemoData() is called at the page level (inoculum, wallboard, planner).
+  // WallboardCanvas no longer calls it directly to avoid redundant side-effects.
 
   // Resize observer
   useEffect(() => {
@@ -852,13 +848,15 @@ export default function WallboardCanvas({
     draw();
   }, [draw]);
 
-  // Auto-refresh now-line every 60 seconds
+  // Auto-refresh now-line every 60 seconds (skip when now-line is hidden,
+  // e.g. the off-screen PDF export canvas — avoids unnecessary redraws)
   useEffect(() => {
+    if (!showNowLineProp) return;
     const interval = setInterval(() => {
       draw();
     }, 60000);
     return () => clearInterval(interval);
-  }, [draw]);
+  }, [showNowLineProp, draw]);
 
   // ── Hit-testing: find which stage bar is at a given CSS pixel coordinate ──
 

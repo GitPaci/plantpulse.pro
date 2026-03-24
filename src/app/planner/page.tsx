@@ -22,7 +22,7 @@ import {
   downloadXlsx,
 } from '@/lib/excel-io';
 import { subDays, addDays, startOfDay, differenceInDays, format } from 'date-fns';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 // ─── Inline SVG icons (16×16, stroke-based) ───────────────────────────
 
@@ -190,6 +190,12 @@ export default function PlannerPage() {
   const setBatchChains = usePlantPulseStore((s) => s.setBatchChains);
   const setMaintenanceTasks = usePlantPulseStore((s) => s.setMaintenanceTasks);
   const updateStage = usePlantPulseStore((s) => s.updateStage);
+  const loadDemoData = usePlantPulseStore((s) => s.loadDemoData);
+
+  // Load demo data on mount (page-level, not inside WallboardCanvas)
+  useEffect(() => {
+    loadDemoData();
+  }, [loadDemoData]);
 
   // Modal / panel state
   const [equipmentSetupOpen, setEquipmentSetupOpen] = useState(false);
