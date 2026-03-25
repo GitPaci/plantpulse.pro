@@ -540,7 +540,7 @@ export default function PlannerPage() {
             className="flex-1 min-h-0"
             onWheel={handleTimelineWheel}
           >
-            <WallboardCanvas onStageClick={(id) => setSelectedStageId(id)} onMachineLabelClick={handleMachineLabelClick} onShiftBandClick={() => setShiftScheduleOpen(true)} showDowntime={true} onDowntimeClick={handleDowntimeClick} enableDragResize={true} onStageDragEnd={handleStageDragEnd} />
+            <WallboardCanvas onStageClick={(id) => setSelectedStageId(id)} onMachineLabelClick={handleMachineLabelClick} onShiftBandClick={() => setShiftScheduleOpen(true)} showDowntime={true} onDowntimeClick={handleDowntimeClick} enableDragResize={true} onStageDragEnd={handleStageDragEnd} showShutdownCrossing={true} showHoldRisk={true} />
           </div>
           {/* Horizontal scrollbar */}
           <div
