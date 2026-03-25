@@ -5,6 +5,10 @@ export const metadata: Metadata = {
   title: 'PlantPulse Scheduler',
   description:
     'Manufacturing wallboard and planning for multistep batch chain processes — fermentation, bioprocessing, and more.',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
 };
 
 export default function RootLayout({
