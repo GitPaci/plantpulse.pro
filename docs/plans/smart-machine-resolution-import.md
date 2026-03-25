@@ -1,5 +1,7 @@
 # Plan: Smart Machine Resolution During Excel Import
 
+> **Status: IMPLEMENTED** (commit `4e0803e`) — all sections below describe the shipped implementation.
+
 ## Context
 
 When importing a schedule Excel file with unknown machine names (e.g. `B-RTX01` from the user's screenshot), the current import silently skips those rows with a warning. This creates a frustrating dead-end — users can't import data for machines that don't exist yet. The enhancement turns this blocking error into a guided resolution step where users can create, map, or skip unknown machines before completing the import.

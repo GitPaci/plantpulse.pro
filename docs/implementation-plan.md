@@ -69,12 +69,19 @@ Phases 8-12 are Enterprise-only.
 - Create schedule Excel template (`public/templates/schedule-template.xlsx`):
   - Sheet1: stages (pososda, nacep, precep, serija)
   - Sheet2: checkpoint tasks (pososda, nacep, opis, status)
+  - **Note:** Physical `.xlsx` template files not yet created in `public/templates/` — the parser works with any user-exported file as the de facto template
 - Create maintenance Excel template (`public/templates/maintenance-template.xlsx`)
 - `lib/excel-io.ts` — SheetJS import/export (implemented):
   - `parseScheduleXlsx` / `exportScheduleXlsx` — schedule I/O with header validation, machine matching, series grouping
   - `parseMaintenanceXlsx` / `exportMaintenanceXlsx` — maintenance task I/O
   - Planner sidebar Import/Export buttons wired to handlers with confirmation modal
   - `maintenanceTasks` CRUD added to Zustand store
+- **Smart machine resolution** (implemented):
+  - When importing Excel with unknown machine names, a guided resolution UI appears
+  - Per-machine options: Create (with equipment group auto-suggestion), Map to existing, or Skip
+  - Prefix pattern detection for bulk actions (e.g. "Create all 3 as Fermenter")
+  - Fuzzy matching against existing machines for "Map to" suggestions
+  - See `docs/plans/smart-machine-resolution-import.md` for full design spec
 - Integration test: generate -> export -> import -> compare
 
 ### Phase 4 — Core timeline engine
@@ -161,7 +168,7 @@ Phases 8-12 are Enterprise-only.
     - Enterprise fields (logo, watermark, electronic signatures, document control) visible but disabled
     - Filename: `PlantPulse_{Month}_{Year}.pdf`
     - Zero network calls, works offline, no cookies, no telemetry
-    - **Known gap**: `html2canvas` may produce blank captures due to `visibility: hidden` on the export canvas container — see `docs/gaps-and-open-questions.md § PDF Export Gaps`
+    - **PDF export gaps resolved**: all four identified gaps (visibility/hidden, DPR scaling, 60s timer, duplicate loadDemoData) are fixed — see `docs/gaps-and-open-questions.md § PDF Export Gaps` for details
   - **Responsive toolbar** (implemented):
     - Desktop (>= 768px): horizontal toolbar layout unchanged
     - Mobile (< 768px): toolbar collapses into a "☰ Controls" hamburger button
@@ -304,7 +311,8 @@ Phases 8-12 are Enterprise-only.
 ### Phase 13 — Shutdown modeling (Enterprise features)
 
 - Basic shutdown CRUD already implemented in Free MVP (Process Setup modal > Shutdowns tab, `ShutdownPeriod` type + store CRUD)
-- Shutdown blocks: full-width "PLANT SHUTDOWN" across all machines (timeline rendering — pending)
+- **Shutdown calendar overlay** (implemented in Free MVP): grey diagonal-hatch columns on Wallboard canvas for shutdown days; theme-aware (day/night); conflict warnings in Process Setup when shutdowns overlap planned batches
+- Shutdown blocks: full-width "PLANT SHUTDOWN" text label across all machines (timeline rendering — pending)
 - Planning rule: no chains crossing shutdown unless override (Enterprise enforcement)
 - Rotation reset anchor at shutdown
 - Staffing windows: warnings (Free) / hard enforcement (Enterprise)

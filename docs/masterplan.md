@@ -35,12 +35,12 @@ Excel + PowerPoint macros are spatial and fast, but fragile:
 
 ### Free (Community / Session Mode)
 
-- Import from two Excel templates at session start:
-  - Scheduling Excel
-  - Maintenance Excel
-- Operate in-memory (BigReadArray-style)
+- Every session starts with **randomly generated demo data** (rotating biotech product catalog)
+- Import from Excel (schedule + maintenance) to restore previous work
+- Operate in-memory (BigReadArray-style) — all editing via Planner View
 - Export back to Excel (including an audit sheet)
 - Export Schedule to PDF (A4 landscape, client-side only, configurable header/footer)
+- Full facility configuration: equipment groups, product lines, stage types, shift rotation, turnaround activities, shutdown periods, batch naming rules
 - No persistent database
 - No multi-user concurrency
 - No SSO
@@ -160,8 +160,12 @@ Multi-role users are allowed:
 - **Machine** (user-configurable)
   - name, group (references EquipmentGroup.id), product_line (optional), display_order
   - Users can add/rename/remove machines and assign them to product lines
-  - Optional downtime window (start date, optional end date, optional reason)
-  - `isMachineUnavailable()` checks availability at a point in time; `isDowntimeEnded()` suppresses past windows
+  - **One-time downtime**: start date, optional end date, optional reason
+  - **Recurring downtime**: periodic rules (weekly/monthly) with day, time, duration, validity window
+  - `blocksPlanning` toggle (default true): controls whether downtime excludes machine from auto-scheduling
+  - `notifyShift` toggle (default false): flags downtime for shift team notification (fuchsia arrow markers)
+  - `isMachineUnavailable()` checks both one-time and recurring rules; `isDowntimeEnded()` suppresses past windows
+  - Smart machine resolution during Excel import: unknown machines get guided Create/Map/Skip resolution UI
 
 - **Batch**
   - batch_chain_id, batch_name, batch_color (deterministic), product_line, status, name_locked
@@ -199,10 +203,14 @@ Multi-role users are allowed:
   - Automatically derived from product line + machine assignments via `buildDisplayGroups()`
   - No manual machine-to-group assignment needed
 
-- **Shift Rotation**
-  - 4 teams, 12-hour shifts
+- **Shift Rotation** (fully configurable in Free edition)
+  - User-defined teams (default 4 with configurable names and colors)
+  - Variable shift lengths: 6, 7.5, 8, or 12 hours (set by rotation preset)
+  - 9 rotation presets: Russian 4-team (default), Simple A-B-C-D, 2-team alternating, Navy 3-shift (8h), Panama 2-2-3, Pitman 2-3-2, DuPont, 4-on-2-off, Custom
+  - Plant coverage: configurable active days (per weekday toggle) and operating hours window
+  - Gap segments: uncovered periods shown as grey bands in shift band on Wallboard + Planner
   - Rotation anchored from shutdown-to-shutdown
-  - Rare override windows (audited)
+  - Rare override windows (audited, Enterprise)
 
 - **Plan Governance**
   - Plan (Draft/Proposed/Committed)
