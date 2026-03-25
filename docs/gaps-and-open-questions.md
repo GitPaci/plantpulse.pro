@@ -29,34 +29,32 @@ for Enterprise sales.
 - No accounts, no login, no server-side persistence
 - Random data generator replaces the need for a "blank start" or "upload first" flow
 - Export is the only way to save; import is the only way to restore
-- The app needs a server-side component for waitlist capture (not pure static)
+- Waitlist capture uses an external link (mailto or hosted form on a separate domain) — no server component in Free Edition
 
 ### Deployment (decided)
 
 **Vercel** is the best fit:
 - Native Next.js support (zero config)
 - Free tier handles the traffic of a product demo site
-- Serverless functions for the waitlist API endpoint (email capture)
 - Edge network for fast global loading
 - Automatic preview deploys from git branches
 - Easy custom domain setup for plantpulse.pro
-- Analytics built in (or add PostHog/Plausible for product analytics)
 
 **Architecture:**
-- Next.js with App Router (SSR/SSG hybrid, not pure static export)
+- Next.js with App Router, static export (`output: 'export'`) — pure static site, no SSR
 - Landing page: statically generated
-- App pages (wallboard, planner): client-side rendered (all state in Zustand)
-- One API route: `POST /api/waitlist` — stores email + optional metadata
-- Waitlist storage: Vercel KV (Redis), or Vercel Postgres free tier, or
-  external service (Loops, Resend, or simple Google Sheet via API)
+- App pages (wallboard, planner, schedule): client-side rendered (all state in Zustand)
+- **No API routes** — preserves the four privacy guarantees (browser-only, zero server roundtrips, no cookies, no telemetry)
+- Waitlist capture: external link (e.g. mailto:hello@plantpulse.pro or hosted form on a separate domain) — keeps the Free Edition purely static
+- Deployable to any static host (Vercel, Netlify, GitHub Pages, S3, etc.)
 
 ### Open Questions — Answered
 
 | # | Question | Answer |
 |---|----------|--------|
 | 1 | Demo data or start blank? | **Random generated data** on every visit. Realistic schedule. |
-| 2 | Static export or server? | **Vercel with serverless** — need API route for waitlist. |
-| 3 | Shift rotation editable in Free? | **Fixed** to 4-team/12h/8-step cycle. Enterprise: editable. |
+| 2 | Static export or server? | **Pure static export** (`output: 'export'`). No API routes. Waitlist via external link. |
+| 3 | Shift rotation editable in Free? | **Fully configurable** in Free: 9 presets (Russian, Panama, DuPont, Pitman, Navy, etc.), variable shift lengths (6/7.5/8/12h), plant coverage, teams. |
 | 4 | Show Planner in Free? | **Yes** — it's the main selling point. |
 | 5 | Deploy target? | **Vercel** on plantpulse.pro. |
 | 6 | Tasks in same Excel or separate? | Same file, Sheet2. |
@@ -66,15 +64,16 @@ for Enterprise sales.
 
 ## Blocks Free MVP
 
-### 1. Demo Data Generator (new — Phase 0)
+### 1. Demo Data Generator — RESOLVED (implemented)
 
-Since every session starts with random data, we need a generator that produces
-realistic schedules. The generator uses the **default product line configuration**
-(GNT + KK from legacy VBA) but all of this is configurable by the user after
-the session starts.
+**Status:** Fully implemented in `lib/demo-data.ts`.
 
-**What it needs to produce:**
-- A default facility config: 2 product lines (GNT, KK) with their machines and stage durations
+The generator produces realistic schedules using a **rotating biotech product catalog**
+(20 products with daily-seeded shuffle). Each session gets 2 randomly selected product
+lines with their machines and stage durations — all configurable by the user after load.
+
+**What it produces:**
+- 2 product lines (randomly selected from 20-product catalog) with machines and stage durations
 - 8-15 active batch chains across those product lines
 - Each chain with correct seed train stages (driven by product line's stageDefaults)
 - Realistic durations from the default config
@@ -84,42 +83,27 @@ the session starts.
 - No impossible overlaps, but maybe 1-2 tight fits to make it interesting
 - Anchored to the current date so the wallboard now-line always shows activity
 
-**After generation, users can:**
-- Add/rename/remove product lines (e.g. replace "GNT" with their own product)
-- Add/rename/remove machines and reassign to product lines
-- Change default stage durations per product line
-- All changes are in-memory; export to Excel to save
+**Decision made:** Moderately busy — enough to fill the screen, not so much it overwhelms.
+Product line shortName limited to 3 chars; Naming tab auto-defaults prefix from shortName.
 
-**Decision needed:** How many batches, how dense? Should it look busy or calm?
-Suggest: moderately busy — enough to fill the screen, not so much it overwhelms.
+### 2. Excel Template Schemas — MOSTLY RESOLVED
 
-### 2. Excel Template Schemas (Phase 1 blocker)
-
-The Free edition's data layer is Excel import/export. Need finalized templates
-before building the import validator.
+The Free edition's data layer is Excel import/export. The import parser and export
+logic are fully implemented in `lib/excel-io.ts`.
 
 **What's defined:** Column names and types in CLAUDE.md (pososda, nacep, precep, serija).
 
-**What's missing:**
-- Actual `.xlsx` template files with headers and sample rows
-- Validation rules for edge cases:
-  - What happens with duplicate rows (same machine + start + series)?
-  - Are empty rows silently skipped or flagged?
-  - How are partial rows handled (machine but no dates)?
+**Implemented:**
+- `parseScheduleXlsx` / `exportScheduleXlsx` — schedule I/O with header validation, machine matching, series grouping
+- `parseMaintenanceXlsx` / `exportMaintenanceXlsx` — maintenance task I/O
+- **Smart machine resolution**: unknown machines during import get a guided resolution UI (Create/Map/Skip per machine, prefix-based bulk actions, fuzzy matching)
+- Validation: duplicate rows flagged, empty rows skipped, partial rows warned, dates validated
+- Date format: accepts ISO 8601, `YYYY-MMM-DD`, `DD-MMM-YYYY`, and Excel serial numbers
+- Schedule: Sheet1 (stages), optional Sheet2 (tasks); Maintenance: separate file
 
-**Partially decided:**
-- **Date format:** Use unambiguous formats only. Preferred: `YYYY-MMM-DD`
-  (e.g. `2025-Mar-15`) or `DD-MMM-YYYY` (e.g. `15-Mar-2025`). The three-letter
-  month abbreviation eliminates day/month ambiguity across locales. On import,
-  the parser should accept both formats and ISO 8601 (`YYYY-MM-DD`).
-- **Machine names:** Multiple equipment templates loaded randomly when a new session
-  opens (so users see variety). The user can rename, regroup, and reconfigure all
-  equipment in the Equipment Setup menu. Templates are NOT hardcoded — they are
-  demo presets that the user customizes.
-- How many sheets per workbook? Current spec says schedule Sheet1 + optional
-  tasks Sheet2, but this needs to be locked down.
-
-**Still needed:** Create the actual `.xlsx` template sample files.
+**Still open:**
+- Physical `.xlsx` template sample files not yet created in `public/templates/` — users export from the app to create their own de facto templates
+- Consider creating downloadable starter templates with sample rows and instructions
 
 ### 3. Rule Engine Edge Cases — DECIDED
 
@@ -140,9 +124,10 @@ before building the import validator.
 - **Process Setup modal implemented:** Users can now configure turnaround
   activities per equipment group in the Process Setup modal (Turnaround Activities
   tab) with d:h:m duration picker, default flag, and equipment group filter.
-- **Still needed:** Wire turnaround activities into the overlap detection engine
-  (`lib/scheduling.ts`) so that the minimum gap between consecutive batches on
-  the same vessel is enforced (warn, not block).
+- **Implemented:** Turnaround activities are wired into the scheduling engine
+  (`lib/scheduling.ts`): `requiredTurnaroundGap()` computes the minimum gap,
+  `earliestAvailableTime()` accounts for turnaround durations + machine downtime,
+  and `findBestVessel()` uses turnaround gaps when selecting vessels.
 
 **Auto-scheduling (new chain wizard):**
 - **No vessel available: Warning + auto-move.** Show a warning and automatically
@@ -193,11 +178,10 @@ The landing page needs to convert visitors into waitlist signups.
 - Waitlist capture: email + company name (optional) + plant type (optional)
 - Social proof section (later: testimonials, logos)
 
-**Waitlist API:**
-- `POST /api/waitlist` with email, optional company, optional notes
-- Store in Vercel KV or Postgres
-- Send confirmation email (Resend or similar)
-- Admin view or export for reviewing signups
+**Waitlist capture:**
+- External link (mailto:hello@plantpulse.pro or hosted form on a separate domain)
+- No API route in Free Edition — keeps the four privacy guarantees intact
+- Enterprise phase may add a dedicated waitlist API if needed
 
 ---
 
@@ -262,6 +246,49 @@ The landing page needs to convert visitors into waitlist signups.
 - RPO/RTO targets
 - Security baselines (pen test cadence, vulnerability scanning)
 - Accessibility level (WCAG AA is already in design-guidelines.md)
+
+---
+
+## Remaining Open Items (Free MVP)
+
+Items that are implemented conceptually but have pending polish or wiring work.
+
+### 1. Excel Template Files
+
+Physical `.xlsx` template files (`public/templates/schedule-template.xlsx`,
+`public/templates/maintenance-template.xlsx`) do not exist yet. Users currently
+export from the app to create their own templates. Consider creating downloadable
+starter files with headers, sample rows, and instructions.
+
+### 2. Shutdown "PLANT SHUTDOWN" Text Label
+
+The shutdown calendar overlay (grey diagonal hatch on Wallboard) is implemented.
+The full-width "PLANT SHUTDOWN (NO ELECTRICITY)" text label across all machines
+is still pending (see Phase 13 in implementation plan).
+
+### 3. Hold Risk & Shutdown Crossing Visual Indicators
+
+Planner View does not yet show visual indicators for:
+- Batches at risk of hold (conflict warnings beyond overlap detection)
+- Batch chains that cross shutdown boundaries
+
+These are informational indicators (not blocking) — the scheduling engine already
+allows chains to span shutdowns.
+
+### 4. Test Coverage
+
+Unit tests for `lib/` modules exist (Vitest setup complete), but coverage could
+be expanded:
+- Component tests for timeline rendering (expected bar positions for known datasets)
+- Integration test: generate demo data → export → import → compare
+- E2E tests with Playwright/Cypress (deferred to after MVP stabilization)
+
+### 5. Landing Page Content
+
+`app/page.tsx` exists with navigation cards and a privacy footer, but the full
+marketing landing page (hero section, problem/solution, feature highlights,
+screenshot/animation, social proof) is not yet built. Current page serves as
+a functional app entry point.
 
 ---
 
@@ -395,6 +422,8 @@ Drag-to-move / stretch-to-resize (done)
 | Click machine label → Equipment Setup | Done | `onMachineLabelClick` callback with left-column hit-testing; opens Equipment Setup in edit mode for that machine |
 | Click shift band → Shift Schedule modal | Done | `onShiftBandClick` callback with top-strip hit-testing; opens Shift Schedule configuration modal |
 | Rotating biotech demo product catalog | Done | 20-product catalog in `lib/demo-data.ts` with daily-rotating seeded shuffle; product line shortName limited to 3 chars; Naming tab auto-defaults prefix from shortName |
+| Smart machine resolution during import | Done | Unknown machines in Excel import get guided resolution UI: Create (with group auto-suggestion), Map to existing (fuzzy match), or Skip; prefix-based bulk actions; see `docs/plans/smart-machine-resolution-import.md` |
+| Planning horizon extension in wizard | Done | New Batch Chain wizard shows extended planning horizon for better visibility |
 
 ---
 

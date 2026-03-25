@@ -18,12 +18,12 @@ Production scheduling for multistep batch chain processes — fermentation, biop
 
 | View | Who uses it | What it does |
 |------|-------------|--------------|
-| **Manufacturing Wallboard** | Operators | Now-centered timeline with batch bars, checkpoint tasks, maintenance markers, and shift ownership band. One-click task confirmation. |
-| **Planner View** | Schedulers & Planners | Interactive draft editor: drag/move/stretch bars, chain editor, bulk shift, new batch chain wizard with auto-scheduling and conflict detection. |
+| **Manufacturing Wallboard** | Operators | Now-centered timeline with batch bars, checkpoint tasks, maintenance markers, and shift ownership band. One-click task confirmation. Fullscreen mode + Night View for TV displays. |
+| **Planner View** | Schedulers & Planners | Interactive draft editor: drag/move/stretch bars, chain editor, bulk shift, new batch chain wizard with auto-scheduling and conflict detection. Equipment Setup + Process Setup + Shift Schedule configuration modals. |
 | **Schedule** | Operators | Full-month view with weekend highlighting and staffing window enforcement. Export PDF generates a print-ready A4 landscape PDF with configurable header/footer (Print Settings via gear icon). |
-| **Drafts & Approvals** | Schedulers & Planners | Governed workflow: Draft, Propose, Review diff, Approve/Commit or Reject. |
-| **Commit Log** | Planners only | Immutable record of all committed plan changes with criticality flags. |
-| **Audit Trail** | Compliance | Append-only, time-stamped, attributable business audit entries. |
+| **Drafts & Approvals** | Schedulers & Planners | *(Enterprise)* Governed workflow: Draft, Propose, Review diff, Approve/Commit or Reject. |
+| **Commit Log** | Planners only | *(Enterprise)* Immutable record of all committed plan changes with criticality flags. |
+| **Audit Trail** | Compliance | *(Enterprise)* Append-only, time-stamped, attributable business audit entries. |
 
 ## Try It Free
 
@@ -64,6 +64,12 @@ Import from Excel, work in-memory, export back to Excel. That's the entire data 
 | Export Schedule to PDF | Yes (client-side) | Yes (+ branding, e-signatures) | Yes (+ branding, e-signatures) |
 | In-memory (no persistence) | Yes | Persistent DB | Persistent DB |
 | Planner + Wallboard | Yes | Yes | Yes |
+| Smart machine resolution on import | Yes | Yes | Yes |
+| Configurable shift rotation (9 presets) | Yes | Yes | Yes |
+| Machine downtime (one-time + recurring) | Yes | Yes | Yes |
+| Plant shutdown periods | Yes | Yes | Yes |
+| Batch naming rules (per-line or shared) | Yes | Yes | Yes |
+| Turnaround activities (CIP/SIP/Cleaning) | Yes | Yes | Yes |
 | Drafts & approvals workflow | No | Yes | Yes |
 | Multi-user | No | Yes | Yes |
 | SSO / MFA / RBAC | No | Yes | Yes |
@@ -92,6 +98,11 @@ plantpulse.pro/
 │   ├── app-flow-pages-and-roles.md
 │   ├── design-guidelines.md
 │   ├── implementation-plan.md
+│   ├── gaps-and-open-questions.md
+│   ├── shift-models.md
+│   ├── fermentation-process-examples.md
+│   ├── plans/             # Feature implementation plans
+│   │   └── smart-machine-resolution-import.md
 │   └── legacy/            # Original VBA macro extracts (reference only)
 ├── src/
 │   ├── app/               # Next.js App Router pages
@@ -112,6 +123,8 @@ plantpulse.pro/
 | [Implementation Plan](docs/implementation-plan.md) | Phased build sequence (Phase 0-13) |
 | [Shift Models Reference](docs/shift-models.md) | Shift pattern definitions, glossary, and PlantPulse rotation logic |
 | [Gaps & Open Questions](docs/gaps-and-open-questions.md) | Specification gaps, decisions made, remaining open items |
+| [Fermentation Process Examples](docs/fermentation-process-examples.md) | Reference process data for demo and testing |
+| [Smart Machine Resolution Plan](docs/plans/smart-machine-resolution-import.md) | Implemented: guided resolution for unknown machines during Excel import |
 | [Code of Conduct](CODE_OF_CONDUCT.md) | Community standards, enterprise governance, GxP-aligned conduct principles |
 | [Security Policy](SECURITY.md) | Vulnerability reporting and security practices |
 

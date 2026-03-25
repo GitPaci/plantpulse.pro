@@ -52,11 +52,14 @@ Feels like a calm pharma control room: steady, readable, and accountable -- with
 
 ## Shift Band Design
 
-- Always visible at top
-- 4 team colors
-- Clearly segmented by 12h blocks
+- Always visible at top of canvas (Wallboard + Planner)
+- Team colors configurable per team (default 4 teams)
+- Segmented by shift blocks (variable: 6, 7.5, 8, or 12 hours depending on rotation preset)
+- **Gap segments**: periods with no shift coverage rendered as neutral gray (`#b0b0b0`), visually distinct from team colors
+- `ShiftBandSegment` with `teamIndex: -1` for gaps; `isShiftCoveredAt()` resolves coverage
 - Must be readable but not overpower bars
 - Current shift label near now-line
+- Click shift band in Planner to open Shift Schedule configuration modal
 
 ---
 
@@ -164,8 +167,25 @@ in the Equipment Setup modal (Machines tab) and on timeline machine labels.
 **Interaction:** Click the dot (or machine row) in Equipment Setup to open the
 downtime editor with start date, optional end date, and optional reason fields.
 
-**Scheduling impact:** Machines with active downtime are excluded from
-auto-scheduling vessel assignment via `isMachineUnavailable()`.
+**Recurring downtime:** Periodic unavailability rules (weekly/monthly) defined per
+machine. `RecurringDowntimeRule` specifies recurrence type, day, time, duration, and
+validity window. `isDateInRecurringRule()` checks if a date falls within an occurrence.
+Expired rules are visually dimmed.
+
+**Affects Planning toggle** (`blocksPlanning`, default true):
+- Blocking downtime: full opacity + solid diagonal hatch pattern on Planner canvas
+- Non-blocking downtime (`blocksPlanning: false`): halved opacity + dashed diagonal hatch; scheduling engine skips; tooltip shows "(informational)" tag
+
+**Notify Shift toggle** (`notifyShift`, default false):
+- When enabled, renders fuchsia triangular arrows (10x12px) at downtime start on both Planner and Wallboard canvases
+- `drawNotifyShiftArrows()` in `WallboardCanvas.tsx`; decoupled from downtime block visibility
+- Tooltip shows "Shift notification active" badge
+
+**Planner canvas visualization:** Amber-tinted overlays with diagonal hatch (135deg, 6px step) rendered behind batch bars. Hover tooltip with reason/time details. Click-to-edit opens Equipment Setup scrolled to machine's unavailability section.
+
+**Scheduling impact:** Machines with active blocking downtime are excluded from
+auto-scheduling vessel assignment via `isMachineUnavailable()`. Both one-time
+and recurring rules are considered.
 
 ---
 
@@ -186,11 +206,15 @@ using the `pp-modal-*` CSS class system:
 
 ## Shutdown Block Design
 
-- Full-width across all machines
-- Clear text: "PLANT SHUTDOWN (NO ELECTRICITY)"
-- Operator: read-only
-- Planner/Maintenance: editable in draft/layer
-- Visually unmistakable boundary in timeline
+**Implemented (Wallboard calendar overlay):**
+- Shutdown days rendered as grey fill + diagonal hatch pattern (8px step, clipped to column)
+- Theme-aware: day mode `rgba(120,120,140,0.18)`, night mode `rgba(100,100,130,0.25)`
+- Process Setup > Shutdowns tab: conflict warnings (amber banner) when shutdown overlaps planned batches
+
+**Pending:**
+- Full-width "PLANT SHUTDOWN (NO ELECTRICITY)" text label across all machines
+- Operator: read-only; Planner/Maintenance: editable in draft/layer
+- Visually unmistakable boundary in timeline (beyond the current hatch overlay)
 
 ---
 
@@ -248,7 +272,7 @@ A4 landscape document suitable for printing and posting on a manufacturing wall.
 **Viewport-independent capture (dual-canvas architecture):**
 - The Schedule page renders **two** `WallboardCanvas` instances:
   1. **Visible canvas** (`schedule-export-canvas`) — responsive, fills the viewport, used for on-screen interaction only.
-  2. **Hidden export canvas** (`schedule-export-canvas-pdf`) — fixed at 1122 × 794 px (A4 landscape at 96 CSS DPI), positioned off-screen (`left: -99999px; visibility: hidden`).
+  2. **Hidden export canvas** (`schedule-export-canvas-pdf`) — fixed at 1122 × 794 px (A4 landscape at 96 CSS DPI), positioned off-screen (`left: -99999px; opacity: 0`).
 - PDF export always captures the hidden canvas so the output is identical regardless of device, viewport size, or orientation.
 - Both canvases share the same data, month, and equipment filter state; the hidden canvas disables today-highlight, now-line, and shift band.
 
