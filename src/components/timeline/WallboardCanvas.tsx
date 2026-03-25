@@ -68,6 +68,7 @@ interface CanvasTheme {
   separator: string;
   headerBg: string;
   shutdown: string;
+  shutdownText: string;
   barBorder: string;
   barHourText: string;
   downtime: string;
@@ -75,6 +76,8 @@ interface CanvasTheme {
   downtimeNonBlocking: string;
   downtimeHatchNonBlocking: string;
   notifyShiftArrow: string;
+  shutdownCrossing: string;
+  holdRisk: string;
 }
 
 const DAY_THEME: CanvasTheme = {
@@ -104,6 +107,9 @@ const DAY_THEME: CanvasTheme = {
   downtimeNonBlocking: 'rgba(234, 179, 8, 0.06)',
   downtimeHatchNonBlocking: 'rgba(234, 179, 8, 0.12)',
   notifyShiftArrow: '#D946EF',
+  shutdownCrossing: '#D97706',
+  holdRisk: '#DC2626',
+  shutdownText: 'rgba(100, 100, 120, 0.55)',
 };
 
 const NIGHT_THEME: CanvasTheme = {
@@ -133,6 +139,9 @@ const NIGHT_THEME: CanvasTheme = {
   downtimeNonBlocking: 'rgba(234, 179, 8, 0.08)',
   downtimeHatchNonBlocking: 'rgba(234, 179, 8, 0.15)',
   notifyShiftArrow: '#E879F9',
+  shutdownCrossing: '#F59E0B',
+  holdRisk: '#F87171',
+  shutdownText: 'rgba(180, 180, 200, 0.45)',
 };
 
 // ─── Row layout ─────────────────────────────────────────────────────────
@@ -379,6 +388,227 @@ function drawNotifyShiftArrows(
     ctx.strokeStyle = theme.notifyShiftArrow;
     ctx.lineWidth = 1;
     ctx.stroke();
+  }
+}
+
+// ─── Shutdown crossing indicators (Planner) ───────────────────────────
+
+/**
+ * Draw amber warning triangles on batch bars that span a shutdown boundary.
+ * A batch chain "crosses" a shutdown if any of its stages has time overlap
+ * with a shutdown period. The indicator appears at the shutdown boundary
+ * intersection point on the affected bar.
+ */
+function drawShutdownCrossingIndicators(
+  ctx: CanvasRenderingContext2D,
+  stages: Stage[],
+  shutdowns: ShutdownPeriod[],
+  rows: RowInfo[],
+  viewStart: Date,
+  numDays: number,
+  width: number,
+  theme: CanvasTheme
+) {
+  if (shutdowns.length === 0) return;
+
+  const machineRowMap = new Map<string, RowInfo>();
+  for (const r of rows) {
+    if (r.type === 'machine') machineRowMap.set(r.machineId, r);
+  }
+
+  const TRI_SIZE = 7; // triangle side length
+
+  for (const stage of stages) {
+    const row = machineRowMap.get(stage.machineId);
+    if (!row) continue;
+
+    for (const sd of shutdowns) {
+      // Stage overlaps shutdown if stage starts before shutdown ends
+      // and stage ends after shutdown starts
+      if (stage.startDatetime >= sd.endDate || stage.endDatetime <= sd.startDate) continue;
+
+      const pos = stageBarPosition(viewStart, stage.startDatetime, stage.endDatetime, width, LEFT_MARGIN, numDays);
+      if (pos.offScreen) continue;
+
+      // Draw indicator at shutdown start boundary (if within bar)
+      const boundaries = [sd.startDate, sd.endDate];
+      for (const boundary of boundaries) {
+        if (boundary <= stage.startDatetime || boundary >= stage.endDatetime) continue;
+
+        const boundaryPos = stageBarPosition(viewStart, boundary, boundary, width, LEFT_MARGIN, numDays);
+        const bx = boundaryPos.left;
+        if (bx < LEFT_MARGIN || bx > width) continue;
+
+        const barY = row.y + BAR_Y_PAD;
+
+        // Amber warning triangle (pointing up) at top of bar
+        ctx.fillStyle = theme.shutdownCrossing;
+        ctx.beginPath();
+        ctx.moveTo(bx, barY);
+        ctx.lineTo(bx - TRI_SIZE / 2, barY + TRI_SIZE);
+        ctx.lineTo(bx + TRI_SIZE / 2, barY + TRI_SIZE);
+        ctx.closePath();
+        ctx.fill();
+
+        // Exclamation mark inside
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 6px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('!', bx, barY + TRI_SIZE * 0.6);
+      }
+    }
+  }
+}
+
+// ─── Hold risk indicators (Planner) ─────────────────────────────────
+
+/**
+ * Draw red warning dots on stages that are at risk of hold — defined as
+ * stages where the gap to the next stage on the same machine is less than
+ * the required turnaround time (tight fit), or where actual overlaps exist.
+ */
+function drawHoldRiskIndicators(
+  ctx: CanvasRenderingContext2D,
+  stages: Stage[],
+  rows: RowInfo[],
+  viewStart: Date,
+  numDays: number,
+  width: number,
+  theme: CanvasTheme,
+  turnaroundGapByGroup: Map<string, number>,
+  machineGroupMap: Map<string, string>
+) {
+  if (stages.length === 0) return;
+
+  const machineRowMap = new Map<string, RowInfo>();
+  for (const r of rows) {
+    if (r.type === 'machine') machineRowMap.set(r.machineId, r);
+  }
+
+  // Group stages by machine and sort by start time
+  const byMachine = new Map<string, Stage[]>();
+  for (const s of stages) {
+    const arr = byMachine.get(s.machineId) || [];
+    arr.push(s);
+    byMachine.set(s.machineId, arr);
+  }
+
+  const DOT_R = 4;
+  const riskyStageIds = new Set<string>();
+
+  for (const [machineId, machineStages] of byMachine) {
+    const sorted = [...machineStages].sort(
+      (a, b) => a.startDatetime.getTime() - b.startDatetime.getTime()
+    );
+    const group = machineGroupMap.get(machineId) ?? '';
+    const requiredGap = turnaroundGapByGroup.get(group) ?? 0;
+
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const current = sorted[i];
+      const next = sorted[i + 1];
+      const gapHours = differenceInHours(next.startDatetime, current.endDatetime);
+
+      // Overlap (negative gap) or gap less than required turnaround
+      if (gapHours < requiredGap) {
+        riskyStageIds.add(current.id);
+        riskyStageIds.add(next.id);
+      }
+    }
+  }
+
+  if (riskyStageIds.size === 0) return;
+
+  for (const stage of stages) {
+    if (!riskyStageIds.has(stage.id)) continue;
+    const row = machineRowMap.get(stage.machineId);
+    if (!row) continue;
+
+    const pos = stageBarPosition(viewStart, stage.startDatetime, stage.endDatetime, width, LEFT_MARGIN, numDays);
+    if (pos.offScreen) continue;
+
+    const barY = row.y + BAR_Y_PAD;
+    const dotX = pos.left + pos.width - DOT_R - 1;
+    const dotY = barY + DOT_R + 1;
+
+    if (dotX < LEFT_MARGIN) continue;
+
+    // Red warning dot at top-right of bar
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, DOT_R, 0, Math.PI * 2);
+    ctx.fillStyle = theme.holdRisk;
+    ctx.fill();
+
+    // White exclamation
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 6px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('!', dotX, dotY);
+  }
+}
+
+// ─── Shutdown text label (Wallboard) ────────────────────────────────
+
+/**
+ * Draw "PLANT SHUTDOWN" text vertically centered across shutdown day
+ * columns on the Wallboard canvas. Text is rendered with reduced opacity
+ * and rotated -90° for multi-day shutdowns, or horizontal for single-day.
+ */
+function drawShutdownLabels(
+  ctx: CanvasRenderingContext2D,
+  shutdowns: ShutdownPeriod[],
+  viewStart: Date,
+  numDays: number,
+  width: number,
+  totalHeight: number,
+  theme: CanvasTheme
+) {
+  if (shutdowns.length === 0) return;
+
+  const ppd = getPPD(width, LEFT_MARGIN, numDays);
+
+  for (const sd of shutdowns) {
+    // Compute the pixel range for this shutdown within the visible view
+    const viewEnd = addDays(viewStart, numDays);
+    if (sd.startDate >= viewEnd || sd.endDate <= viewStart) continue;
+
+    const clippedStart = sd.startDate > viewStart ? sd.startDate : viewStart;
+    const clippedEnd = sd.endDate < viewEnd ? sd.endDate : viewEnd;
+
+    const startDayOffset = (clippedStart.getTime() - viewStart.getTime()) / 86400000;
+    const endDayOffset = (clippedEnd.getTime() - viewStart.getTime()) / 86400000;
+
+    const x1 = LEFT_MARGIN + startDayOffset * ppd;
+    const x2 = LEFT_MARGIN + endDayOffset * ppd;
+    const sdWidth = x2 - x1;
+    const centerX = (x1 + x2) / 2;
+    const centerY = TOP_MARGIN + (totalHeight - TOP_MARGIN) / 2;
+
+    const label = sd.name ? `PLANT SHUTDOWN — ${sd.name.toUpperCase()}` : 'PLANT SHUTDOWN';
+
+    ctx.save();
+    ctx.fillStyle = theme.shutdownText;
+
+    if (sdWidth > 60) {
+      // Rotated text for wider shutdowns
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.translate(centerX, centerY);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(label, 0, 0);
+    } else {
+      // Horizontal condensed text for narrow shutdowns
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.translate(centerX, centerY);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(label, 0, 0);
+    }
+
+    ctx.restore();
   }
 }
 
@@ -687,6 +917,12 @@ interface WallboardCanvasProps {
   enableDragResize?: boolean;
   /** Called when a stage bar is dragged or resized to a new time window. */
   onStageDragEnd?: (stageId: string, newStart: Date, newEnd: Date) => void;
+  /** Show amber warning indicators where batches cross shutdown boundaries (Planner only). */
+  showShutdownCrossing?: boolean;
+  /** Show red hold-risk indicators on stages with tight/overlapping turnaround gaps (Planner only). */
+  showHoldRisk?: boolean;
+  /** Show "PLANT SHUTDOWN" text label across shutdown day columns (Wallboard). */
+  showShutdownLabels?: boolean;
 }
 
 export default function WallboardCanvas({
@@ -704,6 +940,9 @@ export default function WallboardCanvas({
   onDowntimeClick,
   enableDragResize = false,
   onStageDragEnd,
+  showShutdownCrossing = false,
+  showHoldRisk = false,
+  showShutdownLabels = false,
 }: WallboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -717,6 +956,7 @@ export default function WallboardCanvas({
   const shutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
   const batchNamingConfig = usePlantPulseStore((s) => s.batchNamingConfig);
   const shiftRotation = usePlantPulseStore((s) => s.shiftRotation);
+  const turnaroundActivities = usePlantPulseStore((s) => s.turnaroundActivities);
   // NOTE: loadDemoData() is called at the page level (inoculum, wallboard, planner).
   // WallboardCanvas no longer calls it directly to avoid redundant side-effects.
 
@@ -791,6 +1031,24 @@ export default function WallboardCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showDowntime, downtimeWindows, machines, viewConfig.viewStart, viewConfig.numberOfDays, visibleMachineIds]);
 
+  // Precompute turnaround gap per equipment group and machine→group map (for hold risk indicators)
+  const turnaroundGapByGroup = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!showHoldRisk) return map;
+    for (const ta of turnaroundActivities) {
+      if (!ta.isDefault) continue;
+      const hours = ta.durationDays * 24 + ta.durationHours + ta.durationMinutes / 60;
+      map.set(ta.equipmentGroup, (map.get(ta.equipmentGroup) ?? 0) + hours);
+    }
+    return map;
+  }, [showHoldRisk, turnaroundActivities]);
+
+  const machineGroupMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of machines) map.set(m.id, m.group);
+    return map;
+  }, [machines]);
+
   // Calculate total canvas height
   const lastRow = rows[rows.length - 1];
   const totalHeight = lastRow
@@ -830,8 +1088,20 @@ export default function WallboardCanvas({
       drawDowntimeBlocks(ctx, downtimeWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     }
     drawBatchBars(ctx, visibleStages, batchSeriesMap, batchLabelMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
+    // Shutdown crossing indicators — amber triangles on bars that span shutdown boundaries
+    if (showShutdownCrossing && shutdownPeriods.length > 0) {
+      drawShutdownCrossingIndicators(ctx, visibleStages, shutdownPeriods, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
+    }
+    // Hold risk indicators — red dots on stages with tight turnaround gaps
+    if (showHoldRisk) {
+      drawHoldRiskIndicators(ctx, visibleStages, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, turnaroundGapByGroup, machineGroupMap);
+    }
     if (notifyShiftWindows.length > 0) {
       drawNotifyShiftArrows(ctx, notifyShiftWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
+    }
+    // Shutdown labels — "PLANT SHUTDOWN" text on wallboard shutdown columns
+    if (showShutdownLabels && shutdownPeriods.length > 0) {
+      drawShutdownLabels(ctx, shutdownPeriods, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, theme);
     }
     if (showNowLineProp) {
       drawNowLine(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, theme);
@@ -841,7 +1111,7 @@ export default function WallboardCanvas({
       drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, shiftRotation.anchorDate, shiftRotation.cyclePattern, shiftRotation.teams.map((t) => t.color), shiftRotation.shiftLengthHours, shiftRotation);
     }
     drawDateHeader(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
-  }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods, shiftRotation, showDowntime, downtimeWindows, notifyShiftWindows]);
+  }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods, shiftRotation, showDowntime, downtimeWindows, notifyShiftWindows, showShutdownCrossing, showHoldRisk, showShutdownLabels, turnaroundGapByGroup, machineGroupMap]);
 
   // Redraw on any change
   useEffect(() => {

@@ -260,20 +260,26 @@ Physical `.xlsx` template files (`public/templates/schedule-template.xlsx`,
 export from the app to create their own templates. Consider creating downloadable
 starter files with headers, sample rows, and instructions.
 
-### 2. Shutdown "PLANT SHUTDOWN" Text Label
+### 2. Shutdown "PLANT SHUTDOWN" Text Label — DONE
 
 The shutdown calendar overlay (grey diagonal hatch on Wallboard) is implemented.
-The full-width "PLANT SHUTDOWN (NO ELECTRICITY)" text label across all machines
-is still pending (see Phase 13 in implementation plan).
+The full-width "PLANT SHUTDOWN" text label across shutdown day columns is now
+rendered on the Wallboard canvas via `drawShutdownLabels()`. Text is vertically
+centered and rotated -90° for multi-day shutdowns. Includes shutdown name if set.
 
-### 3. Hold Risk & Shutdown Crossing Visual Indicators
+### 3. Hold Risk & Shutdown Crossing Visual Indicators — DONE
 
-Planner View does not yet show visual indicators for:
-- Batches at risk of hold (conflict warnings beyond overlap detection)
-- Batch chains that cross shutdown boundaries
+Planner View now shows visual indicators for:
+- **Batches at risk of hold**: red warning dots (with "!" mark) on stages where
+  the turnaround gap to the next stage on the same machine is less than the
+  required minimum. Drawn via `drawHoldRiskIndicators()`.
+- **Batch chains crossing shutdown boundaries**: amber warning triangles (with "!"
+  mark) at the shutdown start/end intersection point on affected batch bars.
+  Drawn via `drawShutdownCrossingIndicators()`.
 
-These are informational indicators (not blocking) — the scheduling engine already
-allows chains to span shutdowns.
+Both are informational indicators (not blocking) — the scheduling engine already
+allows chains to span shutdowns. Enabled via `showShutdownCrossing` and
+`showHoldRisk` props on `WallboardCanvas`.
 
 ### 4. Test Coverage
 

@@ -251,6 +251,10 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Full CRUD in Zustand store (`add/update/deleteShutdownPeriod`)
 - **Conflict warnings**: amber banner in Shutdowns tab when a shutdown period overlaps planned batch stages (informational, not blocking); shows affected batch names and conflict count badge
 - **Calendar overlay**: shutdown days rendered on Wallboard canvas as grey fill + diagonal hatch pattern (8px step, clipped to column); theme-aware (day: `rgba(120,120,140,0.18)`, night: `rgba(100,100,130,0.25)`)
+- **"PLANT SHUTDOWN" text label**: centered vertically across shutdown day columns on Wallboard canvas via `drawShutdownLabels()`; rotated -90° for multi-day shutdowns; includes shutdown name if set; theme-aware opacity
+- **Shutdown crossing indicators** (Planner): amber warning triangles with "!" at shutdown boundary intersection points on batch bars that span shutdown periods; drawn via `drawShutdownCrossingIndicators()`; enabled via `showShutdownCrossing` prop
+- **Hold risk indicators** (Planner): red warning dots with "!" on stages where the turnaround gap to the next stage on the same machine is below the required minimum (from turnaround activities); drawn via `drawHoldRiskIndicators()`; enabled via `showHoldRisk` prop
+- Implementation: `WallboardCanvas.tsx` (`drawShutdownLabels`, `drawShutdownCrossingIndicators`, `drawHoldRiskIndicators`)
 
 #### 14. PDF export (modern, Schedule view only)
 - Client-side only: `html2canvas` captures the schedule `<canvas>` at 2× scale, `jsPDF` generates A4 landscape PDF
