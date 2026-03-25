@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
+  <!-- Background -->
+  <rect width="500" height="500" fill="#F1F2F7"/>
+
+  <!-- Boxes + connector paths (stroke only) -->
+  <g stroke="#2B5CE6" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Box 1 -->
+    <rect x="140" y="83" width="220" height="84" rx="22"/>
+    <!-- Box 2 -->
+    <rect x="140" y="213" width="220" height="84" rx="22"/>
+    <!-- Box 3 -->
+    <rect x="140" y="343" width="220" height="84" rx="22"/>
+
+    <!-- Entry arrow shaft (left → box 1) -->
+    <line x1="50" y1="125" x2="126" y2="125"/>
+
+    <!-- Right-side arc: box 1 → box 2 -->
+    <path d="M374,125 H420 Q450,125 450,155 V225 Q450,255 420,255 H374"/>
+
+    <!-- Left-side arc: box 2 → box 3 -->
+    <path d="M140,255 H100 Q70,255 70,285 V355 Q70,385 100,385 H140"/>
+
+    <!-- Exit arrow shaft (box 3 → right) -->
+    <line x1="374" y1="385" x2="450" y2="385"/>
+  </g>
+
+  <!-- Arrowheads (filled triangles) -->
+  <g fill="#2B5CE6">
+    <!-- Entry arrowhead: right-pointing into box 1 -->
+    <polygon points="120,109 148,125 120,141"/>
+    <!-- Right arc arrowhead: left-pointing into box 2 -->
+    <polygon points="380,241 352,255 380,269"/>
+    <!-- Left arc arrowhead: right-pointing into box 3 -->
+    <polygon points="120,369 148,385 120,401"/>
+    <!-- Exit arrowhead: right-pointing out of box 3 -->
+    <polygon points="442,369 470,385 442,401"/>
+  </g>
+</svg>
