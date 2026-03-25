@@ -234,7 +234,7 @@ export default function PlannerPage() {
 
   // Machine resolution state for unknown machines during import
   const [machineResolutions, setMachineResolutions] = useState<
-    Map<string, { action: 'create' | 'map' | 'skip'; group?: string; mapTo?: string }>
+    Map<string, { action: 'create' | 'map' | 'skip'; group?: string; productLine?: string; mapTo?: string }>
   >(new Map());
 
   function shiftView(days: number) {
@@ -441,6 +441,7 @@ export default function PlannerPage() {
               id: generateId('m-'),
               name: um.name,
               group: res.group ?? 'fermenter',
+              productLine: res.productLine || undefined,
               displayOrder: maxOrder + 10,
             };
             maxOrder = newMachine.displayOrder;
@@ -807,6 +808,23 @@ export default function PlannerPage() {
                               {equipmentGroups.map((eg) => (
                                 <option key={eg.id} value={eg.id}>{eg.name}</option>
                               ))}
+                            </select>
+                            <span>Product Line:</span>
+                            <select
+                              value={res.productLine ?? ''}
+                              onChange={(ev) => setMachineResolutions((prev) => {
+                                const next = new Map(prev);
+                                next.set(key, { ...res, productLine: ev.target.value || undefined });
+                                return next;
+                              })}
+                            >
+                              <option value="">None</option>
+                              {productLines
+                                .slice()
+                                .sort((a, b) => a.displayOrder - b.displayOrder)
+                                .map((pl) => (
+                                  <option key={pl.id} value={pl.id}>{pl.name}</option>
+                                ))}
                             </select>
                           </div>
                         )}
