@@ -32,6 +32,7 @@ function toDateLocal(d: Date): string {
 function buildDisplayGroups(
   pLines: ProductLine[],
   machines: Machine[],
+  eqGroups: EquipmentGroup[],
 ): MachineDisplayGroup[] {
   return [...pLines]
     .sort((a, b) => a.displayOrder - b.displayOrder)
@@ -40,7 +41,12 @@ function buildDisplayGroups(
       name: pl.name,
       machineIds: machines
         .filter((m) => m.productLine === pl.id)
-        .sort((a, b) => a.displayOrder - b.displayOrder)
+        .sort((a, b) => {
+          const egA = eqGroups.find(eg => eg.id === a.group)?.displayOrder ?? 999;
+          const egB = eqGroups.find(eg => eg.id === b.group)?.displayOrder ?? 999;
+          if (egA !== egB) return egA - egB;
+          return a.displayOrder - b.displayOrder;
+        })
         .map((m) => m.id),
     }))
     .filter((g) => g.machineIds.length > 0);
@@ -456,7 +462,7 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
 
   function handleSave() {
     // Auto-derive display groups from product lines + machine assignments
-    const derivedGroups = buildDisplayGroups(draftProductLines, draftMachines);
+    const derivedGroups = buildDisplayGroups(draftProductLines, draftMachines, draftEquipmentGroups);
 
     setMachines(draftMachines);
     setMachineGroups(derivedGroups);
