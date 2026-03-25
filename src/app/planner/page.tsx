@@ -473,7 +473,12 @@ export default function PlannerPage() {
             name: pl.name,
             machineIds: updatedMachines
               .filter((m) => m.productLine === pl.id)
-              .sort((a, b) => a.displayOrder - b.displayOrder)
+              .sort((a, b) => {
+                const egA = equipmentGroups.find(eg => eg.id === a.group)?.displayOrder ?? 999;
+                const egB = equipmentGroups.find(eg => eg.id === b.group)?.displayOrder ?? 999;
+                if (egA !== egB) return egA - egB;
+                return a.displayOrder - b.displayOrder;
+              })
               .map((m) => m.id),
           }))
           .filter((g) => g.machineIds.length > 0);
@@ -487,7 +492,7 @@ export default function PlannerPage() {
     }
     setImportConfirm(null);
     setMachineResolutions(new Map());
-  }, [importConfirm, machineResolutions, setBatchChains, setStages, setMaintenanceTasks, addMachine, productLines, setMachineGroups]);
+  }, [importConfirm, machineResolutions, setBatchChains, setStages, setMaintenanceTasks, addMachine, productLines, equipmentGroups, setMachineGroups]);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
