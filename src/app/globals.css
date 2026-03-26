@@ -534,6 +534,11 @@ body {
 
 /* ─── Planner sidebar ──────────────────────────────────────────────────── */
 
+/* Hide sidebar on desktop when collapsed */
+.planner-sidebar.planner-sidebar-collapsed {
+  display: none;
+}
+
 .planner-sidebar {
   width: 280px;
   background: #ffffff;
