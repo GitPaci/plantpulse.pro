@@ -9,7 +9,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import Navigation from '@/components/ui/Navigation';
 import WallboardCanvas from '@/components/timeline/WallboardCanvas';
 import { usePlantPulseStore } from '@/lib/store';
-import { exportSchedulePdf } from '@/utils/exportSchedulePdf';
+import { exportSchedulePdfVector } from '@/utils/exportSchedulePdfVector';
 import PrintSettings from '@/settings/PrintSettings';
 import {
   startOfMonth,
@@ -19,15 +19,7 @@ import {
   format,
   getDaysInMonth,
 } from 'date-fns';
-import type { EquipmentGroup } from '@/lib/types';
 
-// Fixed export surface for deterministic A4 landscape PDF rendering.
-// 297mm × 210mm at 96 CSS DPI ≈ 1166 × 794 px.
-const SCHEDULE_PDF_CANVAS_ID = 'schedule-export-canvas-pdf';
-const SCHEDULE_PDF_VIEWPORT = {
-  widthPx: 1122,
-  heightPx: 794,
-};
 
 export default function SchedulePage() {
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
@@ -188,7 +180,20 @@ export default function SchedulePage() {
     setIsExporting(true);
     try {
       const monthLabel = format(currentMonth, 'MMMM yyyy');
-      await exportSchedulePdf(SCHEDULE_PDF_CANVAS_ID, monthLabel);
+      const s = usePlantPulseStore.getState();
+      await exportSchedulePdfVector(
+        {
+          machines: s.machines,
+          stages: s.stages,
+          batchChains: s.batchChains,
+          machineGroups: filteredMachineGroups ?? scheduleMachineGroups,
+          viewConfig: s.viewConfig,
+          shutdownPeriods: s.shutdownPeriods,
+          batchNamingConfig: s.batchNamingConfig,
+          equipmentGroups: s.equipmentGroups,
+        },
+        monthLabel,
+      );
     } catch (err) {
       console.error('PDF export failed:', err);
     } finally {
@@ -404,29 +409,6 @@ export default function SchedulePage() {
           // Schedule filtering must use the same machine set for rows + events.
           // Pass fully filtered groups directly so the canvas row layout and
           // stage filtering both derive from the same visible machine IDs.
-          customMachineGroups={filteredMachineGroups ?? scheduleMachineGroups}
-          showTodayHighlight={false}
-          showNowLine={false}
-          showShiftBand={false}
-        />
-      </div>
-
-      {/* Hidden fixed-size render target used only for PDF export.
-          Keeps export output independent from mobile/desktop viewport size. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed"
-        style={{
-          left: '-99999px',
-          top: 0,
-          width: `${SCHEDULE_PDF_VIEWPORT.widthPx}px`,
-          height: `${SCHEDULE_PDF_VIEWPORT.heightPx}px`,
-          opacity: 0,
-          overflow: 'hidden',
-        }}
-      >
-        <WallboardCanvas
-          canvasId={SCHEDULE_PDF_CANVAS_ID}
           customMachineGroups={filteredMachineGroups ?? scheduleMachineGroups}
           showTodayHighlight={false}
           showNowLine={false}
