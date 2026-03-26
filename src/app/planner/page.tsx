@@ -702,6 +702,14 @@ export default function PlannerPage() {
         <div className={`planner-sidebar${sidebarOpen ? ' planner-sidebar-open' : ''}${sidebarCollapsed ? ' planner-sidebar-collapsed' : ''}`}>
           <div className="planner-sidebar-header">
             <h3>Planning Tools</h3>
+            <button
+              type="button"
+              className="planner-sidebar-close md:hidden"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close Planning Tools"
+            >
+              ✕
+            </button>
           </div>
 
           <div className="planner-sidebar-scroll">
