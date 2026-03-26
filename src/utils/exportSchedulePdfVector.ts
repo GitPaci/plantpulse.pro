@@ -5,6 +5,9 @@
 // Architecture: mirrors the WallboardCanvas draw pipeline but outputs PDF vector commands
 // instead of canvas pixels.  The same layout constants and timeline-math functions are
 // reused so the visual result matches the on-screen canvas exactly.
+//
+// Multi-page: when the row count exceeds one page's height, rows are split across pages.
+// Each page repeats the full date header (day numbers, weekend/holiday colours).
 
 import { jsPDF } from 'jspdf';
 import { addDays, format, getDate } from 'date-fns';
@@ -33,7 +36,7 @@ const BAR_Y_PAD = (ROW_HEIGHT - BAR_HEIGHT) / 2;      // 5 px
 const SEPARATOR_HEIGHT = 12;
 const BORDER_WIDTH = 3;
 
-// Virtual canvas width — matches SCHEDULE_PDF_VIEWPORT.widthPx in inoculum/page.tsx.
+// Virtual canvas width — matches SCHEDULE_PDF_VIEWPORT.widthPx.
 // All internal positions are computed in "virtual pixels"; the scale factor converts to mm.
 const VIRTUAL_W = 1122;
 
@@ -86,7 +89,7 @@ interface RowInfo {
   rowIndex: number;   // includes separator rows, same semantics as WallboardCanvas
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────────
+// ─── Color helpers ───────────────────────────────────────────────────────────────
 
 function hexToRgb(hex: string): [number, number, number] {
   const c = hex.replace('#', '');
@@ -111,6 +114,8 @@ function st(doc: jsPDF, hex: string): void {
   const [r, g, b] = hexToRgb(hex);
   doc.setTextColor(r, g, b);
 }
+
+// ─── Row layout helpers ──────────────────────────────────────────────────────────
 
 function buildRowLayout(
   machines: Machine[],
@@ -137,6 +142,50 @@ function buildRowLayout(
   return rows;
 }
 
+/**
+ * Reset Y positions so the first row starts at TOP_MARGIN.
+ * Used to re-anchor a page's subset of rows for rendering.
+ */
+function reanchorRows(rows: RowInfo[]): RowInfo[] {
+  let y = TOP_MARGIN;
+  return rows.map((row) => {
+    const r = { ...row, y };
+    y += row.type === 'machine' ? ROW_HEIGHT : SEPARATOR_HEIGHT;
+    return r;
+  });
+}
+
+/**
+ * Split allRows into per-page buckets that each fit within maxVirtualH virtual pixels.
+ * Leading separator rows are stripped from page 2+ to avoid blank space at the top.
+ */
+function splitRowsIntoPages(allRows: RowInfo[], maxVirtualH: number): RowInfo[][] {
+  const pages: RowInfo[][] = [];
+  let bucket: RowInfo[] = [];
+  // TOP_MARGIN is reserved for the date header on every page
+  let usedH = TOP_MARGIN;
+
+  for (const row of allRows) {
+    const rowH = row.type === 'machine' ? ROW_HEIGHT : SEPARATOR_HEIGHT;
+    if (usedH + rowH > maxVirtualH && bucket.length > 0) {
+      pages.push(bucket);
+      bucket = [];
+      usedH = TOP_MARGIN;
+    }
+    bucket.push(row);
+    usedH += rowH;
+  }
+  if (bucket.length > 0) pages.push(bucket);
+
+  // Strip leading separators from pages 2+ (they'd appear as blank gap at top)
+  return pages.map((p, i) => {
+    if (i === 0) return p;
+    let start = 0;
+    while (start < p.length && p[start].type === 'separator') start++;
+    return p.slice(start);
+  });
+}
+
 function buildBatchLabel(chain: BatchChain, config: BatchNamingConfig): string {
   const rule =
     config.mode === 'per_product_line' && chain.productLine
@@ -149,6 +198,7 @@ function buildBatchLabel(chain: BatchChain, config: BatchNamingConfig): string {
 //
 // ax, ay  — top-left corner of the schedule area on the PDF page (mm)
 // aw, ah  — width and height of the schedule area (mm)
+// pageRows — pre-computed rows for this page, Y positions anchored to TOP_MARGIN
 //
 // Internal coordinate system:
 //   scale = aw / VIRTUAL_W      (mm per virtual pixel, uniform)
@@ -163,30 +213,26 @@ function renderScheduleVector(
   aw: number,
   ah: number,
   data: SchedulePdfVectorData,
+  pageRows: RowInfo[],
 ): void {
   const scale = aw / VIRTUAL_W;
   const px = (v: number) => v * scale;
   const mx = (v: number) => ax + v * scale;
   const my = (v: number) => ay + v * scale;
 
-  const { machines, stages, batchChains, machineGroups, viewConfig, shutdownPeriods, batchNamingConfig } = data;
+  const { stages, batchChains, viewConfig, shutdownPeriods, batchNamingConfig } = data;
   const { viewStart, numberOfDays } = viewConfig;
 
-  // ── Layout ─────────────────────────────────────────────────────────
-  const rows = buildRowLayout(machines, machineGroups);
   const ppd = getPPD(VIRTUAL_W, LEFT_MARGIN, numberOfDays);
 
-  // Total virtual height of the schedule content
+  // Total virtual height used by this page's rows
   let totalH = TOP_MARGIN;
-  for (const row of rows) {
+  for (const row of pageRows) {
     const bottom = row.y + (row.type === 'machine' ? ROW_HEIGHT : SEPARATOR_HEIGHT);
     if (bottom > totalH) totalH = bottom;
   }
-  // Clamp to the visible PDF area
-  const maxVirtualH = ah / scale;
-  if (totalH > maxVirtualH) totalH = maxVirtualH;
 
-  // ── Lookup maps ────────────────────────────────────────────────────
+  // ── Lookup maps ─────────────────────────────────────────────────────────
   const batchSeriesMap = new Map<string, number>();
   const batchLabelMap = new Map<string, string>();
   for (const chain of batchChains) {
@@ -195,7 +241,7 @@ function renderScheduleVector(
   }
 
   const machineRowMap = new Map<string, RowInfo>();
-  for (const row of rows) {
+  for (const row of pageRows) {
     if (row.type === 'machine') machineRowMap.set(row.machineId, row);
   }
 
@@ -209,27 +255,24 @@ function renderScheduleVector(
     }
   }
 
-  // ═══ Layer 1: White base + row backgrounds ══════════════════════════
+  // ═══ Layer 1: White base + row backgrounds ══════════════════════════════
 
   sf(doc, C.headerBg);
   doc.rect(ax, ay, aw, ah, 'F');
 
-  for (const row of rows) {
-    if (row.y >= maxVirtualH) continue;
+  for (const row of pageRows) {
     if (row.type === 'separator') {
       sf(doc, C.separator);
       doc.rect(mx(LEFT_MARGIN), my(row.y), px(VIRTUAL_W - LEFT_MARGIN), px(SEPARATOR_HEIGHT), 'F');
     } else {
-      // rowIndex % 2 mirrors WallboardCanvas drawRowBackgrounds() exactly
       sf(doc, row.rowIndex % 2 === 0 ? C.rowEven : C.rowOdd);
       doc.rect(mx(LEFT_MARGIN), my(row.y), px(VIRTUAL_W - LEFT_MARGIN), px(ROW_HEIGHT), 'F');
     }
   }
 
-  // ═══ Layer 2: Calendar column tints + vertical grid lines ════════════
+  // ═══ Layer 2: Calendar column tints + vertical grid lines ════════════════
 
-  const colBottom = totalH;
-  const colH = colBottom - TOP_MARGIN;
+  const colH = totalH - TOP_MARGIN;
 
   for (let dayIdx = 0; dayIdx < numberOfDays; dayIdx++) {
     const dayDate = addDays(viewStart, dayIdx);
@@ -253,14 +296,14 @@ function renderScheduleVector(
     // Vertical grid line at right edge of each day column
     sd(doc, C.grid);
     doc.setLineWidth(px(0.5));
-    doc.line(mx(colX + ppd), my(TOP_MARGIN), mx(colX + ppd), my(colBottom));
+    doc.line(mx(colX + ppd), my(TOP_MARGIN), mx(colX + ppd), my(totalH));
   }
 
-  // ═══ Layer 3: Batch bars ═══════════════════════════════════════════════
+  // ═══ Layer 3: Batch bars ═══════════════════════════════════════════════════
 
   for (const stage of stages) {
     const row = machineRowMap.get(stage.machineId);
-    if (!row || row.y >= maxVirtualH) continue;
+    if (!row) continue;
 
     const pos = stageBarPosition(
       viewStart, stage.startDatetime, stage.endDatetime,
@@ -284,7 +327,7 @@ function renderScheduleVector(
     // Thin outline: top, left, right edges only
     sd(doc, C.outline);
     doc.setLineWidth(px(0.3));
-    doc.line(mx(bx),      my(by),            mx(bx + bw), my(by));            // top
+    doc.line(mx(bx),      my(by),            mx(bx + bw), my(by));              // top
     doc.line(mx(bx),      my(by),            mx(bx),      my(by + BAR_HEIGHT)); // left
     doc.line(mx(bx + bw), my(by),            mx(bx + bw), my(by + BAR_HEIGHT)); // right
 
@@ -306,14 +349,12 @@ function renderScheduleVector(
         const lx = bx + (bw - lw) / 2;
         const ly = by + (BAR_HEIGHT - BORDER_WIDTH - lh) / 2;
 
-        // Rounded label background
         sf(doc, C.labelBg);
         doc.roundedRect(mx(lx), my(ly), px(lw), px(lh), px(1.5), px(1.5), 'F');
         sd(doc, C.labelBorder);
         doc.setLineWidth(px(0.3));
         doc.roundedRect(mx(lx), my(ly), px(lw), px(lh), px(1.5), px(1.5), 'S');
 
-        // Label text (centered)
         st(doc, C.labelText);
         doc.setFont('Helvetica', 'bold');
         doc.setFontSize(5);
@@ -325,7 +366,7 @@ function renderScheduleVector(
     }
   }
 
-  // ═══ Layer 4: Left column — machine labels ══════════════════════════
+  // ═══ Layer 4: Left column — machine labels ══════════════════════════════
 
   // White background covers any bar overflow into the label column
   sf(doc, C.headerBg);
@@ -335,8 +376,8 @@ function renderScheduleVector(
   doc.setFont('Helvetica', 'normal');
   doc.setFontSize(6.5);
 
-  for (const row of rows) {
-    if (row.type !== 'machine' || row.y >= maxVirtualH) continue;
+  for (const row of pageRows) {
+    if (row.type !== 'machine') continue;
     doc.text(row.machineName, mx(LEFT_MARGIN - 3), my(row.y + ROW_HEIGHT / 2), {
       align: 'right',
       baseline: 'middle',
@@ -348,9 +389,9 @@ function renderScheduleVector(
   doc.setLineWidth(px(1));
   doc.line(mx(LEFT_MARGIN), ay, mx(LEFT_MARGIN), my(totalH));
 
-  // ═══ Layer 5: Date header ════════════════════════════════════════════
+  // ═══ Layer 5: Date header ════════════════════════════════════════════════
 
-  // Header background (covers entire top area)
+  // Header background
   sf(doc, C.headerBg);
   doc.rect(ax, ay, aw, px(TOP_MARGIN), 'F');
 
@@ -361,7 +402,6 @@ function renderScheduleVector(
     const isWknd = isWeekend(dayDate);
     const isHol = isHoliday(dayDate);
 
-    // Day number — centred in the day column
     if (isWknd || isHol) {
       st(doc, C.dateWeekend);
       doc.setFont('Helvetica', 'bold');
@@ -394,6 +434,9 @@ function renderScheduleVector(
  * All elements (grid lines, bars, labels, header, footer) are rendered as PDF
  * primitives — no canvas capture involved.  Output is sharp at any print scale.
  *
+ * When the row count exceeds one page, rows are automatically split across
+ * multiple pages. Each page repeats the full date header and footer.
+ *
  * @param data       Schedule data from the Zustand store
  * @param monthLabel Human-readable month, e.g. "March 2026"
  */
@@ -410,97 +453,109 @@ export async function exportSchedulePdfVector(
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
-  // ── Header ────────────────────────────────────────────────────────────
-  let cursorY = margin;
+  // ── Measure header height ─────────────────────────────────────────────
+  const headerH = (settings.facilityTitle.trim() ? 8 : 0) + 5; // title rows + month row
 
-  if (settings.facilityTitle.trim()) {
-    cursorY += 4;
-    doc.setFont('Helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(60, 60, 60);
-    doc.text(settings.facilityTitle.trim(), pageW / 2, cursorY, { align: 'center' });
-    cursorY += 4;
-  }
-
-  // Month/year label
-  doc.setFont('Helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(80, 80, 80);
-  doc.text(monthLabel, pageW / 2, cursorY + 2, { align: 'center' });
-  cursorY += 5;
-
-  // Thin separator under header
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.2);
-  doc.line(margin, cursorY, pageW - margin, cursorY);
-  cursorY += 2;
-
-  const scheduleTopY = cursorY;
-
-  // ── Footer zone (calculate height first so schedule fills remaining space) ──
+  // ── Measure footer height ─────────────────────────────────────────────
   const footerFontSize = 7.5;
   const footerLineH = 3.5;
-
   let leftLineCount = 0;
   if (settings.showVersion) leftLineCount++;
   if (settings.showTimestamp) leftLineCount++;
   if (settings.showPreparedBy) leftLineCount++;
   if (settings.showSignature) leftLineCount++;
-
   const minLines = Math.max(leftLineCount, 1);
   const footerTextH = minLines * footerLineH;
   const footerTotalH = footerTextH + 5;
-  const footerSepY = pageH - margin - footerTotalH;
+
+  // ── Fixed zone positions (same on every page) ─────────────────────────
+  const scheduleTopY = margin + headerH + 2;      // below header separator
+  const footerSepY   = pageH - margin - footerTotalH;
   const scheduleBottomY = footerSepY - 2;
   const scheduleH = scheduleBottomY - scheduleTopY;
 
-  // ── Vector schedule ──────────────────────────────────────────────────
-  renderScheduleVector(doc, margin, scheduleTopY, contentW, scheduleH, data);
+  // ── Calculate max virtual height available per page ───────────────────
+  const scale = contentW / VIRTUAL_W;
+  const maxVirtualH = scheduleH / scale;
 
-  // ── Footer ────────────────────────────────────────────────────────────
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.2);
-  doc.line(margin, footerSepY, pageW - margin, footerSepY);
+  // ── Build all rows then split across pages ────────────────────────────
+  const allRows = buildRowLayout(data.machines, data.machineGroups);
+  const pageRowSets = splitRowsIntoPages(allRows, maxVirtualH);
+  const totalPages = pageRowSets.length;
 
-  doc.setFontSize(footerFontSize);
-  doc.setTextColor(140, 140, 140);
-  doc.setFont('Helvetica', 'normal');
+  // ── Render each page ──────────────────────────────────────────────────
+  for (let pi = 0; pi < totalPages; pi++) {
+    if (pi > 0) doc.addPage();
 
-  let leftY = footerSepY + 3;
-  if (settings.showVersion) {
-    doc.text(`PlantPulse Scheduler v${APP_VERSION}`, margin, leftY);
-    leftY += footerLineH;
-  }
-  if (settings.showTimestamp) {
-    doc.text(`Exported: ${formatExportTimestamp()}`, margin, leftY);
-    leftY += footerLineH;
-  }
-  if (settings.showPreparedBy) {
-    doc.text('Prepared by: Unknown', margin, leftY);
-    leftY += footerLineH;
-  }
-  if (settings.showSignature) {
-    doc.text('Signature: ____________________', margin, leftY);
-  }
-
-  if (settings.disclaimerText.trim()) {
-    doc.setFont('Helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.setTextColor(140, 140, 140);
-    const disclaimerY = footerSepY + 3 + footerTextH / 2;
-    doc.text(settings.disclaimerText.trim(), pageW / 2, disclaimerY, { align: 'center' });
+    // Header
+    let cursorY = margin;
+    if (settings.facilityTitle.trim()) {
+      cursorY += 4;
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(60, 60, 60);
+      doc.text(settings.facilityTitle.trim(), pageW / 2, cursorY, { align: 'center' });
+      cursorY += 4;
+    }
     doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(80, 80, 80);
+    doc.text(monthLabel, pageW / 2, cursorY + 2, { align: 'center' });
+    cursorY += 5;
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.2);
+    doc.line(margin, cursorY, pageW - margin, cursorY);
+
+    // Schedule grid for this page
+    const pageRows = reanchorRows(pageRowSets[pi]);
+    renderScheduleVector(doc, margin, scheduleTopY, contentW, scheduleH, data, pageRows);
+
+    // Footer
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.2);
+    doc.line(margin, footerSepY, pageW - margin, footerSepY);
+
+    doc.setFontSize(footerFontSize);
+    doc.setTextColor(140, 140, 140);
+    doc.setFont('Helvetica', 'normal');
+
+    let leftY = footerSepY + 3;
+    if (settings.showVersion) {
+      doc.text(`PlantPulse Scheduler v${APP_VERSION}`, margin, leftY);
+      leftY += footerLineH;
+    }
+    if (settings.showTimestamp) {
+      doc.text(`Exported: ${formatExportTimestamp()}`, margin, leftY);
+      leftY += footerLineH;
+    }
+    if (settings.showPreparedBy) {
+      doc.text('Prepared by: Unknown', margin, leftY);
+      leftY += footerLineH;
+    }
+    if (settings.showSignature) {
+      doc.text('Signature: ____________________', margin, leftY);
+    }
+
+    if (settings.disclaimerText.trim()) {
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(140, 140, 140);
+      const disclaimerY = footerSepY + 3 + footerTextH / 2;
+      doc.text(settings.disclaimerText.trim(), pageW / 2, disclaimerY, { align: 'center' });
+      doc.setFont('Helvetica', 'normal');
+    }
   }
 
+  // ── Stamp page numbers on all pages ──────────────────────────────────
   if (settings.showPageNumbers) {
-    const totalPages = doc.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
+    const total = doc.getNumberOfPages();
+    for (let i = 1; i <= total; i++) {
       doc.setPage(i);
       doc.setFontSize(footerFontSize);
       doc.setTextColor(140, 140, 140);
       doc.setFont('Helvetica', 'normal');
       const pageNumY = footerSepY + 3 + footerTextH / 2;
-      doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageNumY, { align: 'right' });
+      doc.text(`Page ${i} of ${total}`, pageW - margin, pageNumY, { align: 'right' });
     }
   }
 
