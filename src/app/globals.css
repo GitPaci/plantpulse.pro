@@ -551,6 +551,30 @@ body {
 .planner-sidebar-header {
   padding: 12px 16px;
   border-bottom: 1px solid var(--pp-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.planner-sidebar-close {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--pp-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+}
+
+.planner-sidebar-close:hover {
+  color: var(--pp-pharma);
+}
+
+@media (max-width: 767px) {
+  .planner-sidebar-close {
+    display: block;
+  }
 }
 
 .planner-sidebar-header h3 {
