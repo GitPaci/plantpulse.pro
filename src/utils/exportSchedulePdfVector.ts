@@ -7,7 +7,7 @@
 // reused so the visual result matches the on-screen canvas exactly.
 
 import { jsPDF } from 'jspdf';
-import { addDays, format, getDate, getMonth } from 'date-fns';
+import { addDays, format, getDate } from 'date-fns';
 import type {
   Machine,
   Stage,
@@ -354,24 +354,12 @@ function renderScheduleVector(
   sf(doc, C.headerBg);
   doc.rect(ax, ay, aw, px(TOP_MARGIN), 'F');
 
-  let prevMonth = -1;
-
   for (let dayIdx = 0; dayIdx < numberOfDays; dayIdx++) {
     const dayDate = addDays(viewStart, dayIdx);
     const colX = LEFT_MARGIN + dayIdx * ppd;
-    const month = getMonth(dayDate);
     const dayNum = getDate(dayDate);
     const isWknd = isWeekend(dayDate);
     const isHol = isHoliday(dayDate);
-
-    // Month abbreviation — shown once per month change
-    if (month !== prevMonth) {
-      prevMonth = month;
-      st(doc, C.dateText);
-      doc.setFont('Helvetica', 'bold');
-      doc.setFontSize(4.5);
-      doc.text(format(dayDate, 'MMM'), mx(colX + 2), my(SHIFT_BAND_H + 2), { baseline: 'top' });
-    }
 
     // Day number — centred in the day column
     if (isWknd || isHol) {
