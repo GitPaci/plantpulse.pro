@@ -51,8 +51,38 @@ export default function WallboardPage() {
   const [now, setNow] = useState(() => new Date());
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showDisplaySettings, setShowDisplaySettings] = useState(false);
+  const [wbMobileOpen, setWbMobileOpen] = useState(false);
   const wallboardRootRef = useRef<HTMLDivElement>(null);
+  const wbMobileMenuRef = useRef<HTMLDivElement>(null);
+  const wbMobileToggleRef = useRef<HTMLButtonElement>(null);
   const { nightMode, toggle: toggleNightMode } = useNightMode();
+
+  const closeWbMobile = useCallback(() => setWbMobileOpen(false), []);
+
+  // Close wallboard mobile menu on outside click or Escape
+  useEffect(() => {
+    if (!wbMobileOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (
+        wbMobileMenuRef.current && !wbMobileMenuRef.current.contains(e.target as Node) &&
+        wbMobileToggleRef.current && !wbMobileToggleRef.current.contains(e.target as Node)
+      ) {
+        setWbMobileOpen(false);
+      }
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setWbMobileOpen(false);
+        wbMobileToggleRef.current?.focus();
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [wbMobileOpen]);
 
   // Keep badge in sync with real time (and any shift boundary crossing) without refresh.
   useEffect(() => {
@@ -114,101 +144,205 @@ export default function WallboardPage() {
 
       {/* Toolbar */}
       {!isFullscreen && (
-        <div className="h-10 bg-white border-b border-[var(--pp-border)] flex items-center px-4 gap-4 text-sm shrink-0">
-          <button
-            onClick={() => shiftView(-7)}
-            className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
-          >
-            &laquo; 7d
-          </button>
-          <button
-            onClick={() => shiftView(-1)}
-            className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
-          >
-            &lsaquo; 1d
-          </button>
-          <button
-            onClick={resetView}
-            className="px-3 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50 font-medium"
-          >
-            Today
-          </button>
-          <button
-            onClick={() => shiftView(1)}
-            className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
-          >
-            1d &rsaquo;
-          </button>
-          <button
-            onClick={() => shiftView(7)}
-            className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
-          >
-            7d &raquo;
-          </button>
-
-          <div className="flex-1" />
-
-          {/* Night View toggle — immediately before Fullscreen button */}
-          <button
-            type="button"
-            onClick={toggleNightMode}
-            className={`wallboard-night-toggle inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-colors ${
-              nightMode
-                ? 'border-amber-400/40 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                : 'border-indigo-300/40 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-            }`}
-            aria-label={nightMode ? 'Switch to Day View' : 'Switch to Night View'}
-            title={nightMode ? 'Switch to Day View' : 'Switch to Night View'}
-          >
-            <span aria-hidden="true">{nightMode ? '\u2600' : '\uD83C\uDF19'}</span>
-            {nightMode ? 'Day' : 'Night'}
-          </button>
-
-          {/* Fullscreen enter button — immediately before Shift indicator */}
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="inline-flex items-center justify-center rounded border border-[var(--pp-border)] p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-            aria-label="Enter Fullscreen"
-            title="Enter Fullscreen"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 3 21 3 21 9" />
-              <polyline points="9 21 3 21 3 15" />
-              <line x1="21" y1="3" x2="14" y2="10" />
-              <line x1="3" y1="21" x2="10" y2="14" />
-            </svg>
-          </button>
-
-          {/* Current shift indicator */}
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-[var(--pp-muted)]">Shift:</span>
-            <span
-              className="px-2 py-0.5 rounded font-bold"
-              style={{
-                backgroundColor: hasActiveShift ? `${teamColor}20` : '#F3F4F6',
-                color: hasActiveShift ? (teamIdx === 3 ? '#997700' : teamColor) : '#6B7280',
-                border: hasActiveShift ? `1px solid ${teamColor}40` : '1px solid #D1D5DB',
-                boxShadow: hasActiveShift ? `0 0 0 1px ${teamColor}22` : 'none',
-              }}
+        <div className="bg-white border-b border-[var(--pp-border)] shrink-0 relative">
+          {/* Desktop toolbar (>= 768px) */}
+          <div className="h-10 hidden md:flex items-center px-4 gap-4 text-sm">
+            <button
+              onClick={() => shiftView(-7)}
+              className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
             >
-              {hasActiveShift ? `${teamName} · ${shiftLabel}` : '—'}
-            </span>
+              &laquo; 7d
+            </button>
+            <button
+              onClick={() => shiftView(-1)}
+              className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
+            >
+              &lsaquo; 1d
+            </button>
+            <button
+              onClick={resetView}
+              className="px-3 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50 font-medium"
+            >
+              Today
+            </button>
+            <button
+              onClick={() => shiftView(1)}
+              className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
+            >
+              1d &rsaquo;
+            </button>
+            <button
+              onClick={() => shiftView(7)}
+              className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
+            >
+              7d &raquo;
+            </button>
+
+            <div className="flex-1" />
+
+            {/* Night View toggle */}
+            <button
+              type="button"
+              onClick={toggleNightMode}
+              className={`wallboard-night-toggle inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-colors ${
+                nightMode
+                  ? 'border-amber-400/40 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                  : 'border-indigo-300/40 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+              }`}
+              aria-label={nightMode ? 'Switch to Day View' : 'Switch to Night View'}
+              title={nightMode ? 'Switch to Day View' : 'Switch to Night View'}
+            >
+              <span aria-hidden="true">{nightMode ? '\u2600' : '\uD83C\uDF19'}</span>
+              {nightMode ? 'Day' : 'Night'}
+            </button>
+
+            {/* Fullscreen enter button */}
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="inline-flex items-center justify-center rounded border border-[var(--pp-border)] p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+              aria-label="Enter Fullscreen"
+              title="Enter Fullscreen"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 3 21 3 21 9" />
+                <polyline points="9 21 3 21 3 15" />
+                <line x1="21" y1="3" x2="14" y2="10" />
+                <line x1="3" y1="21" x2="10" y2="14" />
+              </svg>
+            </button>
+
+            {/* Current shift indicator */}
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-[var(--pp-muted)]">Shift:</span>
+              <span
+                className="px-2 py-0.5 rounded font-bold"
+                style={{
+                  backgroundColor: hasActiveShift ? `${teamColor}20` : '#F3F4F6',
+                  color: hasActiveShift ? (teamIdx === 3 ? '#997700' : teamColor) : '#6B7280',
+                  border: hasActiveShift ? `1px solid ${teamColor}40` : '1px solid #D1D5DB',
+                  boxShadow: hasActiveShift ? `0 0 0 1px ${teamColor}22` : 'none',
+                }}
+              >
+                {hasActiveShift ? `${teamName} · ${shiftLabel}` : '—'}
+              </span>
+            </div>
+
+            {/* Wallboard Display settings — gear icon */}
+            <button
+              type="button"
+              onClick={() => setShowDisplaySettings(true)}
+              className="inline-flex items-center justify-center rounded border border-[var(--pp-border)] p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+              aria-label="Wallboard Display Settings"
+              title="Wallboard Display Settings"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
           </div>
 
-          {/* Wallboard Display settings — gear icon */}
-          <button
-            type="button"
-            onClick={() => setShowDisplaySettings(true)}
-            className="inline-flex items-center justify-center rounded border border-[var(--pp-border)] p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-            aria-label="Wallboard Display Settings"
-            title="Wallboard Display Settings"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </button>
+          {/* Mobile toolbar (< 768px) */}
+          <div className="h-10 flex md:hidden items-center px-4 gap-3 text-sm">
+            <button
+              ref={wbMobileToggleRef}
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded border border-[var(--pp-border)] px-3 py-1.5 text-sm font-medium text-[var(--pp-pharma)] hover:bg-slate-50"
+              onClick={() => setWbMobileOpen((v) => !v)}
+              aria-label="Toggle wallboard controls"
+              aria-expanded={wbMobileOpen}
+              aria-controls="wallboard-mobile-panel"
+            >
+              <span aria-hidden="true" className="text-base leading-none">&#9776;</span>
+              Controls
+            </button>
+            <button
+              onClick={resetView}
+              className="px-3 py-1.5 border border-[var(--pp-border)] rounded text-sm font-medium hover:bg-gray-50"
+            >
+              Today
+            </button>
+            <div className="flex-1" />
+            <div className="flex items-center gap-1 text-xs">
+              <span
+                className="px-2 py-0.5 rounded font-bold"
+                style={{
+                  backgroundColor: hasActiveShift ? `${teamColor}20` : '#F3F4F6',
+                  color: hasActiveShift ? (teamIdx === 3 ? '#997700' : teamColor) : '#6B7280',
+                  border: hasActiveShift ? `1px solid ${teamColor}40` : '1px solid #D1D5DB',
+                }}
+              >
+                {hasActiveShift ? teamName : '—'}
+              </span>
+            </div>
+          </div>
+
+          {/* Mobile dropdown panel */}
+          {wbMobileOpen && (
+            <div
+              id="wallboard-mobile-panel"
+              ref={wbMobileMenuRef}
+              className="wallboard-mobile-panel md:hidden"
+              role="region"
+              aria-label="Wallboard controls"
+            >
+              {/* Navigation */}
+              <div className="wallboard-mobile-section">
+                <div className="text-xs font-medium text-[var(--pp-muted)] uppercase tracking-wide mb-2">Navigation</div>
+                <div className="flex items-center gap-2">
+                  <button className="wallboard-mobile-btn flex-1" onClick={() => { shiftView(-7); closeWbMobile(); }}>&laquo; 7d</button>
+                  <button className="wallboard-mobile-btn flex-1" onClick={() => { shiftView(-1); closeWbMobile(); }}>&lsaquo; 1d</button>
+                  <button className="wallboard-mobile-btn flex-1 font-medium" onClick={() => { resetView(); closeWbMobile(); }}>Today</button>
+                  <button className="wallboard-mobile-btn flex-1" onClick={() => { shiftView(1); closeWbMobile(); }}>1d &rsaquo;</button>
+                  <button className="wallboard-mobile-btn flex-1" onClick={() => { shiftView(7); closeWbMobile(); }}>7d &raquo;</button>
+                </div>
+              </div>
+
+              {/* Display */}
+              <div className="wallboard-mobile-section">
+                <div className="text-xs font-medium text-[var(--pp-muted)] uppercase tracking-wide mb-2">Display</div>
+                <div className="flex flex-col gap-2">
+                  <button
+                    className="wallboard-mobile-action"
+                    onClick={() => { toggleNightMode(); closeWbMobile(); }}
+                  >
+                    <span aria-hidden="true">{nightMode ? '\u2600' : '\uD83C\uDF19'}</span>
+                    {nightMode ? 'Switch to Day View' : 'Switch to Night View'}
+                  </button>
+                  <button
+                    className="wallboard-mobile-action"
+                    onClick={() => { toggleFullscreen(); closeWbMobile(); }}
+                  >
+                    Fullscreen
+                  </button>
+                  <button
+                    className="wallboard-mobile-action"
+                    onClick={() => { setShowDisplaySettings(true); closeWbMobile(); }}
+                  >
+                    Display Settings
+                  </button>
+                </div>
+              </div>
+
+              {/* Shift info */}
+              <div className="wallboard-mobile-section border-b-0 pb-0">
+                <div className="text-xs font-medium text-[var(--pp-muted)] uppercase tracking-wide mb-2">Current Shift</div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span
+                    className="px-3 py-1.5 rounded font-bold"
+                    style={{
+                      backgroundColor: hasActiveShift ? `${teamColor}20` : '#F3F4F6',
+                      color: hasActiveShift ? (teamIdx === 3 ? '#997700' : teamColor) : '#6B7280',
+                      border: hasActiveShift ? `1px solid ${teamColor}40` : '1px solid #D1D5DB',
+                    }}
+                  >
+                    {hasActiveShift ? `${teamName} · ${shiftLabel}` : 'No active shift'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
