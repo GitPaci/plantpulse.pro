@@ -218,6 +218,49 @@ export default function PlannerPage() {
   const [chainEditorChainId, setChainEditorChainId] = useState<string | null>(null);
   const [equipmentSetupFocusSection, setEquipmentSetupFocusSection] = useState<string | null>(null);
 
+  // Mobile state
+  const [plannerMobileOpen, setPlannerMobileOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const plannerMobileMenuRef = useRef<HTMLDivElement>(null);
+  const plannerMobileToggleRef = useRef<HTMLButtonElement>(null);
+
+  const closePlannerMobile = useCallback(() => setPlannerMobileOpen(false), []);
+
+  // Close planner mobile menu on outside click or Escape
+  useEffect(() => {
+    if (!plannerMobileOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (
+        plannerMobileMenuRef.current && !plannerMobileMenuRef.current.contains(e.target as Node) &&
+        plannerMobileToggleRef.current && !plannerMobileToggleRef.current.contains(e.target as Node)
+      ) {
+        setPlannerMobileOpen(false);
+      }
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setPlannerMobileOpen(false);
+        plannerMobileToggleRef.current?.focus();
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [plannerMobileOpen]);
+
+  // Close sidebar drawer on Escape (mobile)
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    }
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [sidebarOpen]);
+
   // Import/export state
   const scheduleFileRef = useRef<HTMLInputElement>(null);
   const maintenanceFileRef = useRef<HTMLInputElement>(null);
@@ -499,43 +542,100 @@ export default function PlannerPage() {
       <Navigation />
 
       {/* Toolbar */}
-      <div className="h-10 bg-white border-b border-[var(--pp-border)] flex items-center px-4 gap-4 text-sm shrink-0">
-        <button
-          onClick={() => shiftView(-7)}
-          className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
-        >
-          &laquo; 7d
-        </button>
-        <button
-          onClick={() => shiftView(-1)}
-          className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
-        >
-          &lsaquo; 1d
-        </button>
-        <button
-          onClick={resetView}
-          className="px-3 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50 font-medium"
-        >
-          Today
-        </button>
-        <button
-          onClick={() => shiftView(1)}
-          className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
-        >
-          1d &rsaquo;
-        </button>
-        <button
-          onClick={() => shiftView(7)}
-          className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
-        >
-          7d &raquo;
-        </button>
+      <div className="bg-white border-b border-[var(--pp-border)] shrink-0 relative">
+        {/* Desktop toolbar (>= 768px) */}
+        <div className="h-10 hidden md:flex items-center px-4 gap-4 text-sm">
+          <button
+            onClick={() => shiftView(-7)}
+            className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
+          >
+            &laquo; 7d
+          </button>
+          <button
+            onClick={() => shiftView(-1)}
+            className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
+          >
+            &lsaquo; 1d
+          </button>
+          <button
+            onClick={resetView}
+            className="px-3 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50 font-medium"
+          >
+            Today
+          </button>
+          <button
+            onClick={() => shiftView(1)}
+            className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
+          >
+            1d &rsaquo;
+          </button>
+          <button
+            onClick={() => shiftView(7)}
+            className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
+          >
+            7d &raquo;
+          </button>
 
-        <div className="flex-1" />
+          <div className="flex-1" />
 
-        <span className="text-xs text-[var(--pp-muted)]">
-          {batchChains.length} chains &middot; {stages.length} stages
-        </span>
+          <span className="text-xs text-[var(--pp-muted)]">
+            {batchChains.length} chains &middot; {stages.length} stages
+          </span>
+        </div>
+
+        {/* Mobile toolbar (< 768px) */}
+        <div className="h-10 flex md:hidden items-center px-4 gap-3 text-sm">
+          <button
+            ref={plannerMobileToggleRef}
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded border border-[var(--pp-border)] px-3 py-1.5 text-sm font-medium text-[var(--pp-pharma)] hover:bg-slate-50"
+            onClick={() => setPlannerMobileOpen((v) => !v)}
+            aria-label="Toggle planner controls"
+            aria-expanded={plannerMobileOpen}
+            aria-controls="planner-mobile-panel"
+          >
+            <span aria-hidden="true" className="text-base leading-none">&#9776;</span>
+            Controls
+          </button>
+          <button
+            onClick={resetView}
+            className="px-3 py-1.5 border border-[var(--pp-border)] rounded text-sm font-medium hover:bg-gray-50"
+          >
+            Today
+          </button>
+          <div className="flex-1" />
+          <span className="text-xs text-[var(--pp-muted)]">
+            {batchChains.length} chains
+          </span>
+        </div>
+
+        {/* Mobile dropdown panel */}
+        {plannerMobileOpen && (
+          <div
+            id="planner-mobile-panel"
+            ref={plannerMobileMenuRef}
+            className="planner-mobile-panel md:hidden"
+            role="region"
+            aria-label="Planner controls"
+          >
+            <div className="planner-mobile-section">
+              <div className="text-xs font-medium text-[var(--pp-muted)] uppercase tracking-wide mb-2">Navigation</div>
+              <div className="flex items-center gap-2">
+                <button className="planner-mobile-btn flex-1" onClick={() => { shiftView(-7); closePlannerMobile(); }}>&laquo; 7d</button>
+                <button className="planner-mobile-btn flex-1" onClick={() => { shiftView(-1); closePlannerMobile(); }}>&lsaquo; 1d</button>
+                <button className="planner-mobile-btn flex-1 font-medium" onClick={() => { resetView(); closePlannerMobile(); }}>Today</button>
+                <button className="planner-mobile-btn flex-1" onClick={() => { shiftView(1); closePlannerMobile(); }}>1d &rsaquo;</button>
+                <button className="planner-mobile-btn flex-1" onClick={() => { shiftView(7); closePlannerMobile(); }}>7d &raquo;</button>
+              </div>
+            </div>
+            <div className="planner-mobile-section border-b-0 pb-0">
+              <div className="text-xs font-medium text-[var(--pp-muted)] uppercase tracking-wide mb-2">Stats</div>
+              <span className="text-sm text-[var(--pp-muted)]">
+                {batchChains.length} chains &middot; {stages.length} stages
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main content: timeline + sidebar */}
@@ -565,8 +665,11 @@ export default function PlannerPage() {
           </div>
         </div>
 
+        {/* Sidebar backdrop (mobile only) */}
+        {sidebarOpen && <div className="planner-sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
+
         {/* Planning sidebar */}
-        <div className="planner-sidebar">
+        <div className={`planner-sidebar ${sidebarOpen ? 'planner-sidebar-open' : ''}`}>
           <div className="planner-sidebar-header">
             <h3>Planning Tools</h3>
           </div>
@@ -650,6 +753,19 @@ export default function PlannerPage() {
           </div>
         </div>
       </div>
+
+      {/* Mobile FAB to open sidebar */}
+      <button
+        type="button"
+        className="planner-fab"
+        onClick={() => setSidebarOpen(true)}
+        aria-label="Open Planning Tools"
+        title="Planning Tools"
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+        </svg>
+      </button>
 
       {/* Modals */}
       <EquipmentSetup
