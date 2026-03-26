@@ -331,7 +331,7 @@ body {
 /* Planner mobile — sidebar drawer + FAB */
 @media (max-width: 767px) {
   .planner-sidebar {
-    display: none;
+    display: none !important;
   }
   .planner-sidebar-open {
     display: flex !important;
