@@ -249,6 +249,22 @@ The landing page needs to convert visitors into waitlist signups.
 
 ---
 
+## Recently Completed (this session)
+
+Items shipped and closed since the last major doc update.
+
+| # | Item | Notes |
+|---|------|-------|
+| 1 | **Browser favicon** | `src/app/icon.svg` — workflow icon (serpentine arrows + rounded rectangles), blue `#2B5CE6` on light-grey `#F1F2F7`; linked via `icons` metadata in `app/layout.tsx` |
+| 2 | **Import Schedule — Product Line assignment** | "Create" resolution section in the Import dialog now includes a Product Line dropdown alongside the existing Group dropdown; new machines are created with the selected product line at import time |
+| 3 | **Canvas row ordering fix (import)** | After import, newly created machines (e.g. assigned to `inoculum`) now sort correctly at the top of the canvas. Root cause: `displayOrder` placed new machines after fermenters. Fix: two-key sort (equipment group `displayOrder` first, then machine `displayOrder`) in the re-derive block inside `handleImportConfirm` in `app/planner/page.tsx` |
+| 4 | **Canvas row ordering fix (Equipment Setup save)** | Same two-key sort applied inside `buildDisplayGroups()` in `EquipmentSetup.tsx` so reassigning a machine to a product line via Equipment Setup → Save also produces correct ordering |
+| 5 | **Vector PDF export** | `src/utils/exportSchedulePdfVector.ts` — fully vector jsPDF renderer; output is sharp at any print scale. Hidden off-screen `WallboardCanvas` div and associated constants removed from `inoculum/page.tsx` |
+| 6 | **Multi-page PDF** | Vector renderer automatically splits rows across A4 landscape pages when machine count exceeds one page height. Each page repeats the date header and footer with "Page N of M" numbering |
+| 7 | **Month abbreviation removed from PDF** | Redundant "Mar" abbreviation in the grid's top-left corner was removed; month is shown once in the page title ("March 2026") |
+
+---
+
 ## Remaining Open Items (Free MVP)
 
 Items that are implemented conceptually but have pending polish or wiring work.
@@ -428,64 +444,42 @@ Drag-to-move / stretch-to-resize (done)
 | Click machine label → Equipment Setup | Done | `onMachineLabelClick` callback with left-column hit-testing; opens Equipment Setup in edit mode for that machine |
 | Click shift band → Shift Schedule modal | Done | `onShiftBandClick` callback with top-strip hit-testing; opens Shift Schedule configuration modal |
 | Rotating biotech demo product catalog | Done | 20-product catalog in `lib/demo-data.ts` with daily-rotating seeded shuffle; product line shortName limited to 3 chars; Naming tab auto-defaults prefix from shortName |
-| Smart machine resolution during import | Done | Unknown machines in Excel import get guided resolution UI: Create (with group auto-suggestion), Map to existing (fuzzy match), or Skip; prefix-based bulk actions; see `docs/plans/smart-machine-resolution-import.md` |
+| Smart machine resolution during import | Done | Unknown machines in Excel import get guided resolution UI: Create (with group + product line assignment), Map to existing (fuzzy match), or Skip; prefix-based bulk actions; see `docs/plans/smart-machine-resolution-import.md` |
 | Planning horizon extension in wizard | Done | New Batch Chain wizard shows extended planning horizon for better visibility |
 
 ---
 
-## PDF Export Gaps
+## PDF Export
 
-The Schedule PDF export uses a dual-canvas architecture: a visible responsive
-canvas for on-screen display and a hidden fixed-size canvas (1122×794 px) for
-deterministic A4 capture. The export uses direct `canvas.toDataURL()` (not
-`html2canvas`), which is the correct approach for native `<canvas>` elements.
+The Schedule PDF export is fully vector — no canvas capture, no bitmap, no hidden
+off-screen render surface. Output is sharp at any print scale or paper size.
 
-### Gap 1: `visibility: hidden` container — ~~blank PDF body~~ FIXED
+### Architecture (current)
 
-**Status:** Fixed
+- **Renderer:** `src/utils/exportSchedulePdfVector.ts` — writes directly to jsPDF
+  drawing primitives (`rect`, `line`, `text`, `roundedRect`, etc.)
+- **Data source:** Reads directly from the Zustand store — no canvas element needed
+- **A4 landscape, multi-page:** when machine rows exceed the available page height,
+  rows are automatically split across pages. Each page repeats the full date header
+  (day numbers + weekend/holiday colouring) and a footer (version, timestamp, page
+  numbers)
+- **Layout constants** mirror `WallboardCanvas.tsx` exactly so PDF output matches
+  the on-screen view
+- **Reused functions:** `stageBarPosition()`, `pixelsPerDay()` from `lib/timeline-math.ts`;
+  `getWallboardBorderColor()` from `lib/colors.ts`; `isHoliday()`, `isWeekend()`,
+  `isSunday()` from `lib/holidays.ts`; `loadPrintSettings()`, `formatExportTimestamp()`
+  from `exportSchedulePdf.ts`
+- **Privacy:** browser-local only, zero network calls, no cookies, works fully offline
 
-The hidden export canvas container previously used `visibility: hidden`, which
-could cause `ResizeObserver` to report zero dimensions in some browsers (the
-draw function early-returns when `dims.width === 0`).
+### Previously documented gaps — all superseded
 
-**Fix applied:** Changed from `visibility: hidden` to `opacity: 0; overflow: hidden`
-so the container remains "visible" in the CSS layout sense but invisible to the
-user. Combined with existing `pointer-events: none` and `left: -99999px`.
+The previous dual-canvas architecture (visible canvas + hidden fixed-size canvas for
+deterministic capture) and all gaps associated with it are no longer relevant:
 
-Note: The export already uses `canvas.toDataURL()` (not `html2canvas`), so the
-original `html2canvas` concern documented here was not applicable. The
-`visibility: hidden` fix addresses only the `ResizeObserver` edge case.
+| # | Old gap | Resolution |
+|---|---------|------------|
+| 1 | `visibility: hidden` → `ResizeObserver` zero-dim edge case | Entire hidden canvas removed |
+| 2 | DPR double-scaling / excess memory | Not applicable — vector renderer has no raster capture |
+| 3 | 60-second redraw timer on hidden canvas | Hidden canvas removed; no unnecessary CPU work |
+| 4 | Duplicate `loadDemoData()` calls | Was already fixed; `loadDemoData()` called at page level only |
 
-### Gap 2: DPR double-scaling — ~~excessive memory~~ NOT APPLICABLE
-
-**Status:** Not applicable
-
-The export uses `canvas.toDataURL()` directly, not `html2canvas`. There is no
-secondary scaling — the canvas buffer is captured as-is. The DPR scaling applied
-by WallboardCanvas for display sharpness produces appropriate resolution for
-print output.
-
-### Gap 3: ~~Hidden canvas runs unnecessary 60-second redraw timer~~ FIXED
-
-**Status:** Fixed
-
-The 60-second `setInterval` for now-line refresh now checks `showNowLine` before
-setting up the interval. When `showNowLine={false}` (as on the export canvas),
-no interval is created — zero unnecessary CPU work on the off-screen surface.
-
-### Gap 4: ~~`loadDemoData()` called by both canvas instances~~ FIXED
-
-**Status:** Fixed
-
-`loadDemoData()` has been removed from WallboardCanvas and is now called only at
-the page level (inoculum, wallboard, and planner pages). This clarifies data
-ownership: pages own initialization, components own rendering.
-
-### Summary table
-
-| # | Gap | Status | Notes |
-|---|-----|--------|-------|
-| 1 | `visibility: hidden` → `opacity: 0` | Fixed | Prevents `ResizeObserver` zero-dim edge case |
-| 2 | DPR double-scaling | N/A | Export uses `toDataURL()`, no secondary scaling |
-| 3 | 60s timer on hidden canvas | Fixed | Interval skipped when `showNowLine={false}` |
-| 4 | Duplicate `loadDemoData()` calls | Fixed | Moved to page level only |
