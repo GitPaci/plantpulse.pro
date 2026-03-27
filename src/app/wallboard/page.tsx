@@ -14,6 +14,10 @@ import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { addDays, subHours, differenceInHours } from 'date-fns';
 import type { MachineDisplayGroup } from '@/lib/types';
 
+const ZOOM_LEVELS = [5, 7, 10, 14, 21, 30];
+const ZOOM_DEFAULT_DESKTOP = 4; // 21d
+const ZOOM_DEFAULT_MOBILE = 2;  // 10d
+
 export default function WallboardPage() {
   const viewConfig = usePlantPulseStore((s) => s.viewConfig);
   const setViewConfig = usePlantPulseStore((s) => s.setViewConfig);
@@ -48,11 +52,19 @@ export default function WallboardPage() {
       .filter((dg) => dg.machineIds.length > 0);
   }, [machineGroups, machines, wallboardEquipmentGroups]);
 
-  const ZOOM_LEVELS = [5, 7, 10, 14, 21, 30];
   const [zoomIdx, setZoomIdx] = useState(() => {
     const idx = ZOOM_LEVELS.indexOf(viewConfig.numberOfDays);
-    return idx !== -1 ? idx : 4; // default to 21d (index 4)
+    return idx !== -1 ? idx : ZOOM_DEFAULT_DESKTOP;
   });
+
+  // On mobile, default to 10d for better clarity
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      setZoomIdx(ZOOM_DEFAULT_MOBILE);
+      setViewConfig({ numberOfDays: ZOOM_LEVELS[ZOOM_DEFAULT_MOBILE] });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function applyZoom(newIdx: number) {
     const newDays = ZOOM_LEVELS[newIdx];

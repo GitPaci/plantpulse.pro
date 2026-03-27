@@ -28,6 +28,10 @@ import {
 import { subDays, addDays, startOfDay, differenceInDays, format } from 'date-fns';
 import { useState, useCallback, useRef, useEffect } from 'react';
 
+const ZOOM_LEVELS = [5, 7, 10, 14, 21, 30];
+const ZOOM_DEFAULT_DESKTOP = 4; // 21d
+const ZOOM_DEFAULT_MOBILE = 2;  // 10d
+
 // ─── Inline SVG icons (16×16, stroke-based) ───────────────────────────
 
 function IconPlus() {
@@ -222,11 +226,19 @@ export default function PlannerPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Zoom controls
-  const ZOOM_LEVELS = [5, 7, 10, 14, 21, 30];
   const [zoomIdx, setZoomIdx] = useState(() => {
     const idx = ZOOM_LEVELS.indexOf(viewConfig.numberOfDays);
-    return idx !== -1 ? idx : 4; // default to 21d (index 4)
+    return idx !== -1 ? idx : ZOOM_DEFAULT_DESKTOP;
   });
+
+  // On mobile, default to 10d for better clarity
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      setZoomIdx(ZOOM_DEFAULT_MOBILE);
+      setViewConfig({ numberOfDays: ZOOM_LEVELS[ZOOM_DEFAULT_MOBILE] });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function applyZoom(newIdx: number) {
     const newDays = ZOOM_LEVELS[newIdx];
