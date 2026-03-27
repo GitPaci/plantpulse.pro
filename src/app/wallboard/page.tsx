@@ -11,7 +11,7 @@ import { usePlantPulseStore } from '@/lib/store';
 import { currentShiftTeam } from '@/lib/shift-rotation';
 import { useNightMode } from '@/lib/useNightMode';
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { addDays } from 'date-fns';
+import { addDays, subHours, differenceInHours } from 'date-fns';
 import type { MachineDisplayGroup } from '@/lib/types';
 
 export default function WallboardPage() {
@@ -47,6 +47,23 @@ export default function WallboardPage() {
       }))
       .filter((dg) => dg.machineIds.length > 0);
   }, [machineGroups, machines, wallboardEquipmentGroups]);
+
+  const ZOOM_LEVELS = [5, 7, 10, 14, 21, 30];
+  const [zoomIdx, setZoomIdx] = useState(() => {
+    const idx = ZOOM_LEVELS.indexOf(viewConfig.numberOfDays);
+    return idx !== -1 ? idx : 4; // default to 21d (index 4)
+  });
+
+  function applyZoom(newIdx: number) {
+    const newDays = ZOOM_LEVELS[newIdx];
+    const currentDays = viewConfig.numberOfDays;
+    const now = new Date();
+    const hoursFromStart = differenceInHours(now, viewConfig.viewStart);
+    const fracPos = hoursFromStart / (currentDays * 24);
+    const newViewStart = subHours(now, fracPos * newDays * 24);
+    setViewConfig({ viewStart: newViewStart, numberOfDays: newDays });
+    setZoomIdx(newIdx);
+  }
 
   const [now, setNow] = useState(() => new Date());
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -178,6 +195,25 @@ export default function WallboardPage() {
               7d &raquo;
             </button>
 
+            {/* Zoom controls */}
+            <div className="flex items-center gap-1 border-l border-[var(--pp-border)] pl-4">
+              <button
+                onClick={() => applyZoom(zoomIdx - 1)}
+                disabled={zoomIdx === 0}
+                className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Zoom in (fewer days)"
+              >+</button>
+              <span className="text-xs text-[var(--pp-muted)] min-w-[2.5rem] text-center">
+                {ZOOM_LEVELS[zoomIdx]}d
+              </span>
+              <button
+                onClick={() => applyZoom(zoomIdx + 1)}
+                disabled={zoomIdx === ZOOM_LEVELS.length - 1}
+                className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Zoom out (more days)"
+              >−</button>
+            </div>
+
             <div className="flex-1" />
 
             {/* Night View toggle */}
@@ -296,6 +332,19 @@ export default function WallboardPage() {
                   <button className="wallboard-mobile-btn flex-1 font-medium" onClick={() => { resetView(); closeWbMobile(); }}>Today</button>
                   <button className="wallboard-mobile-btn flex-1" onClick={() => { shiftView(1); closeWbMobile(); }}>1d &rsaquo;</button>
                   <button className="wallboard-mobile-btn flex-1" onClick={() => { shiftView(7); closeWbMobile(); }}>7d &raquo;</button>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <button
+                    className="wallboard-mobile-btn flex-1"
+                    disabled={zoomIdx === 0}
+                    onClick={() => applyZoom(zoomIdx - 1)}
+                  >+ Zoom in</button>
+                  <span className="text-xs text-[var(--pp-muted)] min-w-[3rem] text-center">{ZOOM_LEVELS[zoomIdx]}d</span>
+                  <button
+                    className="wallboard-mobile-btn flex-1"
+                    disabled={zoomIdx === ZOOM_LEVELS.length - 1}
+                    onClick={() => applyZoom(zoomIdx + 1)}
+                  >− Zoom out</button>
                 </div>
               </div>
 

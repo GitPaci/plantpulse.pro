@@ -221,6 +221,22 @@ export default function PlannerPage() {
   // Sidebar visibility
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  // Zoom controls
+  const ZOOM_LEVELS = [5, 7, 10, 14, 21, 30];
+  const [zoomIdx, setZoomIdx] = useState(() => {
+    const idx = ZOOM_LEVELS.indexOf(viewConfig.numberOfDays);
+    return idx !== -1 ? idx : 4; // default to 21d (index 4)
+  });
+
+  function applyZoom(newIdx: number) {
+    const newDays = ZOOM_LEVELS[newIdx];
+    const currentDays = viewConfig.numberOfDays;
+    const centerMs = viewConfig.viewStart.getTime() + (currentDays / 2) * 24 * 3600 * 1000;
+    const newViewStart = new Date(centerMs - (newDays / 2) * 24 * 3600 * 1000);
+    setViewConfig({ viewStart: newViewStart, numberOfDays: newDays });
+    setZoomIdx(newIdx);
+  }
+
   // Mobile state
   const [plannerMobileOpen, setPlannerMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -579,6 +595,25 @@ export default function PlannerPage() {
             7d &raquo;
           </button>
 
+          {/* Zoom controls */}
+          <div className="flex items-center gap-1 border-l border-[var(--pp-border)] pl-4">
+            <button
+              onClick={() => applyZoom(zoomIdx - 1)}
+              disabled={zoomIdx === 0}
+              className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Zoom in (fewer days)"
+            >+</button>
+            <span className="text-xs text-[var(--pp-muted)] min-w-[2.5rem] text-center">
+              {ZOOM_LEVELS[zoomIdx]}d
+            </span>
+            <button
+              onClick={() => applyZoom(zoomIdx + 1)}
+              disabled={zoomIdx === ZOOM_LEVELS.length - 1}
+              className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Zoom out (more days)"
+            >−</button>
+          </div>
+
           <div className="flex-1" />
 
           <span className="text-xs text-[var(--pp-muted)]">
@@ -656,6 +691,19 @@ export default function PlannerPage() {
                 <button className="planner-mobile-btn flex-1 font-medium" onClick={() => { resetView(); closePlannerMobile(); }}>Today</button>
                 <button className="planner-mobile-btn flex-1" onClick={() => { shiftView(1); closePlannerMobile(); }}>1d &rsaquo;</button>
                 <button className="planner-mobile-btn flex-1" onClick={() => { shiftView(7); closePlannerMobile(); }}>7d &raquo;</button>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  className="planner-mobile-btn flex-1"
+                  disabled={zoomIdx === 0}
+                  onClick={() => applyZoom(zoomIdx - 1)}
+                >+ Zoom in</button>
+                <span className="text-xs text-[var(--pp-muted)] min-w-[3rem] text-center">{ZOOM_LEVELS[zoomIdx]}d</span>
+                <button
+                  className="planner-mobile-btn flex-1"
+                  disabled={zoomIdx === ZOOM_LEVELS.length - 1}
+                  onClick={() => applyZoom(zoomIdx + 1)}
+                >− Zoom out</button>
               </div>
             </div>
             <div className="planner-mobile-section border-b-0 pb-0">
