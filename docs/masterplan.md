@@ -1,5 +1,7 @@
 # PlantPulse Scheduler — Masterplan
 
+> Strategic EBM hierarchy (Vision, Mission, Goals) lives in `docs/vision-mission-goals.md`. This masterplan focuses on product structure, operating rules, and implementation direction.
+
 ## 30-Second Elevator Pitch
 
 PlantPulse Scheduler is a manufacturing wallboard + planning web app that preserves spatial time cognition (like your PowerPoint board) while adding governed planning (draft → propose → approve/commit), shift ownership visibility, maintenance coordination, and GxP-ready audit integrity.

@@ -116,6 +116,7 @@ plantpulse.pro/
 
 | Document | Description |
 |----------|-------------|
+| [Vision, Mission & Goals (EBM)](docs/vision-mission-goals.md) | Product direction hierarchy for Evidence-Based Management: long-term vision, mission fit, measurable goals |
 | [CLAUDE.md](CLAUDE.md) | Full development guide: legacy VBA analysis, extracted business rules, data model, algorithms, color palettes, glossary |
 | [Masterplan](docs/masterplan.md) | Product vision, editions, roles, data model, operating rules, GxP direction |
 | [App Flow & Roles](docs/app-flow-pages-and-roles.md) | Site map, role-based access, primary user journeys |
@@ -127,6 +128,14 @@ plantpulse.pro/
 | [Smart Machine Resolution Plan](docs/plans/smart-machine-resolution-import.md) | Implemented: guided resolution for unknown machines during Excel import |
 | [Code of Conduct](CODE_OF_CONDUCT.md) | Community standards, enterprise governance, GxP-aligned conduct principles |
 | [Security Policy](SECURITY.md) | Vulnerability reporting and security practices |
+
+## EBM Placement Recommendation
+
+If you are preparing for PSPO I or applying Evidence-Based Management in PlantPulse:
+
+- Keep **Vision, Mission, and Goals** in a dedicated strategy document: `docs/vision-mission-goals.md`.
+- Keep the **product and architecture detail** in `docs/masterplan.md`.
+- Link the two documents so strategic intent stays connected to implementation choices.
 
 ## Security
 
