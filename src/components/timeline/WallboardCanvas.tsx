@@ -1155,10 +1155,11 @@ export default function WallboardCanvas({
     if (showDowntime && downtimeWindows.length > 0) {
       drawDowntimeBlocks(ctx, downtimeWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     }
+    drawBatchBars(ctx, visibleStages, batchSeriesMap, batchLabelMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
+    // Checkpoint markers drawn on top of batch bars so they remain visible
     if (showCheckpoints && checkpointWindows.length > 0) {
       drawCheckpointMarkers(ctx, checkpointWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     }
-    drawBatchBars(ctx, visibleStages, batchSeriesMap, batchLabelMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     // Shutdown crossing indicators — amber triangles on bars that span shutdown boundaries
     if (showShutdownCrossing && shutdownPeriods.length > 0) {
       drawShutdownCrossingIndicators(ctx, visibleStages, shutdownPeriods, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
