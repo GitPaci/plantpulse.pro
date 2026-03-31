@@ -353,7 +353,7 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
       plannedDatetime: new Date(),
       startHour: 8,
       startMinute: 0,
-      notifyShift: false,
+      notifyShift: true,
     };
     setDraftMachines((prev) =>
       prev.map((m) => {

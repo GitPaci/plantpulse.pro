@@ -970,8 +970,10 @@ interface WallboardCanvasProps {
   showHoldRisk?: boolean;
   /** Show "PLANT SHUTDOWN" text label across shutdown day columns (Wallboard). */
   showShutdownLabels?: boolean;
-  /** When true, draws checkpoint task markers/blocks on the timeline (Planner only). */
+  /** When true, draws checkpoint task markers on the timeline. */
   showCheckpoints?: boolean;
+  /** When true, only show checkpoints with notifyShift enabled (Wallboard mode). */
+  checkpointNotifyOnly?: boolean;
   /** Called when a checkpoint marker is clicked — Planner uses this to open Equipment Setup checkpoints. */
   onCheckpointClick?: (machineId: string, defId: string) => void;
 }
@@ -995,6 +997,7 @@ export default function WallboardCanvas({
   showHoldRisk = false,
   showShutdownLabels = false,
   showCheckpoints = false,
+  checkpointNotifyOnly = false,
   onCheckpointClick,
 }: WallboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -1102,7 +1105,8 @@ export default function WallboardCanvas({
     return map;
   }, [machines]);
 
-  // Precompute checkpoint windows for visible machines (Planner only)
+  // Precompute checkpoint windows for visible machines
+  // checkpointNotifyOnly: Wallboard only shows checkpoints with notifyShift enabled
   const checkpointWindows = useMemo(() => {
     if (!showCheckpoints) return [];
     const rangeStart = viewConfig.viewStart;
@@ -1111,11 +1115,14 @@ export default function WallboardCanvas({
     for (const m of machines) {
       if (!visibleMachineIds.has(m.id)) continue;
       const mWins = collectCheckpointWindows(m, rangeStart, rangeEnd);
-      for (const w of mWins) wins.push(w);
+      for (const w of mWins) {
+        if (checkpointNotifyOnly && !w.notifyShift) continue;
+        wins.push(w);
+      }
     }
     return wins;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showCheckpoints, machines, viewConfig.viewStart, viewConfig.numberOfDays, visibleMachineIds]);
+  }, [showCheckpoints, checkpointNotifyOnly, machines, viewConfig.viewStart, viewConfig.numberOfDays, visibleMachineIds]);
 
   // Calculate total canvas height
   const lastRow = rows[rows.length - 1];
