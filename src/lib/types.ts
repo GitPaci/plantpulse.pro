@@ -90,10 +90,8 @@ export interface MachineCheckpointDef {
   dayOfMonth?: number;             // 1–31 (monthly)
   startHour: number;               // 0–23
   startMinute: number;             // 0–59
-  durationHours: number;           // 0 = point-in-time marker; >0 = time block
   startDate?: Date;                // recurrence validity start
   endDate?: Date;                  // undefined = indefinite
-  blocksPlanning?: boolean;        // default false (checkpoints rarely block scheduling)
   notifyShift?: boolean;           // default false
 }
 
@@ -338,15 +336,13 @@ export function collectDowntimeWindows(
 
 // ─── Checkpoint window expansion (for timeline visualization) ──────
 
-/** A concrete checkpoint window resolved from a MachineCheckpointDef. */
+/** A concrete checkpoint marker resolved from a MachineCheckpointDef. */
 export interface CheckpointWindow {
   machineId: string;
   defId: string;              // MachineCheckpointDef.id for click-to-edit
   name: string;
   description?: string;
-  start: Date;
-  end: Date;                  // same as start if durationHours === 0
-  blocksPlanning: boolean;
+  start: Date;                // point-in-time marker
   notifyShift: boolean;
 }
 
@@ -354,16 +350,13 @@ export interface CheckpointWindow {
 export function isCheckpointDefExpired(def: MachineCheckpointDef): boolean {
   if (def.recurrenceType === 'none') {
     if (!def.plannedDatetime) return false;
-    const end = def.durationHours > 0
-      ? new Date(def.plannedDatetime.getTime() + def.durationHours * 3600000)
-      : def.plannedDatetime;
-    return end < new Date();
+    return def.plannedDatetime < new Date();
   }
   if (!def.endDate) return false;
   return def.endDate < new Date();
 }
 
-/** Expand a checkpoint definition into concrete windows within a date range. */
+/** Expand a checkpoint definition into concrete markers within a date range. */
 export function collectCheckpointWindows(
   machine: Machine,
   rangeStart: Date,
@@ -376,19 +369,14 @@ export function collectCheckpointWindows(
     if (def.recurrenceType === 'none') {
       // One-time checkpoint
       if (!def.plannedDatetime) continue;
-      const start = def.plannedDatetime;
-      const end = def.durationHours > 0
-        ? new Date(start.getTime() + def.durationHours * 3600000)
-        : start;
-      if (start < rangeEnd && end > rangeStart) {
+      const t = def.plannedDatetime;
+      if (t >= rangeStart && t < rangeEnd) {
         windows.push({
           machineId: machine.id,
           defId: def.id,
           name: def.name,
           description: def.description,
-          start: start < rangeStart ? rangeStart : start,
-          end: end > rangeEnd ? rangeEnd : end,
-          blocksPlanning: def.blocksPlanning === true,
+          start: t,
           notifyShift: def.notifyShift === true,
         });
       }
@@ -421,20 +409,15 @@ export function collectCheckpointWindows(
         if (!matchesPattern) continue;
 
         const winStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), def.startHour, def.startMinute);
-        const winEnd = def.durationHours > 0
-          ? new Date(winStart.getTime() + def.durationHours * 3600000)
-          : winStart;
 
-        if (winEnd <= rangeStart || winStart >= rangeEnd) continue;
+        if (winStart < rangeStart || winStart >= rangeEnd) continue;
 
         windows.push({
           machineId: machine.id,
           defId: def.id,
           name: def.name,
           description: def.description,
-          start: winStart < rangeStart ? rangeStart : winStart,
-          end: winEnd > rangeEnd ? rangeEnd : winEnd,
-          blocksPlanning: def.blocksPlanning === true,
+          start: winStart,
           notifyShift: def.notifyShift === true,
         });
       }

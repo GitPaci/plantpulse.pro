@@ -78,8 +78,6 @@ interface CanvasTheme {
   notifyShiftArrow: string;
   shutdownCrossing: string;
   holdRisk: string;
-  checkpoint: string;
-  checkpointHatch: string;
   checkpointMarker: string;
 }
 
@@ -113,8 +111,6 @@ const DAY_THEME: CanvasTheme = {
   shutdownCrossing: '#D97706',
   holdRisk: '#DC2626',
   shutdownText: 'rgba(100, 100, 120, 0.55)',
-  checkpoint: 'rgba(13, 148, 136, 0.12)',
-  checkpointHatch: 'rgba(13, 148, 136, 0.25)',
   checkpointMarker: '#0d9488',
 };
 
@@ -148,8 +144,6 @@ const NIGHT_THEME: CanvasTheme = {
   shutdownCrossing: '#F59E0B',
   holdRisk: '#F87171',
   shutdownText: 'rgba(180, 180, 200, 0.45)',
-  checkpoint: 'rgba(13, 148, 136, 0.15)',
-  checkpointHatch: 'rgba(13, 148, 136, 0.30)',
   checkpointMarker: '#14b8a6',
 };
 
@@ -422,50 +416,25 @@ function drawCheckpointMarkers(
     const row = machineRowMap.get(win.machineId);
     if (!row) continue;
 
-    const pos = stageBarPosition(viewStart, win.start, win.end, width, LEFT_MARGIN, numDays);
+    const pos = stageBarPosition(viewStart, win.start, win.start, width, LEFT_MARGIN, numDays);
     if (pos.offScreen) continue;
 
-    const y = row.y;
-    const h = ROW_HEIGHT;
-
-    if (win.start.getTime() === win.end.getTime() || pos.width < 3) {
-      // Point-in-time marker — teal diamond
-      const cx = pos.left;
-      if (cx < LEFT_MARGIN) continue;
-      const cy = y + h / 2;
-      const size = 5;
-      ctx.fillStyle = theme.checkpointMarker;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy - size);
-      ctx.lineTo(cx + size, cy);
-      ctx.lineTo(cx, cy + size);
-      ctx.lineTo(cx - size, cy);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = theme.checkpointMarker;
-      ctx.lineWidth = 0.5;
-      ctx.stroke();
-    } else {
-      // Duration block — teal fill with vertical stripe pattern
-      ctx.fillStyle = theme.checkpoint;
-      ctx.fillRect(pos.left, y, pos.width, h);
-
-      // Vertical stripe hatch (distinct from downtime's diagonal hatch)
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(pos.left, y, pos.width, h);
-      ctx.clip();
-      ctx.strokeStyle = theme.checkpointHatch;
-      ctx.lineWidth = 0.5;
-      const step = 6;
-      for (let i = 0; i < pos.width + step; i += step) {
-        ctx.beginPath();
-        ctx.moveTo(pos.left + i, y);
-        ctx.lineTo(pos.left + i, y + h);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
+    // Point-in-time marker — teal diamond overlaid on timeline
+    const cx = pos.left;
+    if (cx < LEFT_MARGIN) continue;
+    const cy = row.y + ROW_HEIGHT / 2;
+    const size = 5;
+    ctx.fillStyle = theme.checkpointMarker;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - size);
+    ctx.lineTo(cx + size, cy);
+    ctx.lineTo(cx, cy + size);
+    ctx.lineTo(cx - size, cy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = theme.checkpointMarker;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
   }
 }
 
@@ -1339,29 +1308,19 @@ export default function WallboardCanvas({
         const pos = stageBarPosition(
           viewConfig.viewStart,
           win.start,
-          win.end,
+          win.start,
           dims.width,
           LEFT_MARGIN,
           viewConfig.numberOfDays
         );
         if (pos.offScreen) continue;
-        if (win.start.getTime() === win.end.getTime() || pos.width < 3) {
-          // Point marker: ±8px hit zone
-          if (
-            cssX >= pos.left - 8 &&
-            cssX <= pos.left + 8 &&
-            cssY >= row.y &&
-            cssY <= row.y + ROW_HEIGHT
-          ) return win;
-        } else {
-          // Duration block: full region
-          if (
-            cssX >= pos.left &&
-            cssX <= pos.left + pos.width &&
-            cssY >= row.y &&
-            cssY <= row.y + ROW_HEIGHT
-          ) return win;
-        }
+        // Diamond marker: ±8px hit zone
+        if (
+          cssX >= pos.left - 8 &&
+          cssX <= pos.left + 8 &&
+          cssY >= row.y &&
+          cssY <= row.y + ROW_HEIGHT
+        ) return win;
       }
       return null;
     },
@@ -1733,9 +1692,6 @@ export default function WallboardCanvas({
         >
           <div className="pp-downtime-tooltip-title" style={{ color: '#0d9488' }}>
             &#9670; {checkpointTooltip.window.name || 'Checkpoint'}
-            {checkpointTooltip.window.blocksPlanning && (
-              <span style={{ fontWeight: 400, fontSize: '10px', marginLeft: '6px', opacity: 0.7 }}>(blocks planning)</span>
-            )}
           </div>
           {checkpointTooltip.window.description && (
             <div className="pp-downtime-tooltip-reason">{checkpointTooltip.window.description}</div>
@@ -1746,9 +1702,7 @@ export default function WallboardCanvas({
             </div>
           )}
           <div className="pp-downtime-tooltip-time">
-            {checkpointTooltip.window.start.getTime() === checkpointTooltip.window.end.getTime()
-              ? formatDowntimeTime(checkpointTooltip.window.start)
-              : `${formatDowntimeTime(checkpointTooltip.window.start)} — ${formatDowntimeTime(checkpointTooltip.window.end)}`}
+            {formatDowntimeTime(checkpointTooltip.window.start)}
           </div>
         </div>
       )}

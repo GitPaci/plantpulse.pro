@@ -353,8 +353,6 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
       plannedDatetime: new Date(),
       startHour: 8,
       startMinute: 0,
-      durationHours: 0,
-      blocksPlanning: false,
       notifyShift: false,
     };
     setDraftMachines((prev) =>
@@ -1312,22 +1310,6 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
                                   </div>
                                 )}
 
-                                <div className="pp-downtime-field">
-                                  <label className="pp-downtime-field-label">Duration (h)</label>
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    step={0.5}
-                                    value={task.durationHours}
-                                    onChange={(e) =>
-                                      updateCheckpointTask(m.id, task.id, {
-                                        durationHours: Math.max(0, Number(e.target.value) || 0),
-                                      })
-                                    }
-                                    className="pp-setup-input pp-downtime-num-input"
-                                    title="0 = point-in-time marker"
-                                  />
-                                </div>
                               </div>
 
                               {task.recurrenceType !== 'none' && (
@@ -1405,17 +1387,6 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
                                 <label className="pp-downtime-toggle-label">
                                   <input
                                     type="checkbox"
-                                    checked={task.blocksPlanning === true}
-                                    onChange={(e) =>
-                                      updateCheckpointTask(m.id, task.id, { blocksPlanning: e.target.checked })
-                                    }
-                                    className="rounded border-slate-300 text-[var(--pp-pharma)] focus:ring-[var(--pp-pharma)]"
-                                  />
-                                  <span>Affects Planning</span>
-                                </label>
-                                <label className="pp-downtime-toggle-label">
-                                  <input
-                                    type="checkbox"
                                     checked={task.notifyShift === true}
                                     onChange={(e) =>
                                       updateCheckpointTask(m.id, task.id, { notifyShift: e.target.checked })
@@ -1433,7 +1404,6 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
                                     ? `Every ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][task.dayOfWeek ?? 0]}`
                                     : `Day ${task.dayOfMonth ?? 1} of each month`}
                                 {task.recurrenceType !== 'none' && `, ${String(task.startHour).padStart(2, '0')}:${String(task.startMinute).padStart(2, '0')}`}
-                                {task.durationHours > 0 ? ` for ${task.durationHours}h` : ' (marker)'}
                                 {expired && <span className="pp-downtime-expired-badge">Expired</span>}
                               </div>
                             </div>
