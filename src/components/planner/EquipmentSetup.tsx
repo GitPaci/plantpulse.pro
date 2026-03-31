@@ -268,9 +268,10 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
   }
 
   function addDowntime(id: string) {
+    const now = new Date();
     setMachineDowntime(id, {
-      startDate: new Date(),
-      endDate: undefined,
+      startDate: now,
+      endDate: new Date(now),
       reason: '',
     });
   }
