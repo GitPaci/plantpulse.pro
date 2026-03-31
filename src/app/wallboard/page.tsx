@@ -447,7 +447,7 @@ export default function WallboardPage() {
 
       {/* Canvas fills remaining space */}
       <div className="flex-1 min-h-0">
-        <WallboardCanvas nightMode={nightMode} customMachineGroups={wallboardGroups} showShutdownLabels={true} />
+        <WallboardCanvas nightMode={nightMode} customMachineGroups={wallboardGroups} showShutdownLabels={true} showCheckpoints={true} />
       </div>
 
       {/* Wallboard Display Settings modal */}
