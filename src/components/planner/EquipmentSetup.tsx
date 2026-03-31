@@ -6,8 +6,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlantPulseStore, generateId } from '@/lib/store';
-import type { Machine, MachineDisplayGroup, EquipmentGroup, MachineDowntime, ProductLine, RecurringDowntimeRule, RecurrenceType } from '@/lib/types';
-import { isMachineUnavailable, hasMachineDowntime, isRecurringRuleExpired } from '@/lib/types';
+import type { Machine, MachineDisplayGroup, EquipmentGroup, MachineDowntime, ProductLine, RecurringDowntimeRule, RecurrenceType, MachineCheckpointDef, CheckpointRecurrence } from '@/lib/types';
+import { isMachineUnavailable, hasMachineDowntime, isRecurringRuleExpired, isCheckpointDefExpired } from '@/lib/types';
 
 // ─── Date helpers for datetime-local inputs ────────────────────────────
 
@@ -144,6 +144,13 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
                 panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }
             });
+          } else if (initialFocusSection === 'checkpoints') {
+            requestAnimationFrame(() => {
+              const panel = el?.querySelector('.pp-checkpoint-header');
+              if (panel) {
+                panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            });
           }
         });
       } else {
@@ -261,9 +268,10 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
   }
 
   function addDowntime(id: string) {
+    const now = new Date();
     setMachineDowntime(id, {
-      startDate: new Date(),
-      endDate: undefined,
+      startDate: now,
+      endDate: new Date(now),
       reason: '',
     });
   }
@@ -329,6 +337,59 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
           ...m,
           recurringDowntime: (m.recurringDowntime || []).map((r) =>
             r.id === ruleId ? { ...r, ...updates } : r
+          ),
+        };
+      })
+    );
+    setDirty(true);
+  }
+
+  // ── Checkpoint task editing ────────────────────────────────────────
+
+  function addCheckpointTask(machineId: string) {
+    const task: MachineCheckpointDef = {
+      id: generateId('cp-'),
+      name: '',
+      recurrenceType: 'none',
+      plannedDatetime: new Date(),
+      startHour: 8,
+      startMinute: 0,
+      notifyShift: true,
+    };
+    setDraftMachines((prev) =>
+      prev.map((m) => {
+        if (m.id !== machineId) return m;
+        return { ...m, checkpointTasks: [...(m.checkpointTasks || []), task] };
+      })
+    );
+    setDirty(true);
+  }
+
+  function removeCheckpointTask(machineId: string, taskId: string) {
+    setDraftMachines((prev) =>
+      prev.map((m) => {
+        if (m.id !== machineId) return m;
+        return {
+          ...m,
+          checkpointTasks: (m.checkpointTasks || []).filter((t) => t.id !== taskId),
+        };
+      })
+    );
+    setDirty(true);
+  }
+
+  function updateCheckpointTask(
+    machineId: string,
+    taskId: string,
+    updates: Partial<MachineCheckpointDef>
+  ) {
+    setDraftMachines((prev) =>
+      prev.map((m) => {
+        if (m.id !== machineId) return m;
+        return {
+          ...m,
+          checkpointTasks: (m.checkpointTasks || []).map((t) =>
+            t.id === taskId ? { ...t, ...updates } : t
           ),
         };
       })
@@ -1107,6 +1168,243 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
                                   ? `Every ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][rule.dayOfWeek ?? 0]}`
                                   : `Day ${rule.dayOfMonth ?? 1} of each month`}
                                 {`, ${String(rule.startHour).padStart(2, '0')}:${String(rule.startMinute).padStart(2, '0')} for ${rule.durationHours}h`}
+                                {expired && <span className="pp-downtime-expired-badge">Expired</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* ── Checkpoint Tasks ── */}
+                        <div className="pp-checkpoint-header" style={{ marginTop: 10 }}>
+                          <span className="pp-checkpoint-label">Checkpoint Tasks</span>
+                          <button
+                            className="pp-setup-add-btn pp-checkpoint-add-btn"
+                            onClick={() => addCheckpointTask(m.id)}
+                          >
+                            + Add Checkpoint
+                          </button>
+                        </div>
+
+                        {(m.checkpointTasks || []).length === 0 && (
+                          <div className="pp-checkpoint-empty">
+                            No checkpoint tasks. Add one for sampling, inspection, or cleaning checks.
+                          </div>
+                        )}
+
+                        {(m.checkpointTasks || []).map((task) => {
+                          const expired = isCheckpointDefExpired(task);
+                          return (
+                            <div
+                              key={task.id}
+                              className={`pp-checkpoint-card${expired ? ' expired' : ''}`}
+                            >
+                              <div className="pp-downtime-recurring-row">
+                                <div className="pp-downtime-field" style={{ flex: 1 }}>
+                                  <label className="pp-downtime-field-label">Name</label>
+                                  <input
+                                    type="text"
+                                    value={task.name}
+                                    onChange={(e) =>
+                                      updateCheckpointTask(m.id, task.id, { name: e.target.value })
+                                    }
+                                    className="pp-setup-input"
+                                    placeholder="e.g. pH Sampling, Visual Inspection"
+                                  />
+                                </div>
+                                <div className="pp-downtime-field">
+                                  <label className="pp-downtime-field-label">Recurrence</label>
+                                  <select
+                                    value={task.recurrenceType}
+                                    onChange={(e) => {
+                                      const rt = e.target.value as CheckpointRecurrence;
+                                      const updates: Partial<MachineCheckpointDef> = { recurrenceType: rt };
+                                      if (rt === 'none') {
+                                        updates.plannedDatetime = new Date();
+                                      } else if (rt === 'weekly') {
+                                        updates.dayOfWeek = 1;
+                                        updates.startDate = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+                                      } else {
+                                        updates.dayOfMonth = 1;
+                                        updates.startDate = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+                                      }
+                                      updateCheckpointTask(m.id, task.id, updates);
+                                    }}
+                                    className="pp-setup-select pp-downtime-select"
+                                  >
+                                    <option value="none">One-time</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div className="pp-downtime-recurring-row">
+                                {task.recurrenceType === 'none' && (
+                                  <div className="pp-downtime-field">
+                                    <label className="pp-downtime-field-label">Planned time</label>
+                                    <input
+                                      type="datetime-local"
+                                      value={task.plannedDatetime ? toDatetimeLocal(task.plannedDatetime) : ''}
+                                      onChange={(e) => {
+                                        const d = fromDatetimeLocal(e.target.value);
+                                        if (d) updateCheckpointTask(m.id, task.id, { plannedDatetime: d });
+                                      }}
+                                      className="pp-setup-input pp-downtime-date-input"
+                                    />
+                                  </div>
+                                )}
+
+                                {task.recurrenceType === 'weekly' && (
+                                  <div className="pp-downtime-field">
+                                    <label className="pp-downtime-field-label">Day</label>
+                                    <select
+                                      value={task.dayOfWeek ?? 1}
+                                      onChange={(e) =>
+                                        updateCheckpointTask(m.id, task.id, { dayOfWeek: Number(e.target.value) })
+                                      }
+                                      className="pp-setup-select pp-downtime-select"
+                                    >
+                                      <option value={1}>Monday</option>
+                                      <option value={2}>Tuesday</option>
+                                      <option value={3}>Wednesday</option>
+                                      <option value={4}>Thursday</option>
+                                      <option value={5}>Friday</option>
+                                      <option value={6}>Saturday</option>
+                                      <option value={0}>Sunday</option>
+                                    </select>
+                                  </div>
+                                )}
+
+                                {task.recurrenceType === 'monthly' && (
+                                  <div className="pp-downtime-field">
+                                    <label className="pp-downtime-field-label">Day of month</label>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={31}
+                                      value={task.dayOfMonth ?? 1}
+                                      onChange={(e) =>
+                                        updateCheckpointTask(m.id, task.id, {
+                                          dayOfMonth: Math.max(1, Math.min(31, Number(e.target.value) || 1)),
+                                        })
+                                      }
+                                      className="pp-setup-input pp-downtime-num-input"
+                                    />
+                                  </div>
+                                )}
+
+                                {task.recurrenceType !== 'none' && (
+                                  <div className="pp-downtime-field">
+                                    <label className="pp-downtime-field-label">Start time</label>
+                                    <input
+                                      type="time"
+                                      value={`${String(task.startHour).padStart(2, '0')}:${String(task.startMinute).padStart(2, '0')}`}
+                                      onChange={(e) => {
+                                        const [h, min] = e.target.value.split(':').map(Number);
+                                        updateCheckpointTask(m.id, task.id, {
+                                          startHour: h ?? 0,
+                                          startMinute: min ?? 0,
+                                        });
+                                      }}
+                                      className="pp-setup-input pp-downtime-time-input"
+                                    />
+                                  </div>
+                                )}
+
+                              </div>
+
+                              {task.recurrenceType !== 'none' && (
+                                <div className="pp-downtime-recurring-row">
+                                  <div className="pp-downtime-field">
+                                    <label className="pp-downtime-field-label">Effective from</label>
+                                    <input
+                                      type="date"
+                                      value={task.startDate ? toDateLocal(task.startDate) : ''}
+                                      onChange={(e) => {
+                                        const d = e.target.value ? new Date(e.target.value + 'T00:00:00') : null;
+                                        if (d && !isNaN(d.getTime()))
+                                          updateCheckpointTask(m.id, task.id, { startDate: d });
+                                      }}
+                                      className="pp-setup-input pp-downtime-date-input"
+                                    />
+                                  </div>
+                                  <div className="pp-downtime-field">
+                                    <label className="pp-downtime-field-label">
+                                      Until
+                                      {!task.endDate && (
+                                        <span className="pp-downtime-indefinite">(no end)</span>
+                                      )}
+                                    </label>
+                                    <div className="pp-downtime-end-row">
+                                      <input
+                                        type="date"
+                                        value={task.endDate ? toDateLocal(task.endDate) : ''}
+                                        onChange={(e) => {
+                                          const d = e.target.value ? new Date(e.target.value + 'T23:59:59') : null;
+                                          updateCheckpointTask(m.id, task.id, { endDate: d ?? undefined });
+                                        }}
+                                        className="pp-setup-input pp-downtime-date-input"
+                                        placeholder="No end date"
+                                      />
+                                      {task.endDate && (
+                                        <button
+                                          className="pp-setup-action-btn"
+                                          onClick={() => updateCheckpointTask(m.id, task.id, { endDate: undefined })}
+                                          title="Set to indefinite"
+                                        >
+                                          &infin;
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="pp-downtime-recurring-row">
+                                <div className="pp-downtime-field" style={{ flex: 1 }}>
+                                  <label className="pp-downtime-field-label">Description</label>
+                                  <input
+                                    type="text"
+                                    value={task.description || ''}
+                                    onChange={(e) =>
+                                      updateCheckpointTask(m.id, task.id, { description: e.target.value })
+                                    }
+                                    className="pp-setup-input"
+                                    placeholder="e.g. Check pH levels, Visual quality check"
+                                  />
+                                </div>
+                                <div className="pp-downtime-field" style={{ justifyContent: 'flex-end' }}>
+                                  <button
+                                    className="pp-setup-action-btn pp-setup-delete-btn"
+                                    onClick={() => removeCheckpointTask(m.id, task.id)}
+                                    title="Remove checkpoint"
+                                  >
+                                    Del
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="pp-downtime-toggles">
+                                <label className="pp-downtime-toggle-label">
+                                  <input
+                                    type="checkbox"
+                                    checked={task.notifyShift === true}
+                                    onChange={(e) =>
+                                      updateCheckpointTask(m.id, task.id, { notifyShift: e.target.checked })
+                                    }
+                                    className="rounded border-slate-300 text-[var(--pp-pharma)] focus:ring-[var(--pp-pharma)]"
+                                  />
+                                  <span>Notify Shift</span>
+                                </label>
+                              </div>
+
+                              <div className="pp-checkpoint-summary">
+                                {task.recurrenceType === 'none'
+                                  ? `One-time: ${task.plannedDatetime ? toDatetimeLocal(task.plannedDatetime).replace('T', ' ') : '(not set)'}`
+                                  : task.recurrenceType === 'weekly'
+                                    ? `Every ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][task.dayOfWeek ?? 0]}`
+                                    : `Day ${task.dayOfMonth ?? 1} of each month`}
+                                {task.recurrenceType !== 'none' && `, ${String(task.startHour).padStart(2, '0')}:${String(task.startMinute).padStart(2, '0')}`}
                                 {expired && <span className="pp-downtime-expired-badge">Expired</span>}
                               </div>
                             </div>

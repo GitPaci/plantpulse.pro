@@ -2441,6 +2441,53 @@ body {
   cursor: pointer;
 }
 
+/* ─── Checkpoint Tasks (per-machine, teal theme) ─────────────────────── */
+
+.pp-checkpoint-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.pp-checkpoint-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #0d9488;
+}
+.pp-checkpoint-add-btn {
+  color: #0d9488 !important;
+  border-color: #0d9488 !important;
+}
+.pp-checkpoint-add-btn:hover {
+  background: rgba(13, 148, 136, 0.06) !important;
+}
+.pp-checkpoint-empty {
+  font-size: 11px;
+  color: #94a3b8;
+  padding: 4px 0 6px 0;
+  font-style: italic;
+}
+.pp-checkpoint-card {
+  border: 1px solid #99f6e4;
+  border-left: 3px solid #0d9488;
+  border-radius: 6px;
+  background: #fff;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+.pp-checkpoint-card.expired {
+  opacity: 0.5;
+}
+.pp-checkpoint-summary {
+  font-size: 10px;
+  color: #64748b;
+  border-top: 1px dashed #e2e8f0;
+  margin-top: 6px;
+  padding-top: 4px;
+}
+
 /* ─── Display groups tab ──────────────────────────────────────────────── */
 
 .pp-setup-groups {

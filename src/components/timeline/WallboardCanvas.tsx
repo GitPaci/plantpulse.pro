@@ -20,8 +20,8 @@ import {
   getMonth,
   differenceInHours,
 } from 'date-fns';
-import type { Machine, Stage, MachineDisplayGroup, ShutdownPeriod, BatchChain, BatchNamingConfig, DowntimeWindow } from '@/lib/types';
-import { batchNamePreview, collectDowntimeWindows } from '@/lib/types';
+import type { Machine, Stage, MachineDisplayGroup, ShutdownPeriod, BatchChain, BatchNamingConfig, DowntimeWindow, CheckpointWindow } from '@/lib/types';
+import { batchNamePreview, collectDowntimeWindows, collectCheckpointWindows } from '@/lib/types';
 
 // ─── Batch naming helper ────────────────────────────────────────────────
 
@@ -78,6 +78,7 @@ interface CanvasTheme {
   notifyShiftArrow: string;
   shutdownCrossing: string;
   holdRisk: string;
+  checkpointMarker: string;
 }
 
 const DAY_THEME: CanvasTheme = {
@@ -110,6 +111,7 @@ const DAY_THEME: CanvasTheme = {
   shutdownCrossing: '#D97706',
   holdRisk: '#DC2626',
   shutdownText: 'rgba(100, 100, 120, 0.55)',
+  checkpointMarker: '#0d9488',
 };
 
 const NIGHT_THEME: CanvasTheme = {
@@ -142,6 +144,7 @@ const NIGHT_THEME: CanvasTheme = {
   shutdownCrossing: '#F59E0B',
   holdRisk: '#F87171',
   shutdownText: 'rgba(180, 180, 200, 0.45)',
+  checkpointMarker: '#14b8a6',
 };
 
 // ─── Row layout ─────────────────────────────────────────────────────────
@@ -387,6 +390,50 @@ function drawNotifyShiftArrows(
     // Subtle stroke for definition
     ctx.strokeStyle = theme.notifyShiftArrow;
     ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+
+// ─── Checkpoint markers (Planner) ──────────────────────────────────────
+
+function drawCheckpointMarkers(
+  ctx: CanvasRenderingContext2D,
+  windows: CheckpointWindow[],
+  rows: RowInfo[],
+  viewStart: Date,
+  numDays: number,
+  width: number,
+  theme: CanvasTheme
+) {
+  if (windows.length === 0) return;
+
+  const machineRowMap = new Map<string, RowInfo>();
+  for (const r of rows) {
+    if (r.type === 'machine') machineRowMap.set(r.machineId, r);
+  }
+
+  for (const win of windows) {
+    const row = machineRowMap.get(win.machineId);
+    if (!row) continue;
+
+    const pos = stageBarPosition(viewStart, win.start, win.start, width, LEFT_MARGIN, numDays);
+    if (pos.offScreen) continue;
+
+    // Point-in-time marker — teal diamond overlaid on timeline
+    const cx = pos.left;
+    if (cx < LEFT_MARGIN) continue;
+    const cy = row.y + ROW_HEIGHT / 2;
+    const size = 5;
+    ctx.fillStyle = theme.checkpointMarker;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - size);
+    ctx.lineTo(cx + size, cy);
+    ctx.lineTo(cx, cy + size);
+    ctx.lineTo(cx - size, cy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = theme.checkpointMarker;
+    ctx.lineWidth = 0.5;
     ctx.stroke();
   }
 }
@@ -923,6 +970,12 @@ interface WallboardCanvasProps {
   showHoldRisk?: boolean;
   /** Show "PLANT SHUTDOWN" text label across shutdown day columns (Wallboard). */
   showShutdownLabels?: boolean;
+  /** When true, draws checkpoint task markers on the timeline. */
+  showCheckpoints?: boolean;
+  /** When true, only show checkpoints with notifyShift enabled (Wallboard mode). */
+  checkpointNotifyOnly?: boolean;
+  /** Called when a checkpoint marker is clicked — Planner uses this to open Equipment Setup checkpoints. */
+  onCheckpointClick?: (machineId: string, defId: string) => void;
 }
 
 export default function WallboardCanvas({
@@ -943,6 +996,9 @@ export default function WallboardCanvas({
   showShutdownCrossing = false,
   showHoldRisk = false,
   showShutdownLabels = false,
+  showCheckpoints = false,
+  checkpointNotifyOnly = false,
+  onCheckpointClick,
 }: WallboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1049,6 +1105,25 @@ export default function WallboardCanvas({
     return map;
   }, [machines]);
 
+  // Precompute checkpoint windows for visible machines
+  // checkpointNotifyOnly: Wallboard only shows checkpoints with notifyShift enabled
+  const checkpointWindows = useMemo(() => {
+    if (!showCheckpoints) return [];
+    const rangeStart = viewConfig.viewStart;
+    const rangeEnd = addDays(viewConfig.viewStart, viewConfig.numberOfDays);
+    const wins: CheckpointWindow[] = [];
+    for (const m of machines) {
+      if (!visibleMachineIds.has(m.id)) continue;
+      const mWins = collectCheckpointWindows(m, rangeStart, rangeEnd);
+      for (const w of mWins) {
+        if (checkpointNotifyOnly && !w.notifyShift) continue;
+        wins.push(w);
+      }
+    }
+    return wins;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCheckpoints, checkpointNotifyOnly, machines, viewConfig.viewStart, viewConfig.numberOfDays, visibleMachineIds]);
+
   // Calculate total canvas height
   const lastRow = rows[rows.length - 1];
   const totalHeight = lastRow
@@ -1088,6 +1163,10 @@ export default function WallboardCanvas({
       drawDowntimeBlocks(ctx, downtimeWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     }
     drawBatchBars(ctx, visibleStages, batchSeriesMap, batchLabelMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
+    // Checkpoint markers drawn on top of batch bars so they remain visible
+    if (showCheckpoints && checkpointWindows.length > 0) {
+      drawCheckpointMarkers(ctx, checkpointWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
+    }
     // Shutdown crossing indicators — amber triangles on bars that span shutdown boundaries
     if (showShutdownCrossing && shutdownPeriods.length > 0) {
       drawShutdownCrossingIndicators(ctx, visibleStages, shutdownPeriods, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
@@ -1111,7 +1190,7 @@ export default function WallboardCanvas({
       drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, shiftRotation.anchorDate, shiftRotation.cyclePattern, shiftRotation.teams.map((t) => t.color), shiftRotation.shiftLengthHours, shiftRotation);
     }
     drawDateHeader(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
-  }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods, shiftRotation, showDowntime, downtimeWindows, notifyShiftWindows, showShutdownCrossing, showHoldRisk, showShutdownLabels, turnaroundGapByGroup, machineGroupMap]);
+  }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods, shiftRotation, showDowntime, downtimeWindows, notifyShiftWindows, showShutdownCrossing, showHoldRisk, showShutdownLabels, turnaroundGapByGroup, machineGroupMap, showCheckpoints, checkpointWindows]);
 
   // Redraw on any change
   useEffect(() => {
@@ -1225,6 +1304,36 @@ export default function WallboardCanvas({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [showDowntime, downtimeWindows, notifyShiftWindows, viewConfig, dims.width, rows]
+  );
+
+  const hitTestCheckpoint = useCallback(
+    (cssX: number, cssY: number): CheckpointWindow | null => {
+      if (!showCheckpoints || checkpointWindows.length === 0) return null;
+      if (cssX < LEFT_MARGIN) return null;
+      for (const win of checkpointWindows) {
+        const row = machineRowMap.get(win.machineId);
+        if (!row) continue;
+        const pos = stageBarPosition(
+          viewConfig.viewStart,
+          win.start,
+          win.start,
+          dims.width,
+          LEFT_MARGIN,
+          viewConfig.numberOfDays
+        );
+        if (pos.offScreen) continue;
+        // Diamond marker: ±8px hit zone
+        if (
+          cssX >= pos.left - 8 &&
+          cssX <= pos.left + 8 &&
+          cssY >= row.y &&
+          cssY <= row.y + ROW_HEIGHT
+        ) return win;
+      }
+      return null;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [showCheckpoints, checkpointWindows, viewConfig, dims.width, rows]
   );
 
   // ── Drag/resize state (Planner only) ────────────────────────────────
@@ -1388,6 +1497,13 @@ export default function WallboardCanvas({
     window: DowntimeWindow;
   } | null>(null);
 
+  // Tooltip state for checkpoint hover
+  const [checkpointTooltip, setCheckpointTooltip] = useState<{
+    x: number;
+    y: number;
+    window: CheckpointWindow;
+  } | null>(null);
+
   // Track whether last mousedown was a drag start (suppress click)
   const wasDragging = useRef(false);
 
@@ -1434,17 +1550,26 @@ export default function WallboardCanvas({
         const win = hitTestDowntime(cssX, cssY);
         if (win) {
           onDowntimeClick(win.machineId, win.ruleId);
+          return;
+        }
+      }
+
+      // Then check checkpoint marker click
+      if (onCheckpointClick) {
+        const win = hitTestCheckpoint(cssX, cssY);
+        if (win) {
+          onCheckpointClick(win.machineId, win.defId);
         }
       }
     },
-    [onStageClick, onMachineLabelClick, onShiftBandClick, onDowntimeClick, hitTestStage, hitTestMachineLabel, hitTestDowntime]
+    [onStageClick, onMachineLabelClick, onShiftBandClick, onDowntimeClick, onCheckpointClick, hitTestStage, hitTestMachineLabel, hitTestDowntime, hitTestCheckpoint]
   );
 
   const handleCanvasMouseMove = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
-      const hasAnyHandler = onStageClick || onMachineLabelClick || onShiftBandClick || onDowntimeClick;
+      const hasAnyHandler = onStageClick || onMachineLabelClick || onShiftBandClick || onDowntimeClick || onCheckpointClick;
       const hasNotifyShift = notifyShiftWindows.length > 0;
-      if (!hasAnyHandler && !showDowntime && !hasNotifyShift) return;
+      if (!hasAnyHandler && !showDowntime && !hasNotifyShift && !showCheckpoints) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
 
@@ -1455,34 +1580,48 @@ export default function WallboardCanvas({
       if (onShiftBandClick && cssY <= SHIFT_BAND_H) {
         canvas.style.cursor = 'pointer';
         setDowntimeTooltip(null);
+        setCheckpointTooltip(null);
       } else if (onMachineLabelClick && hitTestMachineLabel(cssX, cssY)) {
         canvas.style.cursor = 'pointer';
         setDowntimeTooltip(null);
+        setCheckpointTooltip(null);
       } else if (enableDragResize && hitTestStageEdge(cssX, cssY)) {
         const edge = hitTestStageEdge(cssX, cssY);
         if (edge?.type === 'move') canvas.style.cursor = 'grab';
         else canvas.style.cursor = 'ew-resize';
         setDowntimeTooltip(null);
+        setCheckpointTooltip(null);
       } else if (onStageClick && hitTestStage(cssX, cssY)) {
         canvas.style.cursor = 'pointer';
         setDowntimeTooltip(null);
+        setCheckpointTooltip(null);
       } else {
         // Check downtime hover (for tooltip and cursor)
-        const win = (showDowntime || notifyShiftWindows.length > 0) ? hitTestDowntime(cssX, cssY) : null;
-        if (win) {
+        const dtWin = (showDowntime || notifyShiftWindows.length > 0) ? hitTestDowntime(cssX, cssY) : null;
+        if (dtWin) {
           canvas.style.cursor = onDowntimeClick ? 'pointer' : 'default';
-          setDowntimeTooltip({ x: cssX, y: cssY, window: win });
+          setDowntimeTooltip({ x: cssX, y: cssY, window: dtWin });
+          setCheckpointTooltip(null);
         } else {
-          canvas.style.cursor = 'default';
           setDowntimeTooltip(null);
+          // Check checkpoint hover
+          const cpWin = showCheckpoints ? hitTestCheckpoint(cssX, cssY) : null;
+          if (cpWin) {
+            canvas.style.cursor = onCheckpointClick ? 'pointer' : 'default';
+            setCheckpointTooltip({ x: cssX, y: cssY, window: cpWin });
+          } else {
+            canvas.style.cursor = 'default';
+            setCheckpointTooltip(null);
+          }
         }
       }
     },
-    [onStageClick, onMachineLabelClick, onShiftBandClick, onDowntimeClick, showDowntime, notifyShiftWindows, hitTestStage, hitTestMachineLabel, hitTestDowntime, enableDragResize, hitTestStageEdge]
+    [onStageClick, onMachineLabelClick, onShiftBandClick, onDowntimeClick, onCheckpointClick, showDowntime, showCheckpoints, notifyShiftWindows, hitTestStage, hitTestMachineLabel, hitTestDowntime, hitTestCheckpoint, enableDragResize, hitTestStageEdge]
   );
 
   const handleCanvasMouseLeave = useCallback(() => {
     setDowntimeTooltip(null);
+    setCheckpointTooltip(null);
   }, []);
 
   // Format downtime tooltip content
@@ -1501,8 +1640,8 @@ export default function WallboardCanvas({
         id={canvasId}
         onClick={handleCanvasClick}
         onMouseDown={enableDragResize ? handleCanvasMouseDown : undefined}
-        onMouseMove={(onStageClick || onMachineLabelClick || onShiftBandClick || showDowntime || notifyShiftWindows.length > 0 || enableDragResize) ? handleCanvasMouseMove : undefined}
-        onMouseLeave={(showDowntime || notifyShiftWindows.length > 0) ? handleCanvasMouseLeave : undefined}
+        onMouseMove={(onStageClick || onMachineLabelClick || onShiftBandClick || showDowntime || notifyShiftWindows.length > 0 || enableDragResize || showCheckpoints) ? handleCanvasMouseMove : undefined}
+        onMouseLeave={(showDowntime || notifyShiftWindows.length > 0 || showCheckpoints) ? handleCanvasMouseLeave : undefined}
       />
       {/* Drag ghost overlay */}
       {dragGhost && (
@@ -1547,6 +1686,31 @@ export default function WallboardCanvas({
             {downtimeTooltip.window.type === 'recurring'
               ? `Every ${DAY_NAMES[downtimeTooltip.window.start.getDay()]}, ${formatDowntimeTime(downtimeTooltip.window.start)} — ${formatDowntimeTime(downtimeTooltip.window.end)}`
               : `${formatDowntimeTime(downtimeTooltip.window.start)} — ${formatDowntimeTime(downtimeTooltip.window.end)}`}
+          </div>
+        </div>
+      )}
+      {checkpointTooltip && (
+        <div
+          className="pp-downtime-tooltip"
+          style={{
+            left: Math.min(checkpointTooltip.x + 12, dims.width - 220),
+            top: checkpointTooltip.y - 8,
+            borderLeft: '3px solid #0d9488',
+          }}
+        >
+          <div className="pp-downtime-tooltip-title" style={{ color: '#0d9488' }}>
+            &#9670; {checkpointTooltip.window.name || 'Checkpoint'}
+          </div>
+          {checkpointTooltip.window.description && (
+            <div className="pp-downtime-tooltip-reason">{checkpointTooltip.window.description}</div>
+          )}
+          {checkpointTooltip.window.notifyShift && (
+            <div style={{ fontSize: '10px', color: '#0d9488', fontWeight: 500, marginTop: '2px' }}>
+              &#9660; Shift notification active
+            </div>
+          )}
+          <div className="pp-downtime-tooltip-time">
+            {formatDowntimeTime(checkpointTooltip.window.start)}
           </div>
         </div>
       )}
