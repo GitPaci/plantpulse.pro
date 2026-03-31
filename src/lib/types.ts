@@ -76,6 +76,27 @@ export interface RecurringDowntimeRule {
   notifyShift?: boolean;    // false (default) = no shift notification; true = alert on-shift team
 }
 
+// Machine-level checkpoint task definition — a recurring or one-time
+// operational checkpoint (e.g. sampling, inspection) tied to a machine.
+export type CheckpointRecurrence = 'none' | 'weekly' | 'monthly';
+
+export interface MachineCheckpointDef {
+  id: string;
+  name: string;                    // e.g. "Sampling", "pH Check", "Visual Inspection"
+  description?: string;            // optional details
+  recurrenceType: CheckpointRecurrence;
+  plannedDatetime?: Date;          // for one-time (recurrenceType === 'none')
+  dayOfWeek?: number;              // 0=Sun…6=Sat (weekly)
+  dayOfMonth?: number;             // 1–31 (monthly)
+  startHour: number;               // 0–23
+  startMinute: number;             // 0–59
+  durationHours: number;           // 0 = point-in-time marker; >0 = time block
+  startDate?: Date;                // recurrence validity start
+  endDate?: Date;                  // undefined = indefinite
+  blocksPlanning?: boolean;        // default false (checkpoints rarely block scheduling)
+  notifyShift?: boolean;           // default false
+}
+
 export interface Machine {
   id: string;
   name: string;
@@ -84,6 +105,7 @@ export interface Machine {
   displayOrder: number;
   downtime?: MachineDowntime;  // one-time unavailability window
   recurringDowntime?: RecurringDowntimeRule[];  // repeating unavailability rules
+  checkpointTasks?: MachineCheckpointDef[];     // per-machine checkpoint task definitions
 }
 
 // Check if a date falls within any occurrence of a recurring downtime rule.
@@ -306,6 +328,114 @@ export function collectDowntimeWindows(
           ruleId: rule.id,
           blocksPlanning: rule.blocksPlanning !== false,
           notifyShift: rule.notifyShift === true,
+        });
+      }
+    }
+  }
+
+  return windows;
+}
+
+// ─── Checkpoint window expansion (for timeline visualization) ──────
+
+/** A concrete checkpoint window resolved from a MachineCheckpointDef. */
+export interface CheckpointWindow {
+  machineId: string;
+  defId: string;              // MachineCheckpointDef.id for click-to-edit
+  name: string;
+  description?: string;
+  start: Date;
+  end: Date;                  // same as start if durationHours === 0
+  blocksPlanning: boolean;
+  notifyShift: boolean;
+}
+
+/** Check if a checkpoint definition has expired (end date in the past). */
+export function isCheckpointDefExpired(def: MachineCheckpointDef): boolean {
+  if (def.recurrenceType === 'none') {
+    if (!def.plannedDatetime) return false;
+    const end = def.durationHours > 0
+      ? new Date(def.plannedDatetime.getTime() + def.durationHours * 3600000)
+      : def.plannedDatetime;
+    return end < new Date();
+  }
+  if (!def.endDate) return false;
+  return def.endDate < new Date();
+}
+
+/** Expand a checkpoint definition into concrete windows within a date range. */
+export function collectCheckpointWindows(
+  machine: Machine,
+  rangeStart: Date,
+  rangeEnd: Date
+): CheckpointWindow[] {
+  const windows: CheckpointWindow[] = [];
+  if (!machine.checkpointTasks) return windows;
+
+  for (const def of machine.checkpointTasks) {
+    if (def.recurrenceType === 'none') {
+      // One-time checkpoint
+      if (!def.plannedDatetime) continue;
+      const start = def.plannedDatetime;
+      const end = def.durationHours > 0
+        ? new Date(start.getTime() + def.durationHours * 3600000)
+        : start;
+      if (start < rangeEnd && end > rangeStart) {
+        windows.push({
+          machineId: machine.id,
+          defId: def.id,
+          name: def.name,
+          description: def.description,
+          start: start < rangeStart ? rangeStart : start,
+          end: end > rangeEnd ? rangeEnd : end,
+          blocksPlanning: def.blocksPlanning === true,
+          notifyShift: def.notifyShift === true,
+        });
+      }
+    } else {
+      // Recurring checkpoint — expand like recurring downtime
+      if (isCheckpointDefExpired(def)) continue;
+
+      const scanStart = new Date(rangeStart);
+      scanStart.setDate(scanStart.getDate() - 1);
+
+      for (let d = new Date(scanStart); d <= rangeEnd; d.setDate(d.getDate() + 1)) {
+        // Check validity window
+        if (def.startDate) {
+          const validFrom = new Date(def.startDate.getFullYear(), def.startDate.getMonth(), def.startDate.getDate());
+          if (d < validFrom) continue;
+        }
+        if (def.endDate) {
+          const validTo = new Date(def.endDate.getFullYear(), def.endDate.getMonth(), def.endDate.getDate());
+          if (d > validTo) continue;
+        }
+
+        let matchesPattern = false;
+        if (def.recurrenceType === 'weekly') {
+          matchesPattern = d.getDay() === (def.dayOfWeek ?? 0);
+        } else {
+          const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+          const targetDay = Math.min(def.dayOfMonth ?? 1, lastDay);
+          matchesPattern = d.getDate() === targetDay;
+        }
+        if (!matchesPattern) continue;
+
+        const winStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), def.startHour, def.startMinute);
+        const winEnd = def.durationHours > 0
+          ? new Date(winStart.getTime() + def.durationHours * 3600000)
+          : winStart;
+
+        if (winEnd <= rangeStart || winStart >= rangeEnd) continue;
+
+        windows.push({
+          machineId: machine.id,
+          defId: def.id,
+          name: def.name,
+          description: def.description,
+          start: winStart < rangeStart ? rangeStart : winStart,
+          end: winEnd > rangeEnd ? rangeEnd : winEnd,
+          blocksPlanning: def.blocksPlanning === true,
+          notifyShift: def.notifyShift === true,
         });
       }
     }
