@@ -17,6 +17,8 @@ import type {
   BatchNamingConfig,
   ShiftRotation,
   MaintenanceTask,
+  CheckpointStatus,
+  CheckpointStatusEntry,
 } from './types';
 import {
   DEFAULT_MACHINES,
@@ -89,6 +91,7 @@ interface PlantPulseState {
   addMachine: (machine: Machine) => void;
   updateMachine: (id: string, updates: Partial<Omit<Machine, 'id'>>) => void;
   deleteMachine: (id: string) => void;
+  updateCheckpointStatus: (machineId: string, checkpointId: string, status: CheckpointStatus, changedBy?: string) => void;
 
   // ── Machine display groups ────────────────────────────────────────
   setMachineGroups: (groups: MachineDisplayGroup[]) => void;
@@ -270,6 +273,29 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
         ...g,
         machineIds: g.machineIds.filter((mid) => mid !== id),
       })),
+    })),
+
+  updateCheckpointStatus: (machineId, checkpointId, status, changedBy) =>
+    set((state) => ({
+      machines: state.machines.map((m) => {
+        if (m.id !== machineId || !m.checkpointTasks) return m;
+        return {
+          ...m,
+          checkpointTasks: m.checkpointTasks.map((cp) => {
+            if (cp.id !== checkpointId) return cp;
+            const entry: CheckpointStatusEntry = {
+              status,
+              changedAt: new Date(),
+              changedBy,
+            };
+            return {
+              ...cp,
+              status,
+              statusHistory: [...(cp.statusHistory ?? []), entry],
+            };
+          }),
+        };
+      }),
     })),
 
   // ── Machine display groups ────────────────────────────────────────

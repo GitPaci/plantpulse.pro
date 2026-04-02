@@ -20,7 +20,7 @@ import {
   getMonth,
   differenceInHours,
 } from 'date-fns';
-import type { Machine, Stage, MachineDisplayGroup, ShutdownPeriod, BatchChain, BatchNamingConfig, DowntimeWindow, CheckpointWindow } from '@/lib/types';
+import type { Machine, Stage, MachineDisplayGroup, ShutdownPeriod, BatchChain, BatchNamingConfig, DowntimeWindow, CheckpointWindow, CheckpointStatus } from '@/lib/types';
 import { batchNamePreview, collectDowntimeWindows, collectCheckpointWindows } from '@/lib/types';
 
 // ─── Batch naming helper ────────────────────────────────────────────────
@@ -79,6 +79,19 @@ interface CanvasTheme {
   shutdownCrossing: string;
   holdRisk: string;
   checkpointMarker: string;
+  checkpointPlanned: string;
+  checkpointDone: string;
+  checkpointIssue: string;
+  checkpointNotPossible: string;
+}
+
+function checkpointStatusColor(status: CheckpointStatus, theme: CanvasTheme): string {
+  switch (status) {
+    case 'done': return theme.checkpointDone;
+    case 'issue': return theme.checkpointIssue;
+    case 'not_possible': return theme.checkpointNotPossible;
+    default: return theme.checkpointPlanned;
+  }
 }
 
 const DAY_THEME: CanvasTheme = {
@@ -112,6 +125,10 @@ const DAY_THEME: CanvasTheme = {
   holdRisk: '#DC2626',
   shutdownText: 'rgba(100, 100, 120, 0.55)',
   checkpointMarker: '#0d9488',
+  checkpointPlanned: '#D97706',
+  checkpointDone: '#059669',
+  checkpointIssue: '#DC2626',
+  checkpointNotPossible: '#9CA3AF',
 };
 
 const NIGHT_THEME: CanvasTheme = {
@@ -145,6 +162,10 @@ const NIGHT_THEME: CanvasTheme = {
   holdRisk: '#F87171',
   shutdownText: 'rgba(180, 180, 200, 0.45)',
   checkpointMarker: '#14b8a6',
+  checkpointPlanned: '#F59E0B',
+  checkpointDone: '#34D399',
+  checkpointIssue: '#F87171',
+  checkpointNotPossible: '#6B7280',
 };
 
 // ─── Row layout ─────────────────────────────────────────────────────────
@@ -419,12 +440,13 @@ function drawCheckpointMarkers(
     const pos = stageBarPosition(viewStart, win.start, win.start, width, LEFT_MARGIN, numDays);
     if (pos.offScreen) continue;
 
-    // Point-in-time marker — teal diamond overlaid on timeline
+    // Point-in-time marker — diamond overlaid on timeline, color by status
     const cx = pos.left;
     if (cx < LEFT_MARGIN) continue;
     const cy = row.y + ROW_HEIGHT / 2;
     const size = 5;
-    ctx.fillStyle = theme.checkpointMarker;
+    const color = checkpointStatusColor(win.status, theme);
+    ctx.fillStyle = color;
     ctx.beginPath();
     ctx.moveTo(cx, cy - size);
     ctx.lineTo(cx + size, cy);
@@ -432,7 +454,7 @@ function drawCheckpointMarkers(
     ctx.lineTo(cx - size, cy);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = theme.checkpointMarker;
+    ctx.strokeStyle = color;
     ctx.lineWidth = 0.5;
     ctx.stroke();
   }
@@ -1689,31 +1711,43 @@ export default function WallboardCanvas({
           </div>
         </div>
       )}
-      {checkpointTooltip && (
-        <div
-          className="pp-downtime-tooltip"
-          style={{
-            left: Math.min(checkpointTooltip.x + 12, dims.width - 220),
-            top: checkpointTooltip.y - 8,
-            borderLeft: '3px solid #0d9488',
-          }}
-        >
-          <div className="pp-downtime-tooltip-title" style={{ color: '#0d9488' }}>
-            &#9670; {checkpointTooltip.window.name || 'Checkpoint'}
-          </div>
-          {checkpointTooltip.window.description && (
-            <div className="pp-downtime-tooltip-reason">{checkpointTooltip.window.description}</div>
-          )}
-          {checkpointTooltip.window.notifyShift && (
-            <div style={{ fontSize: '10px', color: '#0d9488', fontWeight: 500, marginTop: '2px' }}>
-              &#9660; Shift notification active
+      {checkpointTooltip && (() => {
+        const statusLabels: Record<CheckpointStatus, string> = {
+          planned: 'Planned', done: 'Done', issue: 'Issue', not_possible: 'Not possible',
+        };
+        const statusColors: Record<CheckpointStatus, string> = {
+          planned: '#D97706', done: '#059669', issue: '#DC2626', not_possible: '#9CA3AF',
+        };
+        const st = checkpointTooltip.window.status;
+        return (
+          <div
+            className="pp-downtime-tooltip"
+            style={{
+              left: Math.min(checkpointTooltip.x + 12, dims.width - 220),
+              top: checkpointTooltip.y - 8,
+              borderLeft: `3px solid ${statusColors[st]}`,
+            }}
+          >
+            <div className="pp-downtime-tooltip-title" style={{ color: statusColors[st] }}>
+              &#9670; {checkpointTooltip.window.name || 'Checkpoint'}
             </div>
-          )}
-          <div className="pp-downtime-tooltip-time">
-            {formatDowntimeTime(checkpointTooltip.window.start)}
+            <div style={{ fontSize: '10px', color: statusColors[st], fontWeight: 600, marginTop: '2px' }}>
+              Status: {statusLabels[st]}
+            </div>
+            {checkpointTooltip.window.description && (
+              <div className="pp-downtime-tooltip-reason">{checkpointTooltip.window.description}</div>
+            )}
+            {checkpointTooltip.window.notifyShift && (
+              <div style={{ fontSize: '10px', color: '#0d9488', fontWeight: 500, marginTop: '2px' }}>
+                &#9660; Shift notification active
+              </div>
+            )}
+            <div className="pp-downtime-tooltip-time">
+              {formatDowntimeTime(checkpointTooltip.window.start)}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

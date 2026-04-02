@@ -12,7 +12,8 @@ import { currentShiftTeam } from '@/lib/shift-rotation';
 import { useNightMode } from '@/lib/useNightMode';
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { addDays, subHours, differenceInHours } from 'date-fns';
-import type { MachineDisplayGroup } from '@/lib/types';
+import type { MachineDisplayGroup, CheckpointStatus } from '@/lib/types';
+import { collectCheckpointWindows } from '@/lib/types';
 
 const ZOOM_LEVELS = [5, 7, 10, 14, 21, 30];
 const ZOOM_DEFAULT_DESKTOP = 4; // 21d
@@ -27,6 +28,7 @@ export default function WallboardPage() {
   const wallboardEquipmentGroups = usePlantPulseStore((s) => s.wallboardEquipmentGroups);
   const shiftRotation = usePlantPulseStore((s) => s.shiftRotation);
   const loadDemoData = usePlantPulseStore((s) => s.loadDemoData);
+  const updateCheckpointStatus = usePlantPulseStore((s) => s.updateCheckpointStatus);
 
   // Load demo data on mount (page-level, not inside WallboardCanvas)
   useEffect(() => {
@@ -51,6 +53,24 @@ export default function WallboardPage() {
       }))
       .filter((dg) => dg.machineIds.length > 0);
   }, [machineGroups, machines, wallboardEquipmentGroups]);
+
+  // Checkpoint status cycling — only when statusByShift is ON
+  const handleCheckpointClick = useCallback((machineId: string, defId: string) => {
+    const machine = machines.find((m) => m.id === machineId);
+    if (!machine?.checkpointTasks) return;
+    const def = machine.checkpointTasks.find((cp) => cp.id === defId);
+    if (!def || !def.statusByShift) return;
+
+    const cycle: CheckpointStatus[] = ['planned', 'done', 'issue', 'not_possible'];
+    const current = def.status ?? 'planned';
+    const nextIdx = (cycle.indexOf(current) + 1) % cycle.length;
+
+    // Use current shift team name as changedBy
+    const teamIdx = currentShiftTeam(new Date(), shiftRotation.anchorDate);
+    const teamName = shiftRotation.teams[teamIdx]?.name ?? `Team ${teamIdx}`;
+
+    updateCheckpointStatus(machineId, defId, cycle[nextIdx], teamName);
+  }, [machines, shiftRotation, updateCheckpointStatus]);
 
   const [zoomIdx, setZoomIdx] = useState(() => {
     const idx = ZOOM_LEVELS.indexOf(viewConfig.numberOfDays);
@@ -447,7 +467,7 @@ export default function WallboardPage() {
 
       {/* Canvas fills remaining space */}
       <div className="flex-1 min-h-0">
-        <WallboardCanvas nightMode={nightMode} customMachineGroups={wallboardGroups} showShutdownLabels={true} showCheckpoints={true} checkpointNotifyOnly={true} />
+        <WallboardCanvas nightMode={nightMode} customMachineGroups={wallboardGroups} showShutdownLabels={true} showCheckpoints={true} checkpointNotifyOnly={true} onCheckpointClick={handleCheckpointClick} />
       </div>
 
       {/* Wallboard Display Settings modal */}

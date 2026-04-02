@@ -2488,6 +2488,63 @@ body {
   padding-top: 4px;
 }
 
+.pp-checkpoint-status-select {
+  min-width: 160px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.pp-checkpoint-status-planned { color: #D97706; }
+.pp-checkpoint-status-done { color: #059669; }
+.pp-checkpoint-status-issue { color: #DC2626; }
+.pp-checkpoint-status-not_possible { color: #9CA3AF; }
+
+.pp-checkpoint-history-link {
+  font-size: 11px;
+  color: #0d9488;
+  cursor: pointer;
+  text-decoration: underline;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: auto;
+}
+.pp-checkpoint-history-link:hover {
+  color: #0f766e;
+}
+.pp-checkpoint-history-link.disabled {
+  color: #cbd5e1;
+  cursor: default;
+  text-decoration: none;
+}
+
+.pp-checkpoint-history-table-wrap {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.pp-checkpoint-history-table {
+  width: 100%;
+  font-size: 10px;
+  border-collapse: collapse;
+}
+.pp-checkpoint-history-table th {
+  text-align: left;
+  font-weight: 600;
+  color: #64748b;
+  padding: 3px 6px;
+  border-bottom: 1px solid #e2e8f0;
+  text-transform: uppercase;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+}
+.pp-checkpoint-history-table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+
 /* ─── Display groups tab ──────────────────────────────────────────────── */
 
 .pp-setup-groups {
