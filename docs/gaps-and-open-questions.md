@@ -312,6 +312,31 @@ marketing landing page (hero section, problem/solution, feature highlights,
 screenshot/animation, social proof) is not yet built. Current page serves as
 a functional app entry point.
 
+### 6. Curated "Story Demo" Scenario
+
+**Priority:** High — this is the conversion moment for new visitors.
+
+The current demo data generator (`lib/demo-data.ts`) produces random realistic data
+but gives no guided narrative. A prospect landing on a random canvas has no natural
+discovery path and may not find the key features on their own.
+
+**TODO:** Add an optional **"Load Story Demo"** scenario alongside the random generator.
+The story demo is a fixed, hand-crafted dataset designed to show value in 60 seconds:
+
+- 4-week inoculum train across GNT and KK lines
+- 3 seed stages feeding into 2 bioreactors
+- One maintenance window that blocks a vessel mid-chain, forcing a reschedule
+- One deliberate overlap that has already been resolved (so the user can see what
+  a resolved conflict looks like vs. an active one)
+- A few checkpoint tasks (mix of planned/done)
+- Layout optimised for drag-to-move and cascade rescheduling to be immediately
+  demonstrable
+
+The random generator stays as default on first load. The story demo is a secondary
+CTA — e.g. **"Load example scenario"** button in the planner toolbar or on the
+landing page. Implementation: a dedicated `loadStoryDemo()` function in
+`lib/demo-data.ts` that populates the Zustand store with the fixed dataset.
+
 ---
 
 ## Usage Analytics (Free edition — for Enterprise validation)
@@ -446,6 +471,51 @@ Drag-to-move / stretch-to-resize (done)
 | Rotating biotech demo product catalog | Done | 20-product catalog in `lib/demo-data.ts` with daily-rotating seeded shuffle; product line shortName limited to 3 chars; Naming tab auto-defaults prefix from shortName |
 | Smart machine resolution during import | Done | Unknown machines in Excel import get guided resolution UI: Create (with group + product line assignment), Map to existing (fuzzy match), or Skip; prefix-based bulk actions; see `docs/plans/smart-machine-resolution-import.md` |
 | Planning horizon extension in wizard | Done | New Batch Chain wizard shows extended planning horizon for better visibility |
+
+### Pending
+
+| Component | Priority | Notes |
+|-----------|----------|-------|
+| Conflict & clash visual indicators | **High** | See detail below |
+| Cascade rescheduling | **High** | See detail below |
+
+#### Conflict & Clash Detection — visual indicators on canvas
+
+The scheduling engine (`lib/scheduling.ts`) already has `detectOverlaps()` and
+`findBestVessel()`, but the **visual result is not painted on the canvas**.
+When two stages compete for the same machine, the bars render normally with no
+indication — the user has no way to spot a double-booking at a glance.
+
+**TODO:** Wire `detectOverlaps()` results into `WallboardCanvas.tsx`:
+- Red diagonal hatch or red tint on bars with a confirmed overlap
+- A small `⚠ conflict` badge on the bar (top-right corner)
+- Hover tooltip: `"Conflicts with [BatchName] on [Machine]"`
+- The "aha moment" for new users — this is what makes PlantPulse more than a
+  prettier Gantt chart
+- (Future / Enterprise) Blocking confirmation prompt when the user tries to
+  commit a stage that has an active conflict
+
+#### Cascade Rescheduling
+
+Currently, moving one stage (via drag-to-move, stretch-to-resize, or ChainEditor)
+does **not** auto-shift dependent stages in the same chain. The user must manually
+update every downstream stage — exactly the domino-effect pain that PlantPulse
+should eliminate vs Excel.
+
+**TODO:** Implement cascade rescheduling:
+- When a stage's start/end is changed, detect downstream stages in the same
+  `batchChainId` (ordered by `startDatetime`)
+- Offer two modes in `ChainEditor.tsx`:
+  - **"Move this stage only"** — current behaviour, no cascade
+  - **"Cascade to chain"** — propagates the hour delta to all subsequent stages
+- For drag-to-move on canvas: default to cascade mode; modifier key (e.g. Alt/Option)
+  to move single stage only
+- Post-cascade: run `validateBulkShift()` on all affected stages to surface new
+  conflicts immediately
+- Visual feedback: brief highlight on all cascaded bars (pulse animation or
+  green flash) so the user sees what moved
+- Core value proposition — one drag in PlantPulse replaces 8 manual cell edits
+  in Excel
 
 ---
 
