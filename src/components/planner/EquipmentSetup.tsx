@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlantPulseStore, generateId } from '@/lib/store';
-import type { Machine, MachineDisplayGroup, EquipmentGroup, MachineDowntime, ProductLine, RecurringDowntimeRule, RecurrenceType, MachineCheckpointDef, CheckpointRecurrence } from '@/lib/types';
+import type { Machine, MachineDisplayGroup, EquipmentGroup, MachineDowntime, ProductLine, RecurringDowntimeRule, RecurrenceType, MachineCheckpointDef, CheckpointRecurrence, CheckpointStatus } from '@/lib/types';
 import { isMachineUnavailable, hasMachineDowntime, isRecurringRuleExpired, isCheckpointDefExpired } from '@/lib/types';
 
 // ─── Date helpers for datetime-local inputs ────────────────────────────
@@ -88,6 +88,7 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
   const [filterGroup, setFilterGroup] = useState<string>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [expandedHistory, setExpandedHistory] = useState<Set<string>>(new Set());
 
   // Sorted equipment groups for consistent dropdown/display order
   const sortedEqGroups = useMemo(
@@ -1254,6 +1255,22 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
                                   </div>
                                 )}
 
+                                <div className="pp-downtime-field">
+                                  <label className="pp-downtime-field-label">Checkpoint status</label>
+                                  <select
+                                    value={task.status ?? 'planned'}
+                                    onChange={(e) =>
+                                      updateCheckpointTask(m.id, task.id, { status: e.target.value as CheckpointStatus })
+                                    }
+                                    className={`pp-setup-select pp-checkpoint-status-select pp-checkpoint-status-${task.status ?? 'planned'}`}
+                                  >
+                                    <option value="planned">Planned</option>
+                                    <option value="done">Done</option>
+                                    <option value="issue">Issue / Comment</option>
+                                    <option value="not_possible">Not done / Not possible</option>
+                                  </select>
+                                </div>
+
                                 {task.recurrenceType === 'weekly' && (
                                   <div className="pp-downtime-field">
                                     <label className="pp-downtime-field-label">Day</label>
@@ -1396,7 +1413,64 @@ export default function EquipmentSetup({ open, onClose, initialEditMachineId, in
                                   />
                                   <span>Notify Shift</span>
                                 </label>
+                                <label className="pp-downtime-toggle-label">
+                                  <input
+                                    type="checkbox"
+                                    checked={task.statusByShift === true}
+                                    onChange={(e) =>
+                                      updateCheckpointTask(m.id, task.id, { statusByShift: e.target.checked })
+                                    }
+                                    className="rounded border-slate-300 text-[var(--pp-pharma)] focus:ring-[var(--pp-pharma)]"
+                                  />
+                                  <span>Status by Shift</span>
+                                </label>
+                                {task.statusByShift ? (
+                                  <button
+                                    className="pp-checkpoint-history-link"
+                                    onClick={() => {
+                                      setExpandedHistory((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(task.id)) next.delete(task.id);
+                                        else next.add(task.id);
+                                        return next;
+                                      });
+                                    }}
+                                  >
+                                    status change{(task.statusHistory?.length ?? 0) > 0 ? ` (${task.statusHistory!.length})` : ''}
+                                  </button>
+                                ) : (
+                                  <span className="pp-checkpoint-history-link disabled">status change</span>
+                                )}
                               </div>
+
+                              {task.statusByShift && expandedHistory.has(task.id) && (
+                                <div className="pp-checkpoint-history-table-wrap">
+                                  {(task.statusHistory?.length ?? 0) === 0 ? (
+                                    <div className="pp-checkpoint-empty" style={{ marginTop: 0 }}>No status changes recorded yet.</div>
+                                  ) : (
+                                    <table className="pp-checkpoint-history-table">
+                                      <thead>
+                                        <tr>
+                                          <th>Date / Time</th>
+                                          <th>Status</th>
+                                          <th>Changed by</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {(task.statusHistory ?? []).slice().reverse().map((entry, idx) => (
+                                          <tr key={idx}>
+                                            <td>{entry.changedAt instanceof Date ? entry.changedAt.toLocaleString() : String(entry.changedAt)}</td>
+                                            <td className={`pp-checkpoint-status-${entry.status}`}>
+                                              {entry.status === 'planned' ? 'Planned' : entry.status === 'done' ? 'Done' : entry.status === 'issue' ? 'Issue' : 'Not possible'}
+                                            </td>
+                                            <td>{entry.changedBy ?? '—'}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  )}
+                                </div>
+                              )}
 
                               <div className="pp-checkpoint-summary">
                                 {task.recurrenceType === 'none'

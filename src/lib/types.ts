@@ -79,6 +79,14 @@ export interface RecurringDowntimeRule {
 // Machine-level checkpoint task definition — a recurring or one-time
 // operational checkpoint (e.g. sampling, inspection) tied to a machine.
 export type CheckpointRecurrence = 'none' | 'weekly' | 'monthly';
+export type CheckpointStatus = 'planned' | 'done' | 'issue' | 'not_possible';
+
+export interface CheckpointStatusEntry {
+  status: CheckpointStatus;
+  changedAt: Date;
+  changedBy?: string;     // shift team name or "Planner"
+  comment?: string;
+}
 
 export interface MachineCheckpointDef {
   id: string;
@@ -92,7 +100,10 @@ export interface MachineCheckpointDef {
   startMinute: number;             // 0–59
   startDate?: Date;                // recurrence validity start
   endDate?: Date;                  // undefined = indefinite
-  notifyShift?: boolean;           // default false
+  notifyShift?: boolean;           // default true
+  status?: CheckpointStatus;           // default 'planned'
+  statusByShift?: boolean;             // default false — when true, Wallboard operators can change status
+  statusHistory?: CheckpointStatusEntry[];  // audit trail of status changes
 }
 
 export interface Machine {
@@ -344,6 +355,8 @@ export interface CheckpointWindow {
   description?: string;
   start: Date;                // point-in-time marker
   notifyShift: boolean;
+  status: CheckpointStatus;
+  statusByShift: boolean;
 }
 
 /** Check if a checkpoint definition has expired (end date in the past). */
@@ -378,6 +391,8 @@ export function collectCheckpointWindows(
           description: def.description,
           start: t,
           notifyShift: def.notifyShift === true,
+          status: def.status ?? 'planned',
+          statusByShift: def.statusByShift === true,
         });
       }
     } else {
@@ -419,6 +434,8 @@ export function collectCheckpointWindows(
           description: def.description,
           start: winStart,
           notifyShift: def.notifyShift === true,
+          status: def.status ?? 'planned',
+          statusByShift: def.statusByShift === true,
         });
       }
     }
