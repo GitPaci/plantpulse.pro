@@ -115,7 +115,7 @@ const PERSONAS = [
     href: '/planner',
   },
   {
-    role: 'QA / Supervisor',
+    role: 'Alignment',
     icon: '🔍',
     need: 'Needs a clean monthly schedule view, export-ready for review meetings, with no surprise overlaps or shutdown conflicts.',
     cta: 'View Schedule',
@@ -147,7 +147,7 @@ const FEATURES = [
     title: 'Schedule',
     subtitle: 'For QA & supervisors',
     description:
-      'Month-at-a-glance view filtered by equipment group. Export to PDF for printable batch records and review meetings.',
+      'Month-at-a-glance view filtered by equipment group. Export to PDF for printable plans and review meetings.',
     color: '#00AA44',
     letter: 'S',
   },
@@ -236,10 +236,10 @@ export default function HomePage() {
             </h2>
           </div>
           <p className="pp-section-sub pp-reveal pp-reveal-delay-1">
-            Pharmaceutical fermentation runs in overlapping multi-day stages across many vessels —
-            inoculum, propagators, pre-fermenters, fermenters — with shift teams, checkpoints,
-            and GxP documentation requirements. Managing this in Excel macros and PowerPoint
-            slides creates invisible risk.
+            Fermentation runs span multiple days and overlap across vessels — from flask inoculum 
+            through pre-seed and seed stages to the main fermenter — with shift ownership, checkpoints,
+            and documentation requirements. Managing this in Excel macros 
+            and PowerPoint slides create invisible risk.
           </p>
           <div className="pp-problem-list pp-reveal pp-reveal-delay-2">
             {PROBLEMS.map((p, i) => (
@@ -346,7 +346,7 @@ export default function HomePage() {
           </div>
           <p className="pp-train-note pp-reveal pp-reveal-delay-3">
             Vessel assignments, durations, and stage counts are fully configurable.
-            GNT and KK lines included as demo defaults.
+            Preloaded demo configuration with multiple products and production lines.
           </p>
         </div>
       </section>
