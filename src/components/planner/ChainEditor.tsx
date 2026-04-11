@@ -316,9 +316,8 @@ export default function ChainEditor({ open, batchChainId, onClose }: ChainEditor
   if (!open || !batchChainId || !batchChain) return null;
 
   return (
-    <>
-      <div className="pp-modal-backdrop" onClick={onClose} />
-      <div className="pp-modal pp-modal-lg">
+    <div className="pp-modal-backdrop" onClick={onClose}>
+      <div className="pp-modal pp-modal-lg" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="pp-modal-header">
           <h3>Chain Editor</h3>
@@ -538,6 +537,6 @@ export default function ChainEditor({ open, batchChainId, onClose }: ChainEditor
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }
