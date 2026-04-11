@@ -450,6 +450,7 @@ export interface BatchChain {
   seriesNumber: number;
   productLine: string;
   status: BatchStatus;
+  linkToNext?: boolean;
 }
 
 export interface Stage {

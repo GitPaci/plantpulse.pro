@@ -47,6 +47,7 @@ export default function StageDetailPanel({ stageId, onClose, onEditChain }: Stag
   const equipmentGroups = usePlantPulseStore((s) => s.equipmentGroups);
   const updateStage = usePlantPulseStore((s) => s.updateStage);
   const deleteStage = usePlantPulseStore((s) => s.deleteStage);
+  const updateBatchChain = usePlantPulseStore((s) => s.updateBatchChain);
 
   // Find the stage and its batch chain
   const stage = useMemo(
@@ -339,14 +340,28 @@ export default function StageDetailPanel({ stageId, onClose, onEditChain }: Stag
             <div className="pp-detail-section">
               <div className="pp-detail-section-title">
                 Batch Chain Stages
-                {onEditChain && stage.batchChainId && (
-                  <button
-                    className="pp-detail-edit-chain-btn"
-                    onClick={() => { onEditChain(stage.batchChainId); onClose(); }}
-                  >
-                    Edit Full Chain
-                  </button>
-                )}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {batchChain && (
+                    <label className="pp-detail-toggle">
+                      <input
+                        type="checkbox"
+                        checked={batchChain.linkToNext ?? false}
+                        onChange={(e) =>
+                          updateBatchChain(batchChain.id, { linkToNext: e.target.checked })
+                        }
+                      />
+                      Link to next
+                    </label>
+                  )}
+                  {onEditChain && stage.batchChainId && (
+                    <button
+                      className="pp-detail-edit-chain-btn"
+                      onClick={() => { onEditChain(stage.batchChainId); onClose(); }}
+                    >
+                      Edit Full Chain
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="pp-detail-chain-list">
                 {chainStages.map((cs) => {
