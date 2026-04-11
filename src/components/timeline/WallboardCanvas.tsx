@@ -998,6 +998,8 @@ interface WallboardCanvasProps {
   checkpointNotifyOnly?: boolean;
   /** Called when a checkpoint marker is clicked — Planner uses this to open Equipment Setup checkpoints. */
   onCheckpointClick?: (machineId: string, defId: string) => void;
+  /** Enable click-and-drag panning of the timeline background (Planner only). */
+  enableBackgroundPan?: boolean;
 }
 
 export default function WallboardCanvas({
@@ -1021,6 +1023,7 @@ export default function WallboardCanvas({
   showCheckpoints = false,
   checkpointNotifyOnly = false,
   onCheckpointClick,
+  enableBackgroundPan = false,
 }: WallboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1031,6 +1034,7 @@ export default function WallboardCanvas({
   const stages = usePlantPulseStore((s) => s.stages);
   const batchChains = usePlantPulseStore((s) => s.batchChains);
   const viewConfig = usePlantPulseStore((s) => s.viewConfig);
+  const setViewConfig = usePlantPulseStore((s) => s.setViewConfig);
   const shutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
   const batchNamingConfig = usePlantPulseStore((s) => s.batchNamingConfig);
   const shiftRotation = usePlantPulseStore((s) => s.shiftRotation);
@@ -1378,6 +1382,14 @@ export default function WallboardCanvas({
     left: number; top: number; width: number; height: number;
   } | null>(null);
 
+  // ── Background pan state (Planner only) ─────────────────────────────
+  const panRef = useRef<{
+    startMouseX: number;
+    startViewStart: Date;
+    pixelsPerHour: number;
+    committed: boolean;
+  } | null>(null);
+
   const hitTestStageEdge = useCallback(
     (cssX: number, cssY: number): { stageId: string; type: DragType } | null => {
       if (!enableDragResize) return null;
@@ -1406,35 +1418,48 @@ export default function WallboardCanvas({
 
   const handleCanvasMouseDown = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
-      if (!enableDragResize || !onStageDragEnd) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
       const cssX = event.clientX - rect.left;
       const cssY = event.clientY - rect.top;
 
-      const hit = hitTestStageEdge(cssX, cssY);
-      if (!hit) return;
+      // Priority 1: batch-bar drag/resize (Planner only)
+      if (enableDragResize && onStageDragEnd) {
+        const hit = hitTestStageEdge(cssX, cssY);
+        if (hit) {
+          const stage = visibleStages.find((s) => s.id === hit.stageId);
+          if (stage) {
+            const ppd = getPPD(dims.width, LEFT_MARGIN, viewConfig.numberOfDays);
+            dragRef.current = {
+              type: hit.type,
+              stageId: hit.stageId,
+              originalStart: stage.startDatetime,
+              originalEnd: stage.endDatetime,
+              startMouseX: event.clientX,
+              pixelsPerHour: ppd / 24,
+              committed: false,
+            };
+            event.preventDefault();
+            return; // don't also start a pan
+          }
+        }
+      }
 
-      const stage = visibleStages.find((s) => s.id === hit.stageId);
-      if (!stage) return;
-
-      const ppd = getPPD(dims.width, LEFT_MARGIN, viewConfig.numberOfDays);
-      const pixelsPerHour = ppd / 24;
-
-      dragRef.current = {
-        type: hit.type,
-        stageId: hit.stageId,
-        originalStart: stage.startDatetime,
-        originalEnd: stage.endDatetime,
-        startMouseX: event.clientX,
-        pixelsPerHour,
-        committed: false,
-      };
-
-      event.preventDefault();
+      // Priority 2: background pan — content area only (below header, right of machine labels)
+      if (enableBackgroundPan && cssX >= LEFT_MARGIN && cssY >= TOP_MARGIN) {
+        const ppd = getPPD(dims.width, LEFT_MARGIN, viewConfig.numberOfDays);
+        panRef.current = {
+          startMouseX: event.clientX,
+          startViewStart: viewConfig.viewStart,
+          pixelsPerHour: ppd / 24,
+          committed: false,
+        };
+        event.preventDefault();
+      }
     },
-    [enableDragResize, onStageDragEnd, hitTestStageEdge, visibleStages, dims.width, viewConfig.numberOfDays]
+    [enableDragResize, onStageDragEnd, enableBackgroundPan, hitTestStageEdge,
+     visibleStages, dims.width, viewConfig.numberOfDays, viewConfig.viewStart]
   );
 
   // Track latest drag coordinates for mouseup handler
@@ -1511,6 +1536,36 @@ export default function WallboardCanvas({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enableDragResize, onStageDragEnd, viewConfig, dims.width, visibleStages, rows]);
+
+  // ── Background pan handlers (Planner only) ──────────────────────────
+  useEffect(() => {
+    if (!enableBackgroundPan) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const pan = panRef.current;
+      if (!pan) return;
+      const dx = e.clientX - pan.startMouseX;
+      if (!pan.committed && Math.abs(dx) < DRAG_THRESHOLD_PX) return;
+      pan.committed = true;
+      // drag right (dx > 0) → view starts earlier; drag left → view starts later
+      const newViewStart = addHours(pan.startViewStart, -(dx / pan.pixelsPerHour));
+      setViewConfig({ viewStart: newViewStart });
+    };
+
+    const handleMouseUp = () => {
+      const pan = panRef.current;
+      panRef.current = null;
+      if (pan?.committed) wasDragging.current = true; // suppress post-pan click
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enableBackgroundPan, setViewConfig]);
 
   // Tooltip state for downtime hover
   const [downtimeTooltip, setDowntimeTooltip] = useState<{
@@ -1591,7 +1646,7 @@ export default function WallboardCanvas({
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       const hasAnyHandler = onStageClick || onMachineLabelClick || onShiftBandClick || onDowntimeClick || onCheckpointClick;
       const hasNotifyShift = notifyShiftWindows.length > 0;
-      if (!hasAnyHandler && !showDowntime && !hasNotifyShift && !showCheckpoints) return;
+      if (!hasAnyHandler && !showDowntime && !hasNotifyShift && !showCheckpoints && !enableBackgroundPan) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
 
@@ -1632,13 +1687,17 @@ export default function WallboardCanvas({
             canvas.style.cursor = onCheckpointClick ? 'pointer' : 'default';
             setCheckpointTooltip({ x: cssX, y: cssY, window: cpWin });
           } else {
-            canvas.style.cursor = 'default';
+            if (enableBackgroundPan && cssX >= LEFT_MARGIN && cssY >= TOP_MARGIN) {
+              canvas.style.cursor = panRef.current?.committed ? 'grabbing' : 'grab';
+            } else {
+              canvas.style.cursor = 'default';
+            }
             setCheckpointTooltip(null);
           }
         }
       }
     },
-    [onStageClick, onMachineLabelClick, onShiftBandClick, onDowntimeClick, onCheckpointClick, showDowntime, showCheckpoints, notifyShiftWindows, hitTestStage, hitTestMachineLabel, hitTestDowntime, hitTestCheckpoint, enableDragResize, hitTestStageEdge]
+    [onStageClick, onMachineLabelClick, onShiftBandClick, onDowntimeClick, onCheckpointClick, showDowntime, showCheckpoints, notifyShiftWindows, hitTestStage, hitTestMachineLabel, hitTestDowntime, hitTestCheckpoint, enableDragResize, hitTestStageEdge, enableBackgroundPan]
   );
 
   const handleCanvasMouseLeave = useCallback(() => {
@@ -1661,8 +1720,8 @@ export default function WallboardCanvas({
         ref={canvasRef}
         id={canvasId}
         onClick={handleCanvasClick}
-        onMouseDown={enableDragResize ? handleCanvasMouseDown : undefined}
-        onMouseMove={(onStageClick || onMachineLabelClick || onShiftBandClick || showDowntime || notifyShiftWindows.length > 0 || enableDragResize || showCheckpoints) ? handleCanvasMouseMove : undefined}
+        onMouseDown={(enableDragResize || enableBackgroundPan) ? handleCanvasMouseDown : undefined}
+        onMouseMove={(onStageClick || onMachineLabelClick || onShiftBandClick || showDowntime || notifyShiftWindows.length > 0 || enableDragResize || enableBackgroundPan || showCheckpoints) ? handleCanvasMouseMove : undefined}
         onMouseLeave={(showDowntime || notifyShiftWindows.length > 0 || showCheckpoints) ? handleCanvasMouseLeave : undefined}
       />
       {/* Drag ghost overlay */}
