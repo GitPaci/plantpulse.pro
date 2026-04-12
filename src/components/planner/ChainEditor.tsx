@@ -88,7 +88,7 @@ export default function ChainEditor({ open, batchChainId, onClose }: ChainEditor
   const [draftBatchName, setDraftBatchName] = useState('');
   const [draftStatus, setDraftStatus] = useState<BatchStatus>('draft');
   const [fixedDuration, setFixedDuration] = useState(true);
-  const [linkToNext, setLinkToNext] = useState(false);
+  const [linkToNext, setLinkToNext] = useState(true);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   // Initialize draft when opening or chain changes
@@ -108,6 +108,7 @@ export default function ChainEditor({ open, batchChainId, onClose }: ChainEditor
       );
       setDraftBatchName(batchChain.batchName);
       setDraftStatus(batchChain.status);
+      setLinkToNext(batchChain.linkToNext ?? true);
       setShowConfirmDelete(false);
     }
   }, [open, batchChain, chainStages]);
@@ -374,7 +375,10 @@ export default function ChainEditor({ open, batchChainId, onClose }: ChainEditor
               <input
                 type="checkbox"
                 checked={linkToNext}
-                onChange={(e) => setLinkToNext(e.target.checked)}
+                onChange={(e) => {
+                  setLinkToNext(e.target.checked);
+                  if (batchChainId) updateBatchChain(batchChainId, { linkToNext: e.target.checked });
+                }}
               />
               Link to next
             </label>

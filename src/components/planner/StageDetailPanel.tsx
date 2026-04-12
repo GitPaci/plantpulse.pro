@@ -47,6 +47,7 @@ export default function StageDetailPanel({ stageId, onClose, onEditChain }: Stag
   const equipmentGroups = usePlantPulseStore((s) => s.equipmentGroups);
   const updateStage = usePlantPulseStore((s) => s.updateStage);
   const deleteStage = usePlantPulseStore((s) => s.deleteStage);
+  const updateBatchChain = usePlantPulseStore((s) => s.updateBatchChain);
 
   // Find the stage and its batch chain
   const stage = useMemo(
@@ -348,6 +349,28 @@ export default function StageDetailPanel({ stageId, onClose, onEditChain }: Stag
                   </button>
                 )}
               </div>
+              {batchChain && (
+                <div className="pp-link-row">
+                  <div className="pp-link-row-label">
+                    <svg className="pp-link-row-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                      <path d="M4 3v6a4 4 0 008 0V3"/>
+                      <line x1="2" y1="9" x2="6" y2="9"/>
+                      <line x1="10" y1="9" x2="14" y2="9"/>
+                    </svg>
+                    Link to next stage
+                  </div>
+                  <label className="pp-link-toggle">
+                    <input
+                      type="checkbox"
+                      checked={batchChain.linkToNext ?? true}
+                      onChange={(e) =>
+                        updateBatchChain(batchChain.id, { linkToNext: e.target.checked })
+                      }
+                    />
+                    <span className="pp-link-toggle-slider" />
+                  </label>
+                </div>
+              )}
               <div className="pp-detail-chain-list">
                 {chainStages.map((cs) => {
                   const csMachine = machines.find((m) => m.id === cs.machineId);
