@@ -26,11 +26,31 @@ import {
   type PendingRow,
 } from '@/lib/excel-io';
 import { subDays, addDays, startOfDay, differenceInDays, format } from 'date-fns';
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 
-const ZOOM_LEVELS = [5, 7, 10, 14, 21, 30];
-const ZOOM_DEFAULT_DESKTOP = 4; // 21d
-const ZOOM_DEFAULT_MOBILE = 2;  // 10d
+// ─── View mode presets ────────────────────────────────────────────────
+type ViewMode = 'day' | 'week' | 'month' | 'quarter';
+
+const VIEW_MODE_DAYS: Record<ViewMode, number> = {
+  day: 1,
+  week: 7,
+  month: 30,
+  quarter: 90,
+};
+
+const VIEW_MODES: { key: ViewMode; label: string }[] = [
+  { key: 'day', label: 'Day' },
+  { key: 'week', label: 'Week' },
+  { key: 'month', label: 'Month' },
+  { key: 'quarter', label: 'Quarter' },
+];
+
+function inferViewMode(numberOfDays: number): ViewMode {
+  if (numberOfDays <= 1) return 'day';
+  if (numberOfDays <= 7) return 'week';
+  if (numberOfDays <= 31) return 'month';
+  return 'quarter';
+}
 
 // ─── Inline SVG icons (16×16, stroke-based) ───────────────────────────
 
@@ -225,29 +245,44 @@ export default function PlannerPage() {
   // Sidebar visibility
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Zoom controls
-  const [zoomIdx, setZoomIdx] = useState(() => {
-    const idx = ZOOM_LEVELS.indexOf(viewConfig.numberOfDays);
-    return idx !== -1 ? idx : ZOOM_DEFAULT_DESKTOP;
-  });
+  // View mode (Day / Week / Month / Quarter)
+  const [viewMode, setViewMode] = useState<ViewMode>(() => inferViewMode(viewConfig.numberOfDays));
 
-  // On mobile, default to 10d for better clarity
+  // On mobile, default to week for better clarity
   useEffect(() => {
-    if (window.innerWidth < 768) {
-      setZoomIdx(ZOOM_DEFAULT_MOBILE);
-      setViewConfig({ numberOfDays: ZOOM_LEVELS[ZOOM_DEFAULT_MOBILE] });
+    if (window.innerWidth < 768 && viewConfig.numberOfDays > 7) {
+      setViewMode('week');
+      setViewConfig({ numberOfDays: 7 });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function applyZoom(newIdx: number) {
-    const newDays = ZOOM_LEVELS[newIdx];
+  function applyViewMode(mode: ViewMode) {
+    const newDays = VIEW_MODE_DAYS[mode];
     const currentDays = viewConfig.numberOfDays;
     const centerMs = viewConfig.viewStart.getTime() + (currentDays / 2) * 24 * 3600 * 1000;
     const newViewStart = new Date(centerMs - (newDays / 2) * 24 * 3600 * 1000);
-    setViewConfig({ viewStart: newViewStart, numberOfDays: newDays });
-    setZoomIdx(newIdx);
+    setViewConfig({ viewStart: startOfDay(newViewStart), numberOfDays: newDays });
+    setViewMode(mode);
   }
+
+  // Formatted date range for the toolbar
+  const viewRangeLabel = useMemo(() => {
+    const start = viewConfig.viewStart;
+    const end = addDays(start, viewConfig.numberOfDays - 1);
+    const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+    const sameYear = start.getFullYear() === end.getFullYear();
+    if (viewConfig.numberOfDays <= 1) {
+      return format(start, 'MMM d, yyyy');
+    }
+    if (sameMonth) {
+      return `${format(start, 'MMM d')} – ${format(end, 'd, yyyy')}`;
+    }
+    if (sameYear) {
+      return `${format(start, 'MMM d')} – ${format(end, 'MMM d')}`;
+    }
+    return `${format(start, 'MMM d, yy')} – ${format(end, 'MMM d, yy')}`;
+  }, [viewConfig.viewStart, viewConfig.numberOfDays]);
 
   // Mobile state
   const [plannerMobileOpen, setPlannerMobileOpen] = useState(false);
@@ -311,15 +346,18 @@ export default function PlannerPage() {
     Map<string, { action: 'create' | 'map' | 'skip'; group?: string; productLine?: string; mapTo?: string }>
   >(new Map());
 
-  function shiftView(days: number) {
+  function shiftView(direction: number) {
+    const days = VIEW_MODE_DAYS[viewMode] * direction;
     setViewConfig({
       viewStart: addDays(viewConfig.viewStart, days),
     });
   }
 
   function resetView() {
+    const days = VIEW_MODE_DAYS[viewMode];
+    const offset = Math.max(0, Math.floor(days * 0.2));
     setViewConfig({
-      viewStart: subDays(startOfDay(new Date()), 4),
+      viewStart: subDays(startOfDay(new Date()), offset),
     });
   }
 
@@ -583,55 +621,52 @@ export default function PlannerPage() {
       <div className="bg-white border-b border-[var(--pp-border)] shrink-0 relative">
         {/* Desktop toolbar (>= 768px) */}
         <div className="h-10 hidden md:flex items-center px-4 gap-4 text-sm">
+          {/* View mode segmented control */}
+          <div className="planner-viewmode-bar" role="radiogroup" aria-label="View time range">
+            {VIEW_MODES.map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                role="radio"
+                aria-checked={viewMode === m.key}
+                className={`planner-viewmode-btn${viewMode === m.key ? ' planner-viewmode-btn--active' : ''}`}
+                onClick={() => applyViewMode(m.key)}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Date range navigation */}
+          <div className="planner-timenav">
+            <button
+              type="button"
+              className="planner-timenav-arrow"
+              onClick={() => shiftView(-1)}
+              aria-label="Previous period"
+              title="Previous period"
+            >
+              &lsaquo;
+            </button>
+            <span className="planner-timenav-range">{viewRangeLabel}</span>
+            <button
+              type="button"
+              className="planner-timenav-arrow"
+              onClick={() => shiftView(1)}
+              aria-label="Next period"
+              title="Next period"
+            >
+              &rsaquo;
+            </button>
+          </div>
+
           <button
-            onClick={() => shiftView(-7)}
-            className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
-          >
-            &laquo; 7d
-          </button>
-          <button
-            onClick={() => shiftView(-1)}
-            className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
-          >
-            &lsaquo; 1d
-          </button>
-          <button
+            type="button"
+            className="planner-timenav-today"
             onClick={resetView}
-            className="px-3 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50 font-medium"
           >
             Today
           </button>
-          <button
-            onClick={() => shiftView(1)}
-            className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
-          >
-            1d &rsaquo;
-          </button>
-          <button
-            onClick={() => shiftView(7)}
-            className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50"
-          >
-            7d &raquo;
-          </button>
-
-          {/* Zoom controls */}
-          <div className="flex items-center gap-1 border-l border-[var(--pp-border)] pl-4">
-            <button
-              onClick={() => applyZoom(zoomIdx - 1)}
-              disabled={zoomIdx === 0}
-              className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Zoom in (fewer days)"
-            >+</button>
-            <span className="text-xs text-[var(--pp-muted)] min-w-[2.5rem] text-center">
-              {ZOOM_LEVELS[zoomIdx]}d
-            </span>
-            <button
-              onClick={() => applyZoom(zoomIdx + 1)}
-              disabled={zoomIdx === ZOOM_LEVELS.length - 1}
-              className="px-2 py-0.5 border border-[var(--pp-border)] rounded text-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Zoom out (more days)"
-            >−</button>
-          </div>
 
           <div className="flex-1" />
 
@@ -681,16 +716,15 @@ export default function PlannerPage() {
             <span aria-hidden="true" className="text-base leading-none">&#9776;</span>
             Controls
           </button>
-          <button
-            onClick={resetView}
-            className="px-3 py-1.5 border border-[var(--pp-border)] rounded text-sm font-medium hover:bg-gray-50"
-          >
-            Today
-          </button>
+
+          <div className="planner-timenav" style={{ gap: '2px' }}>
+            <button type="button" className="planner-timenav-arrow" onClick={() => shiftView(-1)} aria-label="Previous period">&lsaquo;</button>
+            <span className="planner-timenav-range" style={{ fontSize: '12px', minWidth: 'auto' }}>{viewRangeLabel}</span>
+            <button type="button" className="planner-timenav-arrow" onClick={() => shiftView(1)} aria-label="Next period">&rsaquo;</button>
+          </div>
+
           <div className="flex-1" />
-          <span className="text-xs text-[var(--pp-muted)]">
-            {batchChains.length} chains
-          </span>
+          <button type="button" className="planner-timenav-today" onClick={resetView}>Today</button>
         </div>
 
         {/* Mobile dropdown panel */}
@@ -703,26 +737,26 @@ export default function PlannerPage() {
             aria-label="Planner controls"
           >
             <div className="planner-mobile-section">
-              <div className="text-xs font-medium text-[var(--pp-muted)] uppercase tracking-wide mb-2">Navigation</div>
+              <div className="text-xs font-medium text-[var(--pp-muted)] uppercase tracking-wide mb-2">View Range</div>
               <div className="flex items-center gap-2">
-                <button className="planner-mobile-btn flex-1" onClick={() => { shiftView(-7); closePlannerMobile(); }}>&laquo; 7d</button>
-                <button className="planner-mobile-btn flex-1" onClick={() => { shiftView(-1); closePlannerMobile(); }}>&lsaquo; 1d</button>
-                <button className="planner-mobile-btn flex-1 font-medium" onClick={() => { resetView(); closePlannerMobile(); }}>Today</button>
-                <button className="planner-mobile-btn flex-1" onClick={() => { shiftView(1); closePlannerMobile(); }}>1d &rsaquo;</button>
-                <button className="planner-mobile-btn flex-1" onClick={() => { shiftView(7); closePlannerMobile(); }}>7d &raquo;</button>
+                {VIEW_MODES.map((m) => (
+                  <button
+                    key={m.key}
+                    className={`planner-mobile-btn flex-1${viewMode === m.key ? ' font-bold' : ''}`}
+                    style={viewMode === m.key ? { background: 'var(--pp-text, #1a202c)', color: '#fff', borderColor: 'var(--pp-text, #1a202c)' } : undefined}
+                    onClick={() => { applyViewMode(m.key); closePlannerMobile(); }}
+                  >
+                    {m.label}
+                  </button>
+                ))}
               </div>
-              <div className="flex items-center gap-2 mt-2">
-                <button
-                  className="planner-mobile-btn flex-1"
-                  disabled={zoomIdx === 0}
-                  onClick={() => applyZoom(zoomIdx - 1)}
-                >+ Zoom in</button>
-                <span className="text-xs text-[var(--pp-muted)] min-w-[3rem] text-center">{ZOOM_LEVELS[zoomIdx]}d</span>
-                <button
-                  className="planner-mobile-btn flex-1"
-                  disabled={zoomIdx === ZOOM_LEVELS.length - 1}
-                  onClick={() => applyZoom(zoomIdx + 1)}
-                >− Zoom out</button>
+            </div>
+            <div className="planner-mobile-section">
+              <div className="text-xs font-medium text-[var(--pp-muted)] uppercase tracking-wide mb-2">Navigate</div>
+              <div className="flex items-center gap-2">
+                <button className="planner-mobile-btn flex-1" onClick={() => { shiftView(-1); closePlannerMobile(); }}>&lsaquo; Prev</button>
+                <button className="planner-mobile-btn flex-1 font-medium" onClick={() => { resetView(); closePlannerMobile(); }}>Today</button>
+                <button className="planner-mobile-btn flex-1" onClick={() => { shiftView(1); closePlannerMobile(); }}>Next &rsaquo;</button>
               </div>
             </div>
             <div className="planner-mobile-section border-b-0 pb-0">

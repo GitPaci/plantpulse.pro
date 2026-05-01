@@ -18,6 +18,8 @@ import {
   format,
   getDate,
   getMonth,
+  getISOWeek,
+  getDay,
   differenceInHours,
 } from 'date-fns';
 import type { Machine, Stage, MachineDisplayGroup, ShutdownPeriod, BatchChain, BatchNamingConfig, DowntimeWindow, CheckpointWindow, CheckpointStatus } from '@/lib/types';
@@ -300,13 +302,16 @@ function drawCalendarColumns(
       ctx.fillRect(x, TOP_MARGIN, ppd, totalHeight - TOP_MARGIN);
     }
 
-    // Vertical grid line
-    ctx.beginPath();
-    ctx.strokeStyle = theme.grid;
-    ctx.lineWidth = 0.5;
-    ctx.moveTo(x, TOP_MARGIN);
-    ctx.lineTo(x, totalHeight);
-    ctx.stroke();
+    // Vertical grid line — skip per-day lines when columns are too narrow
+    const dayOfWeek = getDay(date);
+    if (ppd >= 18 || dayOfWeek === 1) {
+      ctx.beginPath();
+      ctx.strokeStyle = theme.grid;
+      ctx.lineWidth = dayOfWeek === 1 && ppd < 18 ? 0.8 : 0.5;
+      ctx.moveTo(x, TOP_MARGIN);
+      ctx.lineTo(x, totalHeight);
+      ctx.stroke();
+    }
   }
 }
 
@@ -744,41 +749,94 @@ function drawDateHeader(
   ctx.lineTo(width, TOP_MARGIN - 1);
   ctx.stroke();
 
+  // When columns are too narrow for individual day numbers, show week numbers
+  const useWeekMode = ppd < 18;
+
   let lastMonth = -1;
 
-  for (let d = 0; d < numDays; d++) {
-    const date = addDays(viewStart, d);
-    const x = LEFT_MARGIN + d * ppd;
-    const dayNum = getDate(date);
-    const month = getMonth(date);
+  if (useWeekMode) {
+    // ── Week-number mode ────────────────────────────────────
+    let lastWeek = -1;
 
-    // Month label when month changes
-    if (month !== lastMonth) {
-      ctx.fillStyle = theme.machineText;
-      ctx.font = 'bold 11px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillText(format(date, 'MMMM'), x + 2, SHIFT_BAND_H + 2);
-      lastMonth = month;
+    for (let d = 0; d < numDays; d++) {
+      const date = addDays(viewStart, d);
+      const x = LEFT_MARGIN + d * ppd;
+      const month = getMonth(date);
+      const weekNum = getISOWeek(date);
+      const dayOfWeek = getDay(date); // 0=Sun, 1=Mon
+
+      // Month label when month changes
+      if (month !== lastMonth) {
+        ctx.fillStyle = theme.machineText;
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(format(date, 'MMMM'), x + 2, SHIFT_BAND_H + 2);
+        lastMonth = month;
+      }
+
+      // Week label at Monday (start of ISO week) or first visible day
+      if (weekNum !== lastWeek) {
+        const weekWidth = ppd * 7;
+        const labelX = dayOfWeek === 1 ? x : x; // anchor at first day of this week in view
+        // Only draw if there's enough room for the label
+        const remainingPx = (LEFT_MARGIN + numDays * ppd) - labelX;
+        if (remainingPx > 20) {
+          ctx.font = '10px sans-serif';
+          ctx.fillStyle = theme.dateText;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(`W${weekNum}`, labelX + 3, TOP_MARGIN - 3);
+        }
+        lastWeek = weekNum;
+      }
+
+      // Vertical grid line only at week boundaries (Monday)
+      if (dayOfWeek === 1) {
+        ctx.beginPath();
+        ctx.strokeStyle = theme.grid;
+        ctx.lineWidth = 0.5;
+        ctx.moveTo(x, SHIFT_BAND_H + 16);
+        ctx.lineTo(x, TOP_MARGIN);
+        ctx.stroke();
+      }
     }
+  } else {
+    // ── Day-number mode (original) ──────────────────────────
+    for (let d = 0; d < numDays; d++) {
+      const date = addDays(viewStart, d);
+      const x = LEFT_MARGIN + d * ppd;
+      const dayNum = getDate(date);
+      const month = getMonth(date);
 
-    // Day number
-    const isWE = isWeekend(date);
-    const isHol = isHoliday(date);
+      // Month label when month changes
+      if (month !== lastMonth) {
+        ctx.fillStyle = theme.machineText;
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(format(date, 'MMMM'), x + 2, SHIFT_BAND_H + 2);
+        lastMonth = month;
+      }
 
-    ctx.font = isHol ? 'bold 11px sans-serif' : '11px sans-serif';
-    ctx.fillStyle = isWE || isHol ? theme.dateWeekend : theme.dateText;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText(String(dayNum), x + ppd / 2, TOP_MARGIN - 3);
+      // Day number
+      const isWE = isWeekend(date);
+      const isHol = isHoliday(date);
 
-    // Vertical grid line in header
-    ctx.beginPath();
-    ctx.strokeStyle = theme.grid;
-    ctx.lineWidth = 0.5;
-    ctx.moveTo(x, SHIFT_BAND_H + 16);
-    ctx.lineTo(x, TOP_MARGIN);
-    ctx.stroke();
+      ctx.font = isHol ? 'bold 11px sans-serif' : '11px sans-serif';
+      ctx.fillStyle = isWE || isHol ? theme.dateWeekend : theme.dateText;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(String(dayNum), x + ppd / 2, TOP_MARGIN - 3);
+
+      // Vertical grid line in header
+      ctx.beginPath();
+      ctx.strokeStyle = theme.grid;
+      ctx.lineWidth = 0.5;
+      ctx.moveTo(x, SHIFT_BAND_H + 16);
+      ctx.lineTo(x, TOP_MARGIN);
+      ctx.stroke();
+    }
   }
 }
 
