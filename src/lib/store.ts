@@ -19,6 +19,7 @@ import type {
   MaintenanceTask,
   CheckpointStatus,
   CheckpointStatusEntry,
+  StageStateHistoryEntry,
 } from './types';
 import {
   DEFAULT_MACHINES,
@@ -199,9 +200,21 @@ export const usePlantPulseStore = create<PlantPulseState>((set, get) => ({
 
   updateStage: (id, updates) =>
     set((state) => ({
-      stages: state.stages.map((s) =>
-        s.id === id ? { ...s, ...updates } : s
-      ),
+      stages: state.stages.map((s) => {
+        if (s.id !== id) return s;
+        const merged = { ...s, ...updates };
+        // Record state change in audit history
+        if (updates.state !== undefined && updates.state !== s.state) {
+          const entry: StageStateHistoryEntry = {
+            fromState: s.state,
+            toState: updates.state,
+            changedAt: new Date(),
+            changedBy: 'Planner',
+          };
+          merged.stateHistory = [...(s.stateHistory ?? []), entry];
+        }
+        return merged;
+      }),
     })),
 
   deleteStage: (id) =>

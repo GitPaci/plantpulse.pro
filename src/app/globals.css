@@ -1732,6 +1732,195 @@ body {
   background: rgba(49, 130, 206, 0.08);
 }
 
+/* ── Segmented Status Bar ────────────────────────────────────────── */
+/* 5-button status control: Planned | Active | Completed | Aborted | … */
+
+.pp-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pp-status-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  min-height: 32px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  border: 1px solid var(--pp-border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--pp-muted);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.pp-status-btn:hover {
+  background: #f7fafc;
+  color: var(--pp-text, #1a202c);
+}
+
+.pp-status-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(49, 130, 206, 0.4);
+  z-index: 1;
+}
+
+.pp-status-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* ── Selected states per status ──────────────────── */
+
+.pp-status-btn-planned.pp-status-btn--selected {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.pp-status-btn-active.pp-status-btn--selected {
+  background: #dbeafe;
+  border-color: #3b82f6;
+  color: #1e40af;
+}
+
+.pp-status-btn-completed.pp-status-btn--selected {
+  background: #dcfce7;
+  border-color: #22c55e;
+  color: #166534;
+}
+
+.pp-status-btn-aborted.pp-status-btn--selected {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #991b1b;
+}
+
+.pp-status-btn-custom.pp-status-btn--selected {
+  background: #f3e8ff;
+  border-color: #a855f7;
+  color: #6b21a8;
+}
+
+/* ── Custom status wrapper + popover ────────────── */
+
+.pp-status-custom-wrapper {
+  position: relative;
+}
+
+.pp-status-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  max-width: 260px;
+  background: #fff;
+  border: 1px solid var(--pp-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 10;
+  padding: 10px;
+  animation: pp-status-popover-in 0.12s ease-out;
+}
+
+@keyframes pp-status-popover-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pp-status-popover-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pp-muted);
+  margin-bottom: 6px;
+}
+
+.pp-status-popover-input {
+  width: 100%;
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px solid var(--pp-border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--pp-text, #1a202c);
+  outline: none;
+}
+.pp-status-popover-input:focus {
+  border-color: var(--pp-accent, #3182ce);
+  box-shadow: 0 0 0 2px rgba(49, 130, 206, 0.15);
+}
+
+.pp-status-popover-recent {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--pp-border);
+}
+
+.pp-status-popover-recent-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pp-muted);
+  margin-bottom: 4px;
+}
+
+.pp-status-popover-recent-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--pp-text, #1a202c);
+  background: none;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.pp-status-popover-recent-item:hover {
+  background: #f3e8ff;
+  color: #6b21a8;
+}
+
+/* ── Custom status badge (shown when a custom label is selected) ── */
+
+.pp-status-custom-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b21a8;
+  background: #f3e8ff;
+  border-radius: 10px;
+}
+
+/* ── Mobile: ensure touch targets ────────────────── */
+
+@media (max-width: 400px) {
+  .pp-status-btn {
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 11px;
+    flex: 1 1 auto;
+  }
+  .pp-status-popover {
+    left: auto;
+    right: 0;
+  }
+}
+
 /* ── Link-to-next row ─────────────────────────────────────────────── */
 
 .pp-link-row {
