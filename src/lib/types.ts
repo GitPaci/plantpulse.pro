@@ -28,8 +28,17 @@ export interface StageTypeDefinition {
   displayOrder: number;  // controls dropdown and display sort order
 }
 
-export type StageState = 'planned' | 'active' | 'completed';
+export type StageState = 'planned' | 'active' | 'completed' | 'aborted' | (string & {});
+export const FIXED_STAGE_STATES = ['planned', 'active', 'completed', 'aborted'] as const;
 export type BatchStatus = 'draft' | 'proposed' | 'committed';
+
+export interface StageStateHistoryEntry {
+  fromState: StageState;
+  toState: StageState;
+  changedAt: Date;
+  changedBy?: string;     // shift team name or "Planner"
+  comment?: string;
+}
 
 export interface ProductLine {
   id: string;
@@ -461,6 +470,7 @@ export interface Stage {
   startDatetime: Date;
   endDatetime: Date;
   state: StageState;
+  stateHistory?: StageStateHistoryEntry[];
 }
 
 export interface MachineDisplayGroup {
