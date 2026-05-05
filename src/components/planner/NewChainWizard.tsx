@@ -12,7 +12,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { usePlantPulseStore, generateId } from '@/lib/store';
 import { backCalculateChain, chainDurationHours, expandStageDefaults, buildStageTypeCounts } from '@/lib/seed-train';
-import { autoScheduleChain, earliestAvailableTime, requiredTurnaroundGap } from '@/lib/scheduling';
+import { autoScheduleChain, earliestAvailableTime, requiredTurnaroundGap, chainShutdownShift } from '@/lib/scheduling';
 import { isMachineUnavailable } from '@/lib/types';
 import type { ChainAssignment } from '@/lib/scheduling';
 import { batchNamePreview } from '@/lib/types';
@@ -130,25 +130,36 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
     );
   }, [machines, productLine]);
 
-  // Suggested start time: earliest available slot across fermenter candidates
+  // Suggested start time: earliest available slot across fermenter candidates,
+  // adjusted so that back-calculated upstream stages also clear all shutdowns.
   const suggestedStart = useMemo(() => {
     if (!productLine || fermenterMachines.length === 0) return null;
     const lastStage = productLine.stageDefaults[productLine.stageDefaults.length - 1];
     if (!lastStage) return null;
 
+    let candidateStart: Date | null = null;
     if (selectedFermenter !== 'auto') {
       const m = fermenterMachines.find((fm) => fm.id === selectedFermenter);
       if (!m) return null;
-      return earliestAvailableTime(m.id, m.group, stages, turnaroundActivities, shutdownPeriods);
+      candidateStart = earliestAvailableTime(m.id, m.group, stages, turnaroundActivities, shutdownPeriods);
+    } else {
+      for (const m of fermenterMachines) {
+        const t = earliestAvailableTime(m.id, m.group, stages, turnaroundActivities, shutdownPeriods);
+        if (!candidateStart || t < candidateStart) candidateStart = t;
+      }
     }
+    if (!candidateStart) return null;
 
-    let earliest: Date | null = null;
-    for (const m of fermenterMachines) {
-      const t = earliestAvailableTime(m.id, m.group, stages, turnaroundActivities, shutdownPeriods);
-      if (!earliest || t < earliest) earliest = t;
+    // Push the production start until no upstream stage lands in a shutdown
+    let productionStart = candidateStart;
+    for (let iter = 0; iter < 20; iter++) {
+      const chain = backCalculateChain(productionStart, productLine.stageDefaults, stageTypeCounts ?? undefined);
+      const shift = chainShutdownShift(chain, shutdownPeriods);
+      if (shift === 0) break;
+      productionStart = addHours(productionStart, shift);
     }
-    return earliest;
-  }, [productLine, fermenterMachines, selectedFermenter, stages, turnaroundActivities, shutdownPeriods]);
+    return productionStart;
+  }, [productLine, fermenterMachines, selectedFermenter, stages, turnaroundActivities, shutdownPeriods, stageTypeCounts]);
 
   // Auto-populate start time when product line or fermenter changes
   useEffect(() => {
@@ -266,6 +277,16 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
     const step = namingRule.step || 1;
 
     for (let i = 0; i < chainCount; i++) {
+      // Push cursor forward until no upstream stage lands in a shutdown period
+      let productionStart = cursor;
+      for (let iter = 0; iter < 20; iter++) {
+        const chain = backCalculateChain(productionStart, productLine.stageDefaults, stageTypeCounts);
+        const shift = chainShutdownShift(chain, shutdownPeriods);
+        if (shift === 0) break;
+        productionStart = addHours(productionStart, shift);
+      }
+      cursor = productionStart;
+
       const backCalc = backCalculateChain(cursor, productLine.stageDefaults, stageTypeCounts);
       const fermId = selectedFermenter === 'auto' ? undefined : selectedFermenter;
 
@@ -313,7 +334,17 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
           );
           if (!nextEarliest || t < nextEarliest) nextEarliest = t;
         }
-        if (nextEarliest) cursor = nextEarliest;
+        // Also push past any shutdown that would affect back-calculated stages
+        if (nextEarliest) {
+          let nextStart = nextEarliest;
+          for (let iter = 0; iter < 20; iter++) {
+            const chain = backCalculateChain(nextStart, productLine.stageDefaults, stageTypeCounts);
+            const shift = chainShutdownShift(chain, shutdownPeriods);
+            if (shift === 0) break;
+            nextStart = addHours(nextStart, shift);
+          }
+          cursor = nextStart;
+        }
       } else {
         // User pinned a specific fermenter — sequential cursor is correct
         const prodAssignment = result[result.length - 1];

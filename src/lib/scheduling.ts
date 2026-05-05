@@ -80,6 +80,31 @@ export function detectShutdownConflicts(
   );
 }
 
+/**
+ * Compute how many hours to push a batch chain's production-stage start time so
+ * that no stage in the chain (including back-calculated upstream stages) overlaps
+ * with any shutdown period.
+ *
+ * The chain stages are all connected — shifting the production start by N hours
+ * shifts every upstream stage by the same N hours. We find the stage that needs
+ * the largest forward push and return that value. Returns 0 if no adjustment needed.
+ */
+export function chainShutdownShift(
+  chainStages: Array<{ startDatetime: Date; endDatetime: Date }>,
+  shutdownPeriods: ShutdownPeriod[]
+): number {
+  if (shutdownPeriods.length === 0) return 0;
+  let maxPush = 0;
+  for (const stage of chainStages) {
+    const conflicts = detectShutdownConflicts(stage.startDatetime, stage.endDatetime, shutdownPeriods);
+    for (const c of conflicts) {
+      const push = differenceInHours(c.endDate, stage.startDatetime);
+      if (push > maxPush) maxPush = push;
+    }
+  }
+  return maxPush;
+}
+
 // ─── Turnaround gap computation ─────────────────────────────────────
 
 /**
