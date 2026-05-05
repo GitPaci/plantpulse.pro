@@ -118,19 +118,37 @@ export function lastStageEndOnMachine(
 
 /**
  * Compute the earliest available start time on a machine, accounting for
- * existing stages and turnaround gap.
+ * existing stages, turnaround gap, and plant shutdown periods.
+ *
+ * If the computed time falls inside a shutdown, it is pushed to after the
+ * shutdown ends.
  */
 export function earliestAvailableTime(
   machineId: string,
   machineGroup: string,
   stages: Stage[],
-  turnaroundActivities: TurnaroundActivity[]
+  turnaroundActivities: TurnaroundActivity[],
+  shutdownPeriods: ShutdownPeriod[] = []
 ): Date {
   const lastEnd = lastStageEndOnMachine(machineId, stages);
-  if (!lastEnd) return new Date(); // Machine is empty — available now
+  let earliest = lastEnd
+    ? addHours(lastEnd, requiredTurnaroundGap(machineGroup, turnaroundActivities))
+    : new Date();
 
-  const gap = requiredTurnaroundGap(machineGroup, turnaroundActivities);
-  return addHours(lastEnd, gap);
+  // Push past any overlapping shutdown (iterate in case shutdowns are consecutive)
+  let safetyLimit = 20; // prevent infinite loops from misconfigured data
+  while (safetyLimit-- > 0) {
+    const conflicts = detectShutdownConflicts(earliest, earliest, shutdownPeriods);
+    if (conflicts.length === 0) break;
+    // Move to the end of the latest overlapping shutdown
+    let latestEnd = conflicts[0].endDate;
+    for (const c of conflicts) {
+      if (c.endDate > latestEnd) latestEnd = c.endDate;
+    }
+    earliest = latestEnd;
+  }
+
+  return earliest;
 }
 
 // ─── Auto-vessel assignment ─────────────────────────────────────────
@@ -158,9 +176,15 @@ export function findAvailableVessels(
   proposedDurationHours: number,
   machines: Machine[],
   stages: Stage[],
-  turnaroundActivities: TurnaroundActivity[]
+  turnaroundActivities: TurnaroundActivity[],
+  shutdownPeriods: ShutdownPeriod[] = []
 ): VesselSuggestion[] {
   const proposedEnd = addHours(proposedStart, proposedDurationHours);
+
+  // Reject the entire window if it falls inside a plant shutdown
+  const shutdownConflicts = detectShutdownConflicts(proposedStart, proposedEnd, shutdownPeriods);
+  if (shutdownConflicts.length > 0) return [];
+
   const candidates = machines.filter((m) => {
     if (m.group !== machineGroup) return false;
     // Product line match: machine is either in the same line or unassigned
@@ -176,7 +200,7 @@ export function findAvailableVessels(
 
   for (const machine of candidates) {
     const earliest = earliestAvailableTime(
-      machine.id, machine.group, stages, turnaroundActivities
+      machine.id, machine.group, stages, turnaroundActivities, shutdownPeriods
     );
     const overlaps = detectOverlaps(
       machine.id,
@@ -211,9 +235,26 @@ export function findBestVessel(
   proposedDurationHours: number,
   machines: Machine[],
   stages: Stage[],
-  turnaroundActivities: TurnaroundActivity[]
+  turnaroundActivities: TurnaroundActivity[],
+  shutdownPeriods: ShutdownPeriod[] = []
 ): VesselSuggestion | null {
   const proposedEnd = addHours(proposedStart, proposedDurationHours);
+
+  // Check if proposed window falls inside a plant shutdown
+  const shutdownConflicts = detectShutdownConflicts(proposedStart, proposedEnd, shutdownPeriods);
+  if (shutdownConflicts.length > 0) {
+    // Push start past the shutdown and retry
+    let latestEnd = shutdownConflicts[0].endDate;
+    for (const c of shutdownConflicts) {
+      if (c.endDate > latestEnd) latestEnd = c.endDate;
+    }
+    return findBestVessel(
+      machineGroup, productLine, latestEnd,
+      proposedDurationHours, machines, stages,
+      turnaroundActivities, shutdownPeriods
+    );
+  }
+
   const candidates = machines.filter((m) => {
     if (m.group !== machineGroup) return false;
     if (productLine && m.productLine && m.productLine !== productLine) return false;
@@ -260,10 +301,14 @@ export function findBestVessel(
   let bestSuggestion: VesselSuggestion | null = null;
   for (const machine of candidates) {
     const earliest = earliestAvailableTime(
-      machine.id, machine.group, stages, turnaroundActivities
+      machine.id, machine.group, stages, turnaroundActivities, shutdownPeriods
     );
     const adjustedStart = earliest > proposedStart ? earliest : proposedStart;
     const adjustedEnd = addHours(adjustedStart, proposedDurationHours);
+
+    // Skip if adjusted window falls in a shutdown
+    if (detectShutdownConflicts(adjustedStart, adjustedEnd, shutdownPeriods).length > 0) continue;
+
     const overlaps = detectOverlaps(machine.id, adjustedStart, adjustedEnd, stages);
 
     if (overlaps.length === 0) {
@@ -311,7 +356,8 @@ export function autoScheduleChain(
   productionMachineId: string | undefined,
   machines: Machine[],
   existingStages: Stage[],
-  turnaroundActivities: TurnaroundActivity[]
+  turnaroundActivities: TurnaroundActivity[],
+  shutdownPeriods: ShutdownPeriod[] = []
 ): ChainAssignment[] {
   const assignments: ChainAssignment[] = [];
 
@@ -352,7 +398,8 @@ export function autoScheduleChain(
         calc.durationHours,
         machines,
         allStages,
-        turnaroundActivities
+        turnaroundActivities,
+        shutdownPeriods
       );
 
       if (best) {

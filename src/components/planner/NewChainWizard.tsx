@@ -74,6 +74,7 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
   const stageTypesMode = usePlantPulseStore((s) => s.stageTypesMode);
   const productLineStageTypes = usePlantPulseStore((s) => s.productLineStageTypes);
   const batchNamingConfig = usePlantPulseStore((s) => s.batchNamingConfig);
+  const shutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
   const addBatchChain = usePlantPulseStore((s) => s.addBatchChain);
   const addStage = usePlantPulseStore((s) => s.addStage);
 
@@ -138,16 +139,16 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
     if (selectedFermenter !== 'auto') {
       const m = fermenterMachines.find((fm) => fm.id === selectedFermenter);
       if (!m) return null;
-      return earliestAvailableTime(m.id, m.group, stages, turnaroundActivities);
+      return earliestAvailableTime(m.id, m.group, stages, turnaroundActivities, shutdownPeriods);
     }
 
     let earliest: Date | null = null;
     for (const m of fermenterMachines) {
-      const t = earliestAvailableTime(m.id, m.group, stages, turnaroundActivities);
+      const t = earliestAvailableTime(m.id, m.group, stages, turnaroundActivities, shutdownPeriods);
       if (!earliest || t < earliest) earliest = t;
     }
     return earliest;
-  }, [productLine, fermenterMachines, selectedFermenter, stages, turnaroundActivities]);
+  }, [productLine, fermenterMachines, selectedFermenter, stages, turnaroundActivities, shutdownPeriods]);
 
   // Auto-populate start time when product line or fermenter changes
   useEffect(() => {
@@ -274,7 +275,8 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
         fermId,
         machines,
         accumulatedStages,
-        turnaroundActivities
+        turnaroundActivities,
+        shutdownPeriods
       );
 
       const seriesNumber = baseSeriesNum + i * step;
@@ -307,7 +309,7 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
         for (const m of fermenterMachines) {
           if (isMachineUnavailable(m, cursor)) continue;
           const t = earliestAvailableTime(
-            m.id, m.group, accumulatedStages, turnaroundActivities
+            m.id, m.group, accumulatedStages, turnaroundActivities, shutdownPeriods
           );
           if (!nextEarliest || t < nextEarliest) nextEarliest = t;
         }
@@ -323,7 +325,7 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
 
     setChainPreviews(previews);
     setStep('preview');
-  }, [productLine, startTime, selectedFermenter, chainCount, machines, stages, turnaroundActivities, namingRule, baseSeriesNum, fermenterTurnaroundGap, stageTypeCounts]);
+  }, [productLine, startTime, selectedFermenter, chainCount, machines, stages, turnaroundActivities, shutdownPeriods, namingRule, baseSeriesNum, fermenterTurnaroundGap, stageTypeCounts]);
 
   // Horizon apply: set chainCount from estimate
   const handleHorizonApply = useCallback(() => {
