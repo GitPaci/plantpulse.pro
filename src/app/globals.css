@@ -4847,3 +4847,64 @@ body {
   background: #fef3c7;
   color: #92400e;
 }
+
+/* ── Chain integrity validation panel ──────────────────────────────── */
+
+.pp-chain-integrity {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 6px 0;
+  font-size: 13px;
+  color: #991b1b;
+}
+
+.pp-chain-integrity strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.pp-chain-integrity-hint {
+  font-size: 12px;
+  color: #b91c1c;
+  margin-top: 2px;
+}
+
+.pp-chain-integrity-per-chain {
+  background: #fff5f5;
+  border-color: #fecaca;
+  padding: 6px 10px;
+  margin: 4px 0;
+}
+
+.pp-chain-integrity-list {
+  margin: 4px 0 0 0;
+  padding-left: 16px;
+  list-style: none;
+}
+
+.pp-chain-integrity-list li {
+  margin-bottom: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.pp-chain-integrity-tag {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.pp-chain-integrity-tag-gap { background: #fef3c7; color: #92400e; }
+.pp-chain-integrity-tag-overlap { background: #fee2e2; color: #991b1b; }
+.pp-chain-integrity-tag-duration-exceeded { background: #fee2e2; color: #991b1b; }
+.pp-chain-integrity-tag-duration-below-min { background: #fef3c7; color: #92400e; }
+.pp-chain-integrity-tag-shutdown-conflict { background: #fde68a; color: #78350f; }
+.pp-chain-integrity-tag-equipment-conflict { background: #fee2e2; color: #991b1b; }

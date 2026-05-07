@@ -160,6 +160,23 @@ export function forwardCalculateChain(
 }
 
 /**
+ * Shift all stages in a chain by a uniform number of hours.
+ * Preserves continuity (stage[i].end === stage[i+1].start) because every
+ * stage moves by the same delta.
+ */
+export function shiftChain(
+  stages: BackCalculatedStage[],
+  hours: number
+): BackCalculatedStage[] {
+  if (hours === 0) return stages;
+  return stages.map((s) => ({
+    ...s,
+    startDatetime: addHours(s.startDatetime, hours),
+    endDatetime: addHours(s.endDatetime, hours),
+  }));
+}
+
+/**
  * Compute the total chain duration in hours.
  * Parallel stages (count > 1) don't add extra duration — they run simultaneously.
  */

@@ -10,8 +10,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { usePlantPulseStore } from '@/lib/store';
 import { differenceInHours, addHours, format } from 'date-fns';
-import { detectOverlaps } from '@/lib/scheduling';
-import type { OverlapConflict } from '@/lib/scheduling';
+import { detectOverlaps, validateChainIntegrity } from '@/lib/scheduling';
+import type { OverlapConflict, ChainAssignment, ChainIntegrityIssue } from '@/lib/scheduling';
 import type { Stage, StageState, BatchStatus } from '@/lib/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -56,6 +56,7 @@ export default function ChainEditor({ open, batchChainId, onClose }: ChainEditor
   const productLines = usePlantPulseStore((s) => s.productLines);
   const stageTypeDefinitions = usePlantPulseStore((s) => s.stageTypeDefinitions);
   const equipmentGroups = usePlantPulseStore((s) => s.equipmentGroups);
+  const shutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
   const updateStage = usePlantPulseStore((s) => s.updateStage);
   const deleteStage = usePlantPulseStore((s) => s.deleteStage);
   const updateBatchChain = usePlantPulseStore((s) => s.updateBatchChain);
@@ -228,6 +229,38 @@ export default function ChainEditor({ open, batchChainId, onClose }: ChainEditor
     }
     return results;
   }, [draftStages, stages, chainStages]);
+
+  // ── Chain integrity validation ─────────────────────────────────────
+
+  const integrityIssues = useMemo((): ChainIntegrityIssue[] => {
+    if (!productLine || visibleDrafts.length === 0) return [];
+
+    const assignments: ChainAssignment[] = visibleDrafts.map((d) => {
+      const start = new Date(d.startDatetime);
+      const end = new Date(d.endDatetime);
+      return {
+        stageType: d.stageType,
+        machineId: d.machineId,
+        machineName: machines.find((m) => m.id === d.machineId)?.name ?? d.machineId,
+        startDatetime: isNaN(start.getTime()) ? new Date() : start,
+        endDatetime: isNaN(end.getTime()) ? new Date() : end,
+        durationHours: d.durationHours,
+        overlaps: [],
+      };
+    });
+
+    const chainStageIds = new Set(chainStages.map((s) => s.id));
+    const otherStages = stages.filter((s) => !chainStageIds.has(s.id));
+
+    return validateChainIntegrity(
+      assignments,
+      productLine.stageDefaults,
+      shutdownPeriods,
+      otherStages,
+      chainStageIds,
+      1
+    );
+  }, [visibleDrafts, productLine, machines, chainStages, stages, shutdownPeriods]);
 
   // ── Machine dropdown helpers ──────────────────────────────────────
 
@@ -495,6 +528,21 @@ export default function ChainEditor({ open, batchChainId, onClose }: ChainEditor
               })}
             </div>
           )}
+
+          {/* Chain integrity issues */}
+          {integrityIssues.length > 0 && (
+            <div className="pp-chain-integrity pp-chain-integrity-per-chain">
+              <strong>⚠ {integrityIssues.length} integrity issue{integrityIssues.length > 1 ? 's' : ''}:</strong>
+              <ul className="pp-chain-integrity-list">
+                {integrityIssues.map((issue, idx) => (
+                  <li key={idx}>
+                    <span className={`pp-chain-integrity-tag pp-chain-integrity-tag-${issue.type}`}>{issue.type}</span>
+                    {' '}{issue.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -513,7 +561,7 @@ export default function ChainEditor({ open, batchChainId, onClose }: ChainEditor
               <button
                 className="pp-modal-btn pp-modal-btn-primary"
                 onClick={handleSave}
-                disabled={!isDirty}
+                disabled={!isDirty || integrityIssues.length > 0}
               >
                 Save
               </button>
