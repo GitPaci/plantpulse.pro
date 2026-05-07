@@ -127,7 +127,9 @@ When adding a new series, the system checks:
 - **Multi-chain scheduling**: when creating multiple chains via the "+" button, the next chain's production start is the earliest available time across all fermenter candidates (per-vessel cursor), not the previous chain's end — avoids large gaps when vessels alternate
 - **Stage type count expansion**: `expandStageDefaults()` repeats stage entries based on `StageTypeDefinition.count` (e.g. Seed n-1 with count=2 produces two consecutive n-1 stages in the chain)
 - **Per-product-line stage types**: wizard resolves stage type names from `productLineStageTypes[productLineId]` when in per-product-line mode (not just the global shared list)
-- Implementation: `NewChainWizard.tsx` (wizard UI) + `scheduling.ts` (`findBestVessel`, `autoScheduleChain`) + `seed-train.ts` (`backCalculateChain`, `expandStageDefaults`, `buildStageTypeCounts`)
+- **Fixed-point iteration for chain continuity**: `autoScheduleChain` runs `scheduleChainOnce` repeatedly. When any stage is pushed forward (by vessel busy time or shutdown), the **entire chain** is rebased uniformly via `shiftChain(stages, requiredShift)` and re-scheduled. This preserves `stage[i].endDatetime === stage[i+1].startDatetime` continuity. Earlier code accumulated delay only upstream while leaving the already-committed production stage in place, which produced post-shutdown gaps, intra-chain overlaps, and duration violations like `production exceeds maximum duration (218h > 211h)`. Convergence cap: 20 iterations (best-effort fallback returned on non-convergence; `validateChainIntegrity` flags any residual issues).
+- **Shutdown re-check inside the loop**: each iteration calls `chainShutdownShift(stages, shutdownPeriods)` first, so a chain that lands inside a shutdown after a vessel-induced shift is re-pushed past the shutdown.
+- Implementation: `NewChainWizard.tsx` (wizard UI) + `scheduling.ts` (`findBestVessel`, `scheduleChainOnce`, `autoScheduleChain` fixed-point loop) + `seed-train.ts` (`backCalculateChain`, `expandStageDefaults`, `buildStageTypeCounts`, `shiftChain`)
 
 #### 3. Bulk time-shift
 - Filter: all entries where `series_number >= threshold AND start_date > cutoff_date`
@@ -376,6 +378,23 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Implementation: `components/planner/ShiftSchedule.tsx` (modal) + `lib/shift-rotation.ts` (data) + `WallboardCanvas.tsx` (rendering)
 - CSS: `.pp-shift-section`, `.pp-shift-team-card`, `.pp-shift-preview-*`, `.pp-shift-sequence-*`, `.pp-shift-heatmap-*`, `.pp-shift-operation-*`, `.pp-shift-day-toggle`, `.pp-shift-timing-grid` in `globals.css`
 
+#### 24. Chain integrity validation (modern, no VBA equivalent)
+- `validateChainIntegrity(assignments, stageDefaults, shutdowns, existingStages, excludeChainStageIds, toleranceMinutes)` in `lib/scheduling.ts` returns a `ChainIntegrityIssue[]` for a scheduled chain
+- **Issue types** (`ChainIssueType`): `gap`, `overlap`, `duration-exceeded`, `duration-below-min`, `shutdown-conflict`, `equipment-conflict`
+- **Checks performed per stage**:
+  1. Unassigned machine → `equipment-conflict` ("no available vessel")
+  2. **Continuity**: `assignments[i].endDatetime` vs `assignments[i+1].startDatetime` — flag `gap` if delta > tolerance, `overlap` if negative
+  3. **Duration limits**: actual duration vs `stageDefault.maxDurationHours` (default `defaultDurationHours × 1.1`) and `minDurationHours` (default `× 0.9`)
+  4. **Shutdown overlap**: per-stage `detectShutdownConflicts()` against `shutdownPeriods`
+  5. **Equipment conflict**: `detectOverlaps()` against `existingStages` excluding the current chain's own stage IDs
+- **Default tolerance**: 1 minute (avoids false positives from sub-minute floating-point drift)
+- **NewChainWizard integration**: per-chain `integrityIssues` populated after `autoScheduleChain` in `handleCalculate`; aggregated as `totalIntegrityIssues`. Red banner at top of preview when any issues exist; per-chain panel with type-tagged list under each chain header. **Confirm button is disabled** when `hasUnassigned || totalIntegrityIssues > 0`.
+- **ChainEditor integration**: real-time validation on `draftStages` via `useMemo` — converts drafts to `ChainAssignment[]` shape, runs validator, displays issues in `.pp-chain-integrity` panel above footer. **Save button is disabled** when `!isDirty || integrityIssues.length > 0`.
+- **CSS**: `.pp-chain-integrity`, `.pp-chain-integrity-hint`, `.pp-chain-integrity-per-chain`, `.pp-chain-integrity-list`, `.pp-chain-integrity-tag`, plus per-type tag classes (`.pp-chain-integrity-tag-gap`, `-overlap`, `-duration-exceeded`, `-duration-below-min`, `-shutdown-conflict`, `-equipment-conflict`) in `globals.css`
+- **Test coverage**: `src/__tests__/scheduling.test.ts` — 13 unit tests covering `autoScheduleChain` shutdown propagation, chain continuity invariants, `shiftChain` continuity, and every `ChainIssueType`. Run with `npm run test`.
+- **Test infrastructure**: `vitest.config.ts` at repo root; environment `node`; `@/` alias to `src/`
+- Implementation: `lib/scheduling.ts` (`validateChainIntegrity`, `ChainIntegrityIssue`, `ChainIssueType`) + `NewChainWizard.tsx` (preview integration + Confirm gating) + `ChainEditor.tsx` (draft validation + Save gating)
+
 ---
 
 ## Target Data Model (Modern)
@@ -605,6 +624,8 @@ interface RecurringDowntimeRule {
 | *(no VBA equivalent)* | BatchNamingConfig — batch nomenclature rules (prefix, suffix, step, counter reset, per-line or shared) |
 | Hardcoded 4-team 12h shift cycle | ShiftRotation — configurable teams, presets, variable shift lengths, plant coverage, gap detection |
 | *(no VBA equivalent)* | RecurringDowntimeRule — periodic machine unavailability (weekly/monthly recurrence) |
+| *(no VBA equivalent)* | `validateChainIntegrity()` + `ChainIntegrityIssue` — gap/overlap/duration/shutdown/equipment violations surfaced in Wizard preview and ChainEditor draft; blocks Confirm/Save when issues exist |
+| Single-pass scheduling loop | `autoScheduleChain` fixed-point iteration — rebases entire chain via `shiftChain()` when any stage is pushed forward, preserving `stage[i].end === stage[i+1].start` continuity through shutdowns and vessel busy windows |
 
 ---
 
@@ -693,8 +714,8 @@ plantpulse.pro/
 │   │   ├── store.ts             # Zustand store — CRUD for all entities (Stage, BatchChain, Machine, MachineDisplayGroup, ProductLine, TurnaroundActivity, EquipmentGroup, ShutdownPeriod, StageTypeDefinition, BatchNamingConfig) + wallboardEquipmentGroups
 │   │   ├── excel-io.ts          # SheetJS import/export
 │   │   ├── timeline-math.ts     # Pixel geometry (ported from VBA)
-│   │   ├── scheduling.ts        # Overlap detection, auto-scheduling, bulk shift
-│   │   ├── seed-train.ts        # Chain creation with back-calculation
+│   │   ├── scheduling.ts        # Overlap detection, auto-scheduling (fixed-point iteration via scheduleChainOnce + shiftChain), bulk shift, validateChainIntegrity
+│   │   ├── seed-train.ts        # Chain creation with back-calculation; shiftChain helper for uniform chain rebasing
 │   │   ├── shift-rotation.ts    # 4-team, 12h, 8-step cycle
 │   │   ├── holidays.ts          # Slovenian holidays + Easter algorithm
 │   │   ├── colors.ts            # Deterministic batch color cycling
@@ -736,11 +757,12 @@ npm run lint         # Run linter
 7. **`lib/shift-rotation.ts`** — Configurable shift rotation (done: multi-preset support, variable shift lengths, plant coverage with gap detection, `ShiftCoverageConfig`, `isShiftCoveredAt()`)
 8. **`components/timeline/`** — Core timeline renderer
 9. **`app/wallboard/`** — Operator wallboard view (read-only + task confirm)
-10. **`lib/scheduling.ts`** + **`lib/seed-train.ts`** — Business rules engine
+10. **`lib/scheduling.ts`** + **`lib/seed-train.ts`** — Business rules engine (done: `findBestVessel`, `autoScheduleChain` fixed-point loop with `scheduleChainOnce` + `shiftChain`-based chain rebasing, `chainShutdownShift`, `validateChainIntegrity` + `ChainIntegrityIssue` types, `bulkShiftStages`)
 11. **`components/planner/EquipmentSetup.tsx`** — Equipment Setup modal: Machines (with downtime, section headers, smart insertion), Equipment Groups, Product Lines (with shortName), Wallboard Display (done)
 12. **`components/planner/ProcessSetup.tsx`** — Process Setup modal: Stage Types (with count), Stage Defaults, Turnaround Activities, Shutdowns, Naming (done)
-13. **`components/planner/`** — Interactive planning tools (ChainEditor, BulkShiftTool, NewChainWizard, StageDetailPanel)
+13. **`components/planner/`** — Interactive planning tools (ChainEditor with integrity-validation gating, BulkShiftTool, NewChainWizard with per-chain integrity panel and Confirm gating, StageDetailPanel)
 14. **`app/planner/`** — Planner view with draft editing
+15. **`vitest.config.ts`** + **`src/__tests__/`** — Vitest test infrastructure (done: `scheduling.test.ts` with 13 tests covering shutdown propagation, chain continuity, `shiftChain`, and all `ChainIssueType` variants)
 
 ### Excel template schema (Phase 1)
 
