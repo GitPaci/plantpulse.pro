@@ -78,6 +78,12 @@ export function validateSchedule(input: ScheduleValidationInput): ScheduleValida
     const defaultByType = new Map(defaults.map((d) => [d.stageType, d]));
     const stageIndex = new Map(configuredOrder.map((t, i) => [t, i]));
     const stageTypeAllowedCount = new Map(typeDefs.map((d) => [d.id, Math.max(1, d.count || 1)]));
+    const stagesByType = new Map<string, Stage[]>();
+    for (const s of chainStages) {
+      const list = stagesByType.get(s.stageType) ?? [];
+      list.push(s);
+      stagesByType.set(s.stageType, list);
+    }
 
     for (const req of requiredStages) {
       if (!chainStages.some((s) => s.stageType === req)) {
