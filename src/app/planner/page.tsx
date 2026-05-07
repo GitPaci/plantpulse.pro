@@ -28,7 +28,6 @@ import {
 import { subDays, addDays, startOfDay, differenceInDays, format } from 'date-fns';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { validateSchedule } from '@/lib/schedule-validation';
-import { reconstructCanonicalChainPaths } from '@/lib/schedule-validation';
 
 // ─── View mode presets ────────────────────────────────────────────────
 type ViewMode = 'day' | 'week' | 'month' | 'quarter';
@@ -55,10 +54,11 @@ function inferViewMode(numberOfDays: number): ViewMode {
 }
 
 function orderedChainStageIds(chainId: string, allStages: import('@/lib/types').Stage[], stageDefaults: import('@/lib/types').StageDefault[]): string[] {
-  const chainStages = allStages.filter((s) => s.batchChainId === chainId);
-  const configuredOrder = stageDefaults.map((d) => d.stageType);
-  const canonicalPaths = reconstructCanonicalChainPaths(chainStages, configuredOrder);
-  return canonicalPaths.flatMap((p) => p.stages.map((s) => s.id));
+  const idx = new Map(stageDefaults.map((d, i) => [d.stageType, i]));
+  return allStages
+    .filter((s) => s.batchChainId === chainId)
+    .sort((a, b) => (idx.get(a.stageType) ?? 999) - (idx.get(b.stageType) ?? 999))
+    .map((s) => s.id);
 }
 
 // ─── Inline SVG icons (16×16, stroke-based) ───────────────────────────
@@ -551,37 +551,24 @@ export default function PlannerPage() {
       const productLine = productLines.find((p) => p.id === chain?.productLine);
       const stageOrderIds = orderedChainStageIds(targetStage.batchChainId, stages, productLine?.stageDefaults ?? []);
       const durations = new Map(stages.map((s) => [s.id, s.endDatetime.getTime() - s.startDatetime.getTime()]));
-      const originalStage = stages.find((s) => s.id === stageId);
 
       let draftStages = stages.map((s) => (s.id === stageId ? { ...s, startDatetime: newStart, endDatetime: newEnd } : s));
       if (chain?.linkToNext) {
         const movedIdx = stageOrderIds.indexOf(stageId);
-        const isResize = originalStage ? (originalStage.endDatetime.getTime() - originalStage.startDatetime.getTime()) !== (newEnd.getTime() - newStart.getTime()) : false;
-
-        if (!isResize && originalStage) {
-          // Whole-chain drag propagation: move all linked stages by same delta.
-          const deltaMs = newStart.getTime() - originalStage.startDatetime.getTime();
-          draftStages = draftStages.map((s) => (
-            s.batchChainId === targetStage.batchChainId
-              ? { ...s, startDatetime: new Date(s.startDatetime.getTime() + deltaMs), endDatetime: new Date(s.endDatetime.getTime() + deltaMs) }
-              : s
-          ));
-        } else {
-          // Resize/edit propagation: lock to upstream then cascade downstream.
-          if (movedIdx > 0) {
-            const prev = draftStages.find((s) => s.id === stageOrderIds[movedIdx - 1]);
-            const moved = draftStages.find((s) => s.id === stageId);
-            if (prev && moved) {
-              moved.startDatetime = new Date(prev.endDatetime);
-            }
+        if (movedIdx > 0) {
+          const prev = draftStages.find((s) => s.id === stageOrderIds[movedIdx - 1]);
+          const moved = draftStages.find((s) => s.id === stageId);
+          if (prev && moved) {
+            moved.startDatetime = new Date(prev.endDatetime);
+            moved.endDatetime = new Date(moved.startDatetime.getTime() + (durations.get(stageId) ?? 0));
           }
-          for (let i = Math.max(1, stageOrderIds.indexOf(stageId)); i < stageOrderIds.length; i++) {
-            const prev = draftStages.find((s) => s.id === stageOrderIds[i - 1]);
-            const cur = draftStages.find((s) => s.id === stageOrderIds[i]);
-            if (prev && cur) {
-              cur.startDatetime = new Date(prev.endDatetime);
-              cur.endDatetime = new Date(cur.startDatetime.getTime() + (durations.get(cur.id) ?? 0));
-            }
+        }
+        for (let i = Math.max(1, stageOrderIds.indexOf(stageId) + 1); i < stageOrderIds.length; i++) {
+          const prev = draftStages.find((s) => s.id === stageOrderIds[i - 1]);
+          const cur = draftStages.find((s) => s.id === stageOrderIds[i]);
+          if (prev && cur) {
+            cur.startDatetime = new Date(prev.endDatetime);
+            cur.endDatetime = new Date(cur.startDatetime.getTime() + (durations.get(cur.id) ?? 0));
           }
         }
       }

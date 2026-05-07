@@ -15,8 +15,6 @@ export type ValidationRuleCode =
   | 'CHAIN_NOT_CONTIGUOUS'
   | 'CHAIN_LINK_CONTINUITY'
   | 'CHAIN_NON_MONOTONIC'
-  | 'CHAIN_FLOATING_STAGE'
-  | 'CHAIN_DISCONNECTED_PRODUCTION'
   | 'DURATION_BELOW_MIN'
   | 'DURATION_ABOVE_MAX'
   | 'EQUIPMENT_STAGE_OVERLAP'
@@ -52,48 +50,6 @@ export interface ScheduleValidationInput {
   turnaroundActivities?: TurnaroundActivity[];
 }
 
-interface MaterialPathStage {
-  stage: Stage;
-  stageOrder: number;
-  pathIndex: number;
-}
-
-export interface CanonicalChainPath {
-  pathIndex: number;
-  stages: Stage[];
-}
-
-export function reconstructCanonicalChainPaths(
-  chainStages: Stage[],
-  configuredOrder: string[]
-): CanonicalChainPath[] {
-  const stagesByType = new Map<string, Stage[]>();
-  for (const s of chainStages) {
-    const list = stagesByType.get(s.stageType) ?? [];
-    list.push(s);
-    stagesByType.set(s.stageType, list);
-  }
-  for (const [, arr] of stagesByType) arr.sort((a, b) => a.startDatetime.getTime() - b.startDatetime.getTime());
-
-  const materialPaths = new Map<number, MaterialPathStage[]>();
-  for (let order = 0; order < configuredOrder.length; order++) {
-    const type = configuredOrder[order];
-    const candidates = stagesByType.get(type) ?? [];
-    for (let i = 0; i < candidates.length; i++) {
-      const path = materialPaths.get(i) ?? [];
-      path.push({ stage: candidates[i], stageOrder: order, pathIndex: i });
-      materialPaths.set(i, path);
-    }
-  }
-
-  return Array.from(materialPaths.entries())
-    .map(([pathIndex, pathStages]) => ({
-      pathIndex,
-      stages: pathStages.sort((a, b) => a.stageOrder - b.stageOrder).map((p) => p.stage),
-    }))
-    .sort((a, b) => a.pathIndex - b.pathIndex);
-}
-
 function stageDurationHours(stage: Stage): number {
   return Math.max(0, differenceInMinutes(stage.endDatetime, stage.startDatetime) / 60);
 }
@@ -122,49 +78,10 @@ export function validateSchedule(input: ScheduleValidationInput): ScheduleValida
     const defaultByType = new Map(defaults.map((d) => [d.stageType, d]));
     const stageIndex = new Map(configuredOrder.map((t, i) => [t, i]));
     const stageTypeAllowedCount = new Map(typeDefs.map((d) => [d.id, Math.max(1, d.count || 1)]));
-    const stagesByType = new Map<string, Stage[]>();
-    for (const s of chainStages) {
-      const list = stagesByType.get(s.stageType) ?? [];
-      list.push(s);
-      stagesByType.set(s.stageType, list);
-    }
 
     for (const req of requiredStages) {
       if (!chainStages.some((s) => s.stageType === req)) {
         issues.push({ id: `missing-${chain.id}-${req}`, code: 'CHAIN_MISSING_STAGE', severity: 'error', batchChainId: chain.id, message: `Chain ${chain.batchName} is missing required stage ${req}.` });
-      }
-    }
-
-    // Canonical chain integrity checks from configured sequence
-    for (let i = 1; i < configuredOrder.length; i++) {
-      const currentType = configuredOrder[i];
-      const prevType = configuredOrder[i - 1];
-      const currentStages = chainStages.filter((s) => s.stageType === currentType);
-      const prevStages = chainStages.filter((s) => s.stageType === prevType);
-      if (currentStages.length > 0 && prevStages.length === 0) {
-        for (const s of currentStages) {
-          issues.push({ id: `floating-${chain.id}-${s.id}`, code: 'CHAIN_FLOATING_STAGE', severity: 'error', batchChainId: chain.id, stageId: s.id, message: `Chain ${chain.batchName} has floating stage ${currentType} without upstream ${prevType}.` });
-        }
-      }
-    }
-
-    // Material-flow path reconstruction (sub-batch paths by ordinal)
-    const canonicalPaths = reconstructCanonicalChainPaths(chainStages, configuredOrder);
-    for (const path of canonicalPaths) {
-      for (let i = 1; i < path.stages.length; i++) {
-        const prev = path.stages[i - 1];
-        const cur = path.stages[i];
-        if (cur.startDatetime.getTime() !== prev.endDatetime.getTime()) {
-          issues.push({
-            id: `path-contig-${prev.id}-${cur.id}`,
-            code: 'CHAIN_LINK_CONTINUITY',
-            severity: 'error',
-            batchChainId: chain.id,
-            stageId: cur.id,
-            relatedStageIds: [prev.id, cur.id],
-            message: `Material-flow continuity broken on path ${path.pathIndex + 1} between ${prev.stageType} and ${cur.stageType} in ${chain.batchName}.`,
-          });
-        }
       }
     }
 
@@ -215,15 +132,6 @@ export function validateSchedule(input: ScheduleValidationInput): ScheduleValida
       }
       if (chain.linkToNext && ordered[i].startDatetime.getTime() !== ordered[i - 1].endDatetime.getTime()) {
         issues.push({ id: `link-${ordered[i - 1].id}-${ordered[i].id}`, code: 'CHAIN_LINK_CONTINUITY', severity: 'error', batchChainId: chain.id, stageId: ordered[i].id, relatedStageIds: [ordered[i - 1].id, ordered[i].id], message: `Chain ${chain.batchName} link continuity broken between ${ordered[i - 1].stageType} and ${ordered[i].stageType}.` });
-      }
-    }
-
-    const productionType = configuredOrder[configuredOrder.length - 1];
-    const production = ordered.find((s) => s.stageType === productionType);
-    if (production && ordered.length > 1) {
-      const prev = ordered[ordered.length - 2];
-      if (production.startDatetime.getTime() !== prev.endDatetime.getTime()) {
-        issues.push({ id: `prod-disconnect-${chain.id}-${production.id}`, code: 'CHAIN_DISCONNECTED_PRODUCTION', severity: 'error', batchChainId: chain.id, stageId: production.id, relatedStageIds: [prev.id, production.id], message: `Production stage is disconnected from upstream seed chain in ${chain.batchName}.` });
       }
     }
   }
