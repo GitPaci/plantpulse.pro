@@ -551,37 +551,24 @@ export default function PlannerPage() {
       const productLine = productLines.find((p) => p.id === chain?.productLine);
       const stageOrderIds = orderedChainStageIds(targetStage.batchChainId, stages, productLine?.stageDefaults ?? []);
       const durations = new Map(stages.map((s) => [s.id, s.endDatetime.getTime() - s.startDatetime.getTime()]));
-      const originalStage = stages.find((s) => s.id === stageId);
 
       let draftStages = stages.map((s) => (s.id === stageId ? { ...s, startDatetime: newStart, endDatetime: newEnd } : s));
       if (chain?.linkToNext) {
         const movedIdx = stageOrderIds.indexOf(stageId);
-        const isResize = originalStage ? (originalStage.endDatetime.getTime() - originalStage.startDatetime.getTime()) !== (newEnd.getTime() - newStart.getTime()) : false;
-
-        if (!isResize && originalStage) {
-          // Whole-chain drag propagation: move all linked stages by same delta.
-          const deltaMs = newStart.getTime() - originalStage.startDatetime.getTime();
-          draftStages = draftStages.map((s) => (
-            s.batchChainId === targetStage.batchChainId
-              ? { ...s, startDatetime: new Date(s.startDatetime.getTime() + deltaMs), endDatetime: new Date(s.endDatetime.getTime() + deltaMs) }
-              : s
-          ));
-        } else {
-          // Resize/edit propagation: lock to upstream then cascade downstream.
-          if (movedIdx > 0) {
-            const prev = draftStages.find((s) => s.id === stageOrderIds[movedIdx - 1]);
-            const moved = draftStages.find((s) => s.id === stageId);
-            if (prev && moved) {
-              moved.startDatetime = new Date(prev.endDatetime);
-            }
+        if (movedIdx > 0) {
+          const prev = draftStages.find((s) => s.id === stageOrderIds[movedIdx - 1]);
+          const moved = draftStages.find((s) => s.id === stageId);
+          if (prev && moved) {
+            moved.startDatetime = new Date(prev.endDatetime);
+            moved.endDatetime = new Date(moved.startDatetime.getTime() + (durations.get(stageId) ?? 0));
           }
-          for (let i = Math.max(1, stageOrderIds.indexOf(stageId)); i < stageOrderIds.length; i++) {
-            const prev = draftStages.find((s) => s.id === stageOrderIds[i - 1]);
-            const cur = draftStages.find((s) => s.id === stageOrderIds[i]);
-            if (prev && cur) {
-              cur.startDatetime = new Date(prev.endDatetime);
-              cur.endDatetime = new Date(cur.startDatetime.getTime() + (durations.get(cur.id) ?? 0));
-            }
+        }
+        for (let i = Math.max(1, stageOrderIds.indexOf(stageId) + 1); i < stageOrderIds.length; i++) {
+          const prev = draftStages.find((s) => s.id === stageOrderIds[i - 1]);
+          const cur = draftStages.find((s) => s.id === stageOrderIds[i]);
+          if (prev && cur) {
+            cur.startDatetime = new Date(prev.endDatetime);
+            cur.endDatetime = new Date(cur.startDatetime.getTime() + (durations.get(cur.id) ?? 0));
           }
         }
       }
