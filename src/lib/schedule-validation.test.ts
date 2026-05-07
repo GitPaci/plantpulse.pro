@@ -128,32 +128,4 @@ describe('validateSchedule', () => {
     });
     expect(result.issues.some((i) => i.code === 'CHAIN_LINK_CONTINUITY')).toBe(true);
   });
-
-  it('detects floating seed stage without upstream stage', () => {
-    const chain3: BatchChain = { ...chain, id: 'c3', linkToNext: true };
-    const defaults3: StageDefault[] = [
-      { stageType: 'seed_a', defaultDurationHours: 10, machineGroup: 'inoculum' },
-      { stageType: 'seed_b', defaultDurationHours: 10, machineGroup: 'inoculum' },
-      { stageType: 'prod', defaultDurationHours: 20, machineGroup: 'fermenter' },
-    ];
-    const stages: Stage[] = [
-      { id: 'f1', batchChainId: 'c3', machineId: 'm-fer', stageType: 'seed_b', startDatetime: d('2026-06-01T00:00:00Z'), endDatetime: d('2026-06-01T10:00:00Z'), state: 'planned' },
-    ];
-    const result = validateSchedule({ stages, batchChains: [chain3], machines, stageDefaultsByProductLine: { pl1: defaults3 } });
-    expect(result.issues.some((i) => i.code === 'CHAIN_FLOATING_STAGE')).toBe(true);
-  });
-
-  it('detects disconnected production from upstream', () => {
-    const chain4: BatchChain = { ...chain, id: 'c4', linkToNext: true };
-    const defaults4: StageDefault[] = [
-      { stageType: 'seed', defaultDurationHours: 10, machineGroup: 'inoculum' },
-      { stageType: 'production', defaultDurationHours: 20, machineGroup: 'fermenter' },
-    ];
-    const stages: Stage[] = [
-      { id: 'pseed', batchChainId: 'c4', machineId: 'm-ino', stageType: 'seed', startDatetime: d('2026-06-01T00:00:00Z'), endDatetime: d('2026-06-01T10:00:00Z'), state: 'planned' },
-      { id: 'pprod', batchChainId: 'c4', machineId: 'm-fer', stageType: 'production', startDatetime: d('2026-06-01T12:00:00Z'), endDatetime: d('2026-06-02T12:00:00Z'), state: 'planned' },
-    ];
-    const result = validateSchedule({ stages, batchChains: [chain4], machines, stageDefaultsByProductLine: { pl1: defaults4 } });
-    expect(result.issues.some((i) => i.code === 'CHAIN_DISCONNECTED_PRODUCTION')).toBe(true);
-  });
 });

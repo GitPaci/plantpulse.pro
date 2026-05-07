@@ -15,8 +15,6 @@ export type ValidationRuleCode =
   | 'CHAIN_NOT_CONTIGUOUS'
   | 'CHAIN_LINK_CONTINUITY'
   | 'CHAIN_NON_MONOTONIC'
-  | 'CHAIN_FLOATING_STAGE'
-  | 'CHAIN_DISCONNECTED_PRODUCTION'
   | 'DURATION_BELOW_MIN'
   | 'DURATION_ABOVE_MAX'
   | 'EQUIPMENT_STAGE_OVERLAP'
@@ -87,19 +85,6 @@ export function validateSchedule(input: ScheduleValidationInput): ScheduleValida
       }
     }
 
-    // Canonical chain integrity checks from configured sequence
-    for (let i = 1; i < configuredOrder.length; i++) {
-      const currentType = configuredOrder[i];
-      const prevType = configuredOrder[i - 1];
-      const currentStages = chainStages.filter((s) => s.stageType === currentType);
-      const prevStages = chainStages.filter((s) => s.stageType === prevType);
-      if (currentStages.length > 0 && prevStages.length === 0) {
-        for (const s of currentStages) {
-          issues.push({ id: `floating-${chain.id}-${s.id}`, code: 'CHAIN_FLOATING_STAGE', severity: 'error', batchChainId: chain.id, stageId: s.id, message: `Chain ${chain.batchName} has floating stage ${currentType} without upstream ${prevType}.` });
-        }
-      }
-    }
-
     for (let i = 0; i < chainStages.length; i++) {
       const stage = chainStages[i];
       if (stage.batchChainId !== chain.id) {
@@ -147,15 +132,6 @@ export function validateSchedule(input: ScheduleValidationInput): ScheduleValida
       }
       if (chain.linkToNext && ordered[i].startDatetime.getTime() !== ordered[i - 1].endDatetime.getTime()) {
         issues.push({ id: `link-${ordered[i - 1].id}-${ordered[i].id}`, code: 'CHAIN_LINK_CONTINUITY', severity: 'error', batchChainId: chain.id, stageId: ordered[i].id, relatedStageIds: [ordered[i - 1].id, ordered[i].id], message: `Chain ${chain.batchName} link continuity broken between ${ordered[i - 1].stageType} and ${ordered[i].stageType}.` });
-      }
-    }
-
-    const productionType = configuredOrder[configuredOrder.length - 1];
-    const production = ordered.find((s) => s.stageType === productionType);
-    if (production && ordered.length > 1) {
-      const prev = ordered[ordered.length - 2];
-      if (production.startDatetime.getTime() !== prev.endDatetime.getTime()) {
-        issues.push({ id: `prod-disconnect-${chain.id}-${production.id}`, code: 'CHAIN_DISCONNECTED_PRODUCTION', severity: 'error', batchChainId: chain.id, stageId: production.id, relatedStageIds: [prev.id, production.id], message: `Production stage is disconnected from upstream seed chain in ${chain.batchName}.` });
       }
     }
   }
