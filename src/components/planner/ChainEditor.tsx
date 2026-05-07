@@ -72,15 +72,16 @@ export default function ChainEditor({ open, batchChainId, onClose }: ChainEditor
     [productLines, batchChain]
   );
 
-  // Chain stages from store (sorted by start time)
+  // Chain stages from store (sorted by configured stage sequence from Process Setup)
   const chainStages = useMemo(
-    () =>
-      batchChainId
-        ? stages
-            .filter((s) => s.batchChainId === batchChainId)
-            .sort((a, b) => a.startDatetime.getTime() - b.startDatetime.getTime())
-        : [],
-    [stages, batchChainId]
+    () => {
+      if (!batchChainId) return [];
+      const order = new Map((productLine?.stageDefaults ?? []).map((sd, i) => [sd.stageType, i]));
+      return stages
+        .filter((s) => s.batchChainId === batchChainId)
+        .sort((a, b) => (order.get(a.stageType) ?? 999) - (order.get(b.stageType) ?? 999));
+    },
+    [stages, batchChainId, productLine]
   );
 
   // Draft state

@@ -27,6 +27,8 @@ import {
 } from '@/lib/excel-io';
 import { subDays, addDays, startOfDay, differenceInDays, format } from 'date-fns';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { validateSchedule } from '@/lib/schedule-validation';
+import { reconstructCanonicalChainPaths, firstNonShutdownStart } from '@/lib/schedule-validation';
 
 // ─── View mode presets ────────────────────────────────────────────────
 type ViewMode = 'day' | 'week' | 'month' | 'quarter';
@@ -50,6 +52,13 @@ function inferViewMode(numberOfDays: number): ViewMode {
   if (numberOfDays <= 7) return 'week';
   if (numberOfDays <= 31) return 'month';
   return 'quarter';
+}
+
+function orderedChainStageIds(chainId: string, allStages: import('@/lib/types').Stage[], stageDefaults: import('@/lib/types').StageDefault[]): string[] {
+  const chainStages = allStages.filter((s) => s.batchChainId === chainId);
+  const configuredOrder = stageDefaults.map((d) => d.stageType);
+  const canonicalPaths = reconstructCanonicalChainPaths(chainStages, configuredOrder);
+  return canonicalPaths.flatMap((p) => p.stages.map((s) => s.id));
 }
 
 // ─── Inline SVG icons (16×16, stroke-based) ───────────────────────────
@@ -220,6 +229,11 @@ export default function PlannerPage() {
   const addMachine = usePlantPulseStore((s) => s.addMachine);
   const equipmentGroups = usePlantPulseStore((s) => s.equipmentGroups);
   const productLines = usePlantPulseStore((s) => s.productLines);
+  const turnaroundActivities = usePlantPulseStore((s) => s.turnaroundActivities);
+  const shutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
+  const stageTypesMode = usePlantPulseStore((s) => s.stageTypesMode);
+  const productLineStageTypes = usePlantPulseStore((s) => s.productLineStageTypes);
+  const stageTypeDefinitions = usePlantPulseStore((s) => s.stageTypeDefinitions);
   const setMachineGroups = usePlantPulseStore((s) => s.setMachineGroups);
   const updateStage = usePlantPulseStore((s) => s.updateStage);
   const loadDemoData = usePlantPulseStore((s) => s.loadDemoData);
@@ -531,10 +545,108 @@ export default function PlannerPage() {
 
   const handleStageDragEnd = useCallback(
     (stageId: string, newStart: Date, newEnd: Date) => {
-      updateStage(stageId, { startDatetime: newStart, endDatetime: newEnd });
+      const targetStage = stages.find((s) => s.id === stageId);
+      if (!targetStage) return;
+      const chain = batchChains.find((c) => c.id === targetStage.batchChainId);
+      const productLine = productLines.find((p) => p.id === chain?.productLine);
+      const stageOrderIds = orderedChainStageIds(targetStage.batchChainId, stages, productLine?.stageDefaults ?? []);
+      const durations = new Map(stages.map((s) => [s.id, s.endDatetime.getTime() - s.startDatetime.getTime()]));
+      const originalStage = stages.find((s) => s.id === stageId);
+
+      let draftStages = stages.map((s) => (s.id === stageId ? { ...s, startDatetime: newStart, endDatetime: newEnd } : s));
+      if (chain?.linkToNext) {
+        const movedIdx = stageOrderIds.indexOf(stageId);
+        const isResize = originalStage ? (originalStage.endDatetime.getTime() - originalStage.startDatetime.getTime()) !== (newEnd.getTime() - newStart.getTime()) : false;
+
+        if (!isResize && originalStage) {
+          // Whole-chain drag propagation: move all linked stages by same delta.
+          const deltaMs = newStart.getTime() - originalStage.startDatetime.getTime();
+          draftStages = draftStages.map((s) => (
+            s.batchChainId === targetStage.batchChainId
+              ? { ...s, startDatetime: new Date(s.startDatetime.getTime() + deltaMs), endDatetime: new Date(s.endDatetime.getTime() + deltaMs) }
+              : s
+          ));
+        } else {
+          // Resize/edit propagation: lock to upstream then cascade downstream.
+          if (movedIdx > 0) {
+            const prev = draftStages.find((s) => s.id === stageOrderIds[movedIdx - 1]);
+            const moved = draftStages.find((s) => s.id === stageId);
+            if (prev && moved) {
+              moved.startDatetime = new Date(prev.endDatetime);
+            }
+          }
+          for (let i = Math.max(1, stageOrderIds.indexOf(stageId)); i < stageOrderIds.length; i++) {
+            const prev = draftStages.find((s) => s.id === stageOrderIds[i - 1]);
+            const cur = draftStages.find((s) => s.id === stageOrderIds[i]);
+            if (prev && cur) {
+              cur.startDatetime = new Date(prev.endDatetime);
+              cur.endDatetime = new Date(cur.startDatetime.getTime() + (durations.get(cur.id) ?? 0));
+            }
+          }
+        }
+        // Shutdown-aware re-stitching: if any stage in path overlaps shutdown,
+        // shift it to first valid slot and cascade downstream to preserve continuity.
+        for (let i = 0; i < stageOrderIds.length; i++) {
+          const cur = draftStages.find((s) => s.id === stageOrderIds[i]);
+          if (!cur) continue;
+          const durationMs = durations.get(cur.id) ?? (cur.endDatetime.getTime() - cur.startDatetime.getTime());
+          const shiftedStart = firstNonShutdownStart(cur.startDatetime, durationMs, shutdownPeriods);
+          if (shiftedStart.getTime() !== cur.startDatetime.getTime()) {
+            cur.startDatetime = shiftedStart;
+            cur.endDatetime = new Date(shiftedStart.getTime() + durationMs);
+            for (let j = i + 1; j < stageOrderIds.length; j++) {
+              const prev = draftStages.find((s) => s.id === stageOrderIds[j - 1]);
+              const next = draftStages.find((s) => s.id === stageOrderIds[j]);
+              if (!prev || !next) continue;
+              const nextDur = durations.get(next.id) ?? (next.endDatetime.getTime() - next.startDatetime.getTime());
+              next.startDatetime = new Date(prev.endDatetime);
+              next.endDatetime = new Date(next.startDatetime.getTime() + nextDur);
+            }
+          }
+        }
+      }
+      const stageTypeDefinitionsByProductLine = Object.fromEntries(
+        productLines.map((p) => [p.id, stageTypesMode === 'per_product_line' ? (productLineStageTypes[p.id] ?? stageTypeDefinitions) : stageTypeDefinitions])
+      );
+      const validation = validateSchedule({
+        stages: draftStages,
+        batchChains,
+        machines,
+        stageDefaultsByProductLine: Object.fromEntries(productLines.map((p) => [p.id, p.stageDefaults])),
+        stageTypeDefinitionsByProductLine,
+        turnaroundActivities,
+        shutdownPeriods,
+      });
+      if (!validation.valid) {
+        const first = validation.issues[0];
+        window.alert(`Cannot apply stage move: ${first?.message ?? 'Schedule validation failed.'}`);
+        return;
+      }
+      for (const s of draftStages) {
+        const original = stages.find((x) => x.id === s.id);
+        if (!original) continue;
+        if (original.startDatetime.getTime() !== s.startDatetime.getTime() || original.endDatetime.getTime() !== s.endDatetime.getTime()) {
+          updateStage(s.id, { startDatetime: s.startDatetime, endDatetime: s.endDatetime });
+        }
+      }
     },
-    [updateStage]
+    [updateStage, stages, batchChains, machines, productLines, turnaroundActivities, shutdownPeriods, stageTypesMode, productLineStageTypes, stageTypeDefinitions]
   );
+
+  const liveValidation = useMemo(() => {
+    const stageTypeDefinitionsByProductLine = Object.fromEntries(
+      productLines.map((p) => [p.id, stageTypesMode === 'per_product_line' ? (productLineStageTypes[p.id] ?? stageTypeDefinitions) : stageTypeDefinitions])
+    );
+    return validateSchedule({
+      stages,
+      batchChains,
+      machines,
+      stageDefaultsByProductLine: Object.fromEntries(productLines.map((p) => [p.id, p.stageDefaults])),
+      stageTypeDefinitionsByProductLine,
+      turnaroundActivities,
+      shutdownPeriods,
+    });
+  }, [stages, batchChains, machines, productLines, turnaroundActivities, shutdownPeriods, stageTypesMode, productLineStageTypes, stageTypeDefinitions]);
 
   const handleImportConfirm = useCallback(() => {
     if (!importConfirm) return;
@@ -777,6 +889,11 @@ export default function PlannerPage() {
             className="flex-1 min-h-0"
             onWheel={handleTimelineWheel}
           >
+            {!liveValidation.valid && (
+              <div className="mx-3 mt-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+                <strong>Scheduling conflicts detected:</strong> {liveValidation.issues.length} issue(s). First: {liveValidation.issues[0]?.message}
+              </div>
+            )}
             <WallboardCanvas onStageClick={(id) => setSelectedStageId(id)} onMachineLabelClick={handleMachineLabelClick} onShiftBandClick={() => setShiftScheduleOpen(true)} showDowntime={true} onDowntimeClick={handleDowntimeClick} enableDragResize={true} enableBackgroundPan={true} onStageDragEnd={handleStageDragEnd} showShutdownCrossing={true} showHoldRisk={true} showCheckpoints={true} onCheckpointClick={handleCheckpointClick} />
           </div>
           {/* Horizontal scrollbar */}
