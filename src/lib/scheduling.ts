@@ -15,6 +15,7 @@ import type {
 } from './types';
 import { turnaroundTotalHours, isMachineUnavailable } from './types';
 import type { BackCalculatedStage } from './seed-train';
+import { shiftChain } from './seed-train';
 
 // ─── Overlap detection ──────────────────────────────────────────────
 
@@ -365,62 +366,48 @@ export interface ChainAssignment {
 }
 
 /**
- * Auto-schedule a full batch chain: assign vessels to each back-calculated
- * stage, starting from the production fermenter and working upstream.
+ * Single scheduling pass — assigns vessels to each back-calculated stage,
+ * working from the production (last) stage backwards.
  *
- * The production stage's machine is typically pre-selected by the user.
- * Upstream stages (seed_n1, seed_n2, inoculum) get auto-assigned to the
- * best available vessel in their equipment group.
- *
- * Ported from VBA: NovaSer auto-scheduling logic.
+ * Returns the assignments AND the maximum forward shift any stage required
+ * (so the caller can rebase the whole chain and retry).
  */
-export function autoScheduleChain(
+function scheduleChainOnce(
   backCalculatedStages: BackCalculatedStage[],
   productLine: string,
-  /** Pre-selected machine for the final (production) stage, or undefined for auto. */
   productionMachineId: string | undefined,
   machines: Machine[],
   existingStages: Stage[],
   turnaroundActivities: TurnaroundActivity[],
-  shutdownPeriods: ShutdownPeriod[] = []
-): ChainAssignment[] {
+  shutdownPeriods: ShutdownPeriod[]
+): { assignments: ChainAssignment[]; requiredShift: number } {
   const assignments: ChainAssignment[] = [];
+  let maxForwardShift = 0;
 
-  // Accumulated delay (hours) propagated from downstream → upstream so the
-  // chain stays continuous when a vessel isn't free at the ideal time.
-  let chainDelayHours = 0;
-
-  // Work from the last stage (production) backwards — the final stage is most
-  // constrained (fermenter), upstream stages have more vessel options.
   for (let i = backCalculatedStages.length - 1; i >= 0; i--) {
     const calc = backCalculatedStages[i];
     const isProduction = i === backCalculatedStages.length - 1;
-
-    // Apply accumulated chain delay so this stage shifts with downstream
-    const proposedStart = chainDelayHours > 0
-      ? addHours(calc.startDatetime, chainDelayHours)
-      : calc.startDatetime;
-    const proposedEnd = addHours(proposedStart, calc.durationHours);
+    const proposedStart = calc.startDatetime;
 
     let assignedMachine: { id: string; name: string } | null = null;
     let actualStart = proposedStart;
 
+    // Build running allStages including already-scheduled chain stages
+    const chainStages: Stage[] = assignments.map((a) => ({
+      id: `pending-${a.stageType}-${a.startDatetime.getTime()}`,
+      machineId: a.machineId,
+      batchChainId: '',
+      stageType: a.stageType,
+      startDatetime: a.startDatetime,
+      endDatetime: a.endDatetime,
+      state: 'planned' as const,
+    }));
+    const allStages = [...existingStages, ...chainStages];
+
     if (isProduction && productionMachineId) {
-      // User pre-selected the fermenter
       const m = machines.find((m) => m.id === productionMachineId);
       if (m) {
         assignedMachine = { id: m.id, name: m.name };
-        // Even for pre-selected fermenter, respect its availability
-        const chainStages: Stage[] = assignments.map((a) => ({
-          id: `pending-${a.stageType}`,
-          machineId: a.machineId,
-          batchChainId: '',
-          stageType: a.stageType,
-          startDatetime: a.startDatetime,
-          endDatetime: a.endDatetime,
-          state: 'planned' as const,
-        }));
-        const allStages = [...existingStages, ...chainStages];
         const earliest = earliestAvailableTime(
           m.id, m.group, allStages, turnaroundActivities, shutdownPeriods
         );
@@ -431,19 +418,6 @@ export function autoScheduleChain(
     }
 
     if (!assignedMachine) {
-      // Auto-assign: find best vessel
-      // Include already-assigned stages from this chain in the conflict check
-      const chainStages: Stage[] = assignments.map((a) => ({
-        id: `pending-${a.stageType}`,
-        machineId: a.machineId,
-        batchChainId: '',
-        stageType: a.stageType,
-        startDatetime: a.startDatetime,
-        endDatetime: a.endDatetime,
-        state: 'planned' as const,
-      }));
-      const allStages = [...existingStages, ...chainStages];
-
       const best = findBestVessel(
         calc.machineGroup,
         productLine,
@@ -465,25 +439,23 @@ export function autoScheduleChain(
 
     const actualEnd = addHours(actualStart, calc.durationHours);
 
-    // If this stage was pushed later, propagate the extra delay upstream
-    if (actualStart > proposedStart) {
-      chainDelayHours += differenceInHours(actualStart, proposedStart);
-    }
+    // Track how far this stage was pushed from its ideal time
+    const delta = differenceInHours(actualStart, proposedStart);
+    if (delta > maxForwardShift) maxForwardShift = delta;
 
-    // Check overlaps using actual times
-    const chainStages: Stage[] = assignments.map((a) => ({
-      id: `pending-${a.stageType}`,
+    // Re-build allStages for overlap check (includes latest chain stages)
+    const allStagesForOverlap = [...existingStages, ...assignments.map((a) => ({
+      id: `pending-${a.stageType}-${a.startDatetime.getTime()}`,
       machineId: a.machineId,
       batchChainId: '',
       stageType: a.stageType,
       startDatetime: a.startDatetime,
       endDatetime: a.endDatetime,
       state: 'planned' as const,
-    }));
-    const allStages = [...existingStages, ...chainStages];
+    }))];
 
     const overlaps = assignedMachine
-      ? detectOverlaps(assignedMachine.id, actualStart, actualEnd, allStages)
+      ? detectOverlaps(assignedMachine.id, actualStart, actualEnd, allStagesForOverlap)
       : [];
 
     assignments.unshift({
@@ -497,7 +469,186 @@ export function autoScheduleChain(
     });
   }
 
-  return assignments;
+  return { assignments, requiredShift: maxForwardShift };
+}
+
+/**
+ * Auto-schedule a full batch chain using fixed-point iteration.
+ *
+ * 1. Check for shutdown conflicts on the current chain — if any stage lands in
+ *    a shutdown, shift the entire chain past the shutdown and retry.
+ * 2. Run a single scheduling pass (production first, then upstream). If any
+ *    stage was pushed forward due to vessel availability, rebase the ENTIRE
+ *    chain by that amount (preserving continuity) and retry.
+ * 3. Repeat until convergence (no more shifts needed) or max iterations.
+ *
+ * This fixes the old bug where only upstream stages accumulated delay while
+ * the already-committed production stage stayed in place, breaking continuity.
+ *
+ * Ported from VBA: NovaSer auto-scheduling logic.
+ */
+export function autoScheduleChain(
+  backCalculatedStages: BackCalculatedStage[],
+  productLine: string,
+  productionMachineId: string | undefined,
+  machines: Machine[],
+  existingStages: Stage[],
+  turnaroundActivities: TurnaroundActivity[],
+  shutdownPeriods: ShutdownPeriod[] = []
+): ChainAssignment[] {
+  let stages = backCalculatedStages;
+  let lastResult: ChainAssignment[] = [];
+  const MAX_ITERS = 20;
+
+  for (let iter = 0; iter < MAX_ITERS; iter++) {
+    // 1. Re-check shutdowns on the (possibly rebased) chain
+    const shutdownShift = chainShutdownShift(stages, shutdownPeriods);
+    if (shutdownShift > 0) {
+      stages = shiftChain(stages, shutdownShift);
+      continue;
+    }
+
+    // 2. Single scheduling pass
+    const { assignments, requiredShift } = scheduleChainOnce(
+      stages, productLine, productionMachineId, machines,
+      existingStages, turnaroundActivities, shutdownPeriods
+    );
+    lastResult = assignments;
+
+    // 3. Converged — no stage needed to move
+    if (requiredShift === 0) return assignments;
+
+    // 4. Rebase entire chain and retry
+    stages = shiftChain(stages, requiredShift);
+  }
+
+  return lastResult;
+}
+
+// ─── Chain integrity validation ─────────────────────────────────────
+
+export type ChainIssueType =
+  | 'gap'
+  | 'overlap'
+  | 'duration-exceeded'
+  | 'duration-below-min'
+  | 'shutdown-conflict'
+  | 'equipment-conflict';
+
+export interface ChainIntegrityIssue {
+  type: ChainIssueType;
+  stageType: string;
+  machineId?: string;
+  message: string;
+}
+
+/**
+ * Validate a scheduled chain for integrity issues: continuity gaps/overlaps,
+ * duration violations, shutdown conflicts, and equipment conflicts.
+ *
+ * @param assignments — the chain's scheduled stages (ordered earliest first)
+ * @param stageDefaults — the product line's stage template (for duration limits)
+ * @param shutdowns — active shutdown periods
+ * @param existingStages — all other stages in the schedule (for equipment conflict check)
+ * @param excludeChainStageIds — stage IDs belonging to this chain (excluded from equipment conflict check)
+ * @param toleranceMinutes — allowed gap/overlap tolerance in minutes before flagging
+ */
+export function validateChainIntegrity(
+  assignments: ChainAssignment[],
+  stageDefaults: { stageType: string; defaultDurationHours: number; minDurationHours?: number; maxDurationHours?: number }[],
+  shutdowns: ShutdownPeriod[],
+  existingStages: Stage[],
+  excludeChainStageIds: Set<string> = new Set(),
+  toleranceMinutes = 1
+): ChainIntegrityIssue[] {
+  const issues: ChainIntegrityIssue[] = [];
+  const toleranceMs = toleranceMinutes * 60 * 1000;
+
+  for (let i = 0; i < assignments.length; i++) {
+    const a = assignments[i];
+
+    // 1. Unassigned machine
+    if (!a.machineId) {
+      issues.push({
+        type: 'equipment-conflict',
+        stageType: a.stageType,
+        message: `Stage ${a.stageType} has no available vessel`,
+      });
+      continue;
+    }
+
+    // 2. Continuity: check gap/overlap with next stage
+    if (i < assignments.length - 1) {
+      const next = assignments[i + 1];
+      const deltaMs = next.startDatetime.getTime() - a.endDatetime.getTime();
+      if (deltaMs > toleranceMs) {
+        const gapHours = Math.round(deltaMs / (1000 * 60 * 60) * 10) / 10;
+        issues.push({
+          type: 'gap',
+          stageType: a.stageType,
+          machineId: a.machineId,
+          message: `${gapHours}h gap between ${a.stageType} end and ${next.stageType} start`,
+        });
+      } else if (deltaMs < -toleranceMs) {
+        const overlapHours = Math.round(-deltaMs / (1000 * 60 * 60) * 10) / 10;
+        issues.push({
+          type: 'overlap',
+          stageType: a.stageType,
+          machineId: a.machineId,
+          message: `${overlapHours}h intra-chain overlap between ${a.stageType} and ${next.stageType}`,
+        });
+      }
+    }
+
+    // 3. Duration limits
+    const actualDurationHours = differenceInHours(a.endDatetime, a.startDatetime);
+    const sd = stageDefaults.find((d) => d.stageType === a.stageType);
+    if (sd) {
+      const maxDuration = sd.maxDurationHours ?? sd.defaultDurationHours * 1.1;
+      const minDuration = sd.minDurationHours ?? sd.defaultDurationHours * 0.9;
+      if (actualDurationHours > maxDuration) {
+        issues.push({
+          type: 'duration-exceeded',
+          stageType: a.stageType,
+          machineId: a.machineId,
+          message: `Stage ${a.stageType} exceeds max duration (${actualDurationHours}h > ${maxDuration}h)`,
+        });
+      }
+      if (actualDurationHours < minDuration) {
+        issues.push({
+          type: 'duration-below-min',
+          stageType: a.stageType,
+          machineId: a.machineId,
+          message: `Stage ${a.stageType} below min duration (${actualDurationHours}h < ${minDuration}h)`,
+        });
+      }
+    }
+
+    // 4. Shutdown conflict
+    const shutdownConflicts = detectShutdownConflicts(a.startDatetime, a.endDatetime, shutdowns);
+    if (shutdownConflicts.length > 0) {
+      issues.push({
+        type: 'shutdown-conflict',
+        stageType: a.stageType,
+        machineId: a.machineId,
+        message: `Stage ${a.stageType} overlaps shutdown "${shutdownConflicts[0].name}"`,
+      });
+    }
+
+    // 5. Equipment conflict (against other chains' stages)
+    const otherStages = existingStages.filter((s) => !excludeChainStageIds.has(s.id));
+    const eqConflicts = detectOverlaps(a.machineId, a.startDatetime, a.endDatetime, otherStages);
+    if (eqConflicts.length > 0) {
+      issues.push({
+        type: 'equipment-conflict',
+        stageType: a.stageType,
+        machineId: a.machineId,
+        message: `Stage ${a.stageType} on ${a.machineId} overlaps with existing stage`,
+      });
+    }
+  }
+
+  return issues;
 }
 
 // ─── Bulk shift validation ──────────────────────────────────────────

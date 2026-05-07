@@ -12,9 +12,9 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { usePlantPulseStore, generateId } from '@/lib/store';
 import { backCalculateChain, chainDurationHours, expandStageDefaults, buildStageTypeCounts } from '@/lib/seed-train';
-import { autoScheduleChain, earliestAvailableTime, requiredTurnaroundGap, chainShutdownShift } from '@/lib/scheduling';
+import { autoScheduleChain, earliestAvailableTime, requiredTurnaroundGap, chainShutdownShift, validateChainIntegrity } from '@/lib/scheduling';
 import { isMachineUnavailable } from '@/lib/types';
-import type { ChainAssignment } from '@/lib/scheduling';
+import type { ChainAssignment, ChainIntegrityIssue } from '@/lib/scheduling';
 import { batchNamePreview } from '@/lib/types';
 import type { BatchNamingRule, ProductLine, Stage } from '@/lib/types';
 import { format, addHours, startOfHour, endOfMonth, endOfQuarter, endOfYear, differenceInHours } from 'date-fns';
@@ -52,6 +52,7 @@ interface ChainPreview {
   batchName: string;
   seriesNumber: number;
   assignments: ChainAssignment[];
+  integrityIssues: ChainIntegrityIssue[];
 }
 
 // ─── Component ────────────────────────────────────────────────────────────
@@ -262,6 +263,11 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
     [chainPreviews]
   );
 
+  const totalIntegrityIssues = useMemo(
+    () => chainPreviews.reduce((sum, cp) => sum + cp.integrityIssues.length, 0),
+    [chainPreviews]
+  );
+
   // ── Actions ──
 
   const handleCalculate = useCallback(() => {
@@ -300,11 +306,21 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
         shutdownPeriods
       );
 
+      const integrityIssues = validateChainIntegrity(
+        result,
+        productLine.stageDefaults,
+        shutdownPeriods,
+        accumulatedStages,
+        new Set(),
+        1
+      );
+
       const seriesNumber = baseSeriesNum + i * step;
       previews.push({
         batchName: batchNamePreview(namingRule, seriesNumber),
         seriesNumber,
         assignments: result,
+        integrityIssues,
       });
 
       // Add this chain's stages to accumulated stages for next chain's overlap check
@@ -816,12 +832,34 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
                 </div>
               )}
 
+              {totalIntegrityIssues > 0 && (
+                <div className="pp-chain-integrity">
+                  <strong>⚠ {totalIntegrityIssues} chain integrity violation{totalIntegrityIssues > 1 ? 's' : ''} detected</strong>
+                  <div className="pp-chain-integrity-hint">
+                    Review the issues below. Confirm is disabled until all chains are valid.
+                  </div>
+                </div>
+              )}
+
               {/* Assignment tables — one per chain */}
               {chainPreviews.map((cp, ci) => (
                 <div key={ci}>
                   {chainPreviews.length > 1 && (
                     <div className="pp-wizard-chain-divider">
                       {cp.batchName} <span className="pp-wizard-chain-divider-sub">(series #{cp.seriesNumber})</span>
+                    </div>
+                  )}
+                  {cp.integrityIssues.length > 0 && (
+                    <div className="pp-chain-integrity pp-chain-integrity-per-chain">
+                      <strong>{cp.integrityIssues.length} issue{cp.integrityIssues.length > 1 ? 's' : ''}:</strong>
+                      <ul className="pp-chain-integrity-list">
+                        {cp.integrityIssues.map((issue, idx) => (
+                          <li key={idx}>
+                            <span className={`pp-chain-integrity-tag pp-chain-integrity-tag-${issue.type}`}>{issue.type}</span>
+                            {' '}{issue.message}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
                   <div className="pp-wizard-table">
@@ -897,7 +935,7 @@ export default function NewChainWizard({ open, onClose, onOpenProcessSetup }: Ne
               <button
                 className="pp-detail-btn pp-detail-btn-save"
                 onClick={handleCreate}
-                disabled={hasUnassigned}
+                disabled={hasUnassigned || totalIntegrityIssues > 0}
               >
                 Create {chainPreviews.length > 1 ? `${chainPreviews.length} Chains` : 'Chain'}
               </button>
