@@ -540,8 +540,6 @@ export default function PlannerPage() {
         batchChains,
         machines,
         stageDefaultsByProductLine: Object.fromEntries(productLines.map((p) => [p.id, p.stageDefaults])),
-        stageOrder: ['inoculum', 'seed_n2', 'seed_n1', 'production'],
-        requiredStages: ['inoculum', 'seed_n2', 'seed_n1', 'production'],
         turnaroundActivities,
         shutdownPeriods,
       });
@@ -560,8 +558,6 @@ export default function PlannerPage() {
     batchChains,
     machines,
     stageDefaultsByProductLine: Object.fromEntries(productLines.map((p) => [p.id, p.stageDefaults])),
-    stageOrder: ['inoculum', 'seed_n2', 'seed_n1', 'production'],
-    requiredStages: ['inoculum', 'seed_n2', 'seed_n1', 'production'],
     turnaroundActivities,
     shutdownPeriods,
   }), [stages, batchChains, machines, productLines, turnaroundActivities, shutdownPeriods]);

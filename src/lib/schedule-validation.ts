@@ -43,8 +43,6 @@ export interface ScheduleValidationInput {
   batchChains: BatchChain[];
   machines: Machine[];
   stageDefaultsByProductLine: Record<string, StageDefault[]>;
-  stageOrder: string[];
-  requiredStages: string[];
   shutdownPeriods?: ShutdownPeriod[];
   turnaroundActivities?: TurnaroundActivity[];
 }
@@ -71,9 +69,12 @@ export function validateSchedule(input: ScheduleValidationInput): ScheduleValida
   for (const chain of input.batchChains) {
     const chainStages = (stagesByChain.get(chain.id) ?? []).slice().sort((a, b) => a.startDatetime.getTime() - b.startDatetime.getTime());
     const defaults = input.stageDefaultsByProductLine[chain.productLine] ?? [];
+    const configuredOrder = defaults.map((d) => d.stageType);
+    const requiredStages = Array.from(new Set(configuredOrder));
     const defaultByType = new Map(defaults.map((d) => [d.stageType, d]));
+    const stageIndex = new Map(configuredOrder.map((t, i) => [t, i]));
 
-    for (const req of input.requiredStages) {
+    for (const req of requiredStages) {
       if (!chainStages.some((s) => s.stageType === req)) {
         issues.push({ id: `missing-${chain.id}-${req}`, code: 'CHAIN_MISSING_STAGE', severity: 'error', batchChainId: chain.id, message: `Chain ${chain.batchName} is missing required stage ${req}.` });
       }
@@ -84,7 +85,7 @@ export function validateSchedule(input: ScheduleValidationInput): ScheduleValida
       if (stage.batchChainId !== chain.id) {
         issues.push({ id: `mismatch-${stage.id}`, code: 'CHAIN_STAGE_BATCH_MISMATCH', severity: 'error', stageId: stage.id, batchChainId: chain.id, message: `Stage ${stage.id} is assigned to wrong chain.` });
       }
-      const orderIdx = input.stageOrder.indexOf(stage.stageType);
+      const orderIdx = stageIndex.get(stage.stageType) ?? -1;
       if (orderIdx === -1) continue;
 
       for (let j = i + 1; j < chainStages.length; j++) {
@@ -92,7 +93,7 @@ export function validateSchedule(input: ScheduleValidationInput): ScheduleValida
         if (stage.endDatetime > next.startDatetime) {
           issues.push({ id: `overlap-chain-${stage.id}-${next.id}`, code: 'CHAIN_STAGE_OVERLAP', severity: 'error', batchChainId: chain.id, stageId: stage.id, relatedStageIds: [stage.id, next.id], message: `Chain ${chain.batchName} has overlapping stages ${stage.stageType} and ${next.stageType}.` });
         }
-        const nextOrder = input.stageOrder.indexOf(next.stageType);
+        const nextOrder = stageIndex.get(next.stageType) ?? -1;
         if (nextOrder !== -1 && nextOrder < orderIdx) {
           issues.push({ id: `seq-${stage.id}-${next.id}`, code: 'CHAIN_STAGE_SEQUENCE', severity: 'error', batchChainId: chain.id, stageId: next.id, relatedStageIds: [stage.id, next.id], message: `Chain ${chain.batchName} stage order violation: ${next.stageType} appears before ${stage.stageType}.` });
         }
@@ -113,7 +114,9 @@ export function validateSchedule(input: ScheduleValidationInput): ScheduleValida
       }
     }
 
-    const ordered = chainStages.filter((s) => input.stageOrder.includes(s.stageType)).sort((a, b) => input.stageOrder.indexOf(a.stageType) - input.stageOrder.indexOf(b.stageType));
+    const ordered = chainStages
+      .filter((s) => stageIndex.has(s.stageType))
+      .sort((a, b) => (stageIndex.get(a.stageType) ?? -1) - (stageIndex.get(b.stageType) ?? -1));
     for (let i = 1; i < ordered.length; i++) {
       if (ordered[i].startDatetime < ordered[i - 1].endDatetime) {
         issues.push({ id: `contig-${ordered[i - 1].id}-${ordered[i].id}`, code: 'CHAIN_NOT_CONTIGUOUS', severity: 'error', batchChainId: chain.id, stageId: ordered[i].id, relatedStageIds: [ordered[i - 1].id, ordered[i].id], message: `Chain ${chain.batchName} is not contiguous between ${ordered[i - 1].stageType} and ${ordered[i].stageType}.` });

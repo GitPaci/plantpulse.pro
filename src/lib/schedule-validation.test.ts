@@ -20,7 +20,7 @@ describe('validateSchedule', () => {
       { id: 's-prod', batchChainId: 'c1', machineId: 'm-fer', stageType: 'production', startDatetime: d('2026-01-01T00:00:00Z'), endDatetime: d('2026-01-03T00:00:00Z'), state: 'planned' },
       { id: 's-ino', batchChainId: 'c1', machineId: 'm-ino', stageType: 'inoculum', startDatetime: d('2026-01-02T00:00:00Z'), endDatetime: d('2026-01-02T12:00:00Z'), state: 'planned' },
     ];
-    const result = validateSchedule({ stages, batchChains: [chain], machines, stageDefaultsByProductLine: { pl1: defaults }, stageOrder: ['inoculum', 'production'], requiredStages: ['inoculum', 'production'] });
+    const result = validateSchedule({ stages, batchChains: [chain], machines, stageDefaultsByProductLine: { pl1: defaults } });
     expect(result.valid).toBe(false);
     expect(result.issues.some((i) => i.code === 'CHAIN_STAGE_SEQUENCE')).toBe(true);
     expect(result.issues.some((i) => i.code === 'CHAIN_STAGE_OVERLAP')).toBe(true);
@@ -32,7 +32,7 @@ describe('validateSchedule', () => {
       { id: 'a', batchChainId: 'c1', machineId: 'm-fer', stageType: 'production', startDatetime: d('2026-01-02T00:00:00Z'), endDatetime: d('2026-01-03T00:00:00Z'), state: 'planned' },
       { id: 'b', batchChainId: 'c1', machineId: 'm-fer', stageType: 'production', startDatetime: d('2026-01-02T12:00:00Z'), endDatetime: d('2026-01-03T12:00:00Z'), state: 'planned' },
     ];
-    const result = validateSchedule({ stages, batchChains: [chain], machines: withDowntime, stageDefaultsByProductLine: { pl1: defaults }, stageOrder: ['production'], requiredStages: [] });
+    const result = validateSchedule({ stages, batchChains: [chain], machines: withDowntime, stageDefaultsByProductLine: { pl1: defaults } });
     expect(result.issues.some((i) => i.code === 'EQUIPMENT_STAGE_OVERLAP')).toBe(true);
     expect(result.issues.some((i) => i.code === 'EQUIPMENT_DOWNTIME_CONFLICT')).toBe(true);
   });
@@ -43,8 +43,22 @@ describe('validateSchedule', () => {
       { id: 's1', batchChainId: 'c1', machineId: 'm-fer', stageType: 'production', startDatetime: d('2026-01-01T00:00:00Z'), endDatetime: d('2026-01-02T00:00:00Z'), state: 'completed' },
       { id: 's2', batchChainId: 'c1', machineId: 'm-fer', stageType: 'production', startDatetime: d('2026-01-02T02:00:00Z'), endDatetime: d('2026-01-03T00:00:00Z'), state: 'planned' },
     ];
-    const result = validateSchedule({ stages, batchChains: [chain], machines, stageDefaultsByProductLine: { pl1: defaults }, stageOrder: ['inoculum', 'production'], requiredStages: ['inoculum', 'production'], turnaroundActivities: ta });
+    const result = validateSchedule({ stages, batchChains: [chain], machines, stageDefaultsByProductLine: { pl1: defaults }, turnaroundActivities: ta });
     expect(result.issues.some((i) => i.code === 'CHAIN_MISSING_STAGE')).toBe(true);
     expect(result.issues.some((i) => i.code === 'TURNAROUND_TOO_SHORT')).toBe(true);
+  });
+
+  it('respects custom per-product-line stage order from Stage Defaults', () => {
+    const chain2: BatchChain = { ...chain, id: 'c2', batchName: 'B-002' };
+    const customDefaults: StageDefault[] = [
+      { stageType: 'prep', defaultDurationHours: 6, machineGroup: 'inoculum' },
+      { stageType: 'main', defaultDurationHours: 12, machineGroup: 'fermenter' },
+    ];
+    const stages: Stage[] = [
+      { id: 'x1', batchChainId: 'c2', machineId: 'm-fer', stageType: 'main', startDatetime: d('2026-02-01T00:00:00Z'), endDatetime: d('2026-02-02T00:00:00Z'), state: 'planned' },
+      { id: 'x2', batchChainId: 'c2', machineId: 'm-ino', stageType: 'prep', startDatetime: d('2026-02-01T12:00:00Z'), endDatetime: d('2026-02-01T18:00:00Z'), state: 'planned' },
+    ];
+    const result = validateSchedule({ stages, batchChains: [chain2], machines, stageDefaultsByProductLine: { pl1: customDefaults } });
+    expect(result.issues.some((i) => i.code === 'CHAIN_STAGE_SEQUENCE')).toBe(true);
   });
 });
