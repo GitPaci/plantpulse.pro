@@ -1,7 +1,7 @@
 import { differenceInMinutes } from 'date-fns';
-import type { BatchChain, Machine, ShutdownPeriod, Stage, StageDefault, TurnaroundActivity } from './types';
+import type { BatchChain, Machine, ShutdownPeriod, Stage, StageDefault, StageTypeDefinition, TurnaroundActivity } from './types';
 import { detectOverlaps } from './scheduling';
-import { turnaroundTotalHours, isMachineUnavailable } from './types';
+import { turnaroundTotalHours, collectDowntimeWindows } from './types';
 
 export type ValidationSeverity = 'error' | 'warning';
 
@@ -43,6 +43,7 @@ export interface ScheduleValidationInput {
   batchChains: BatchChain[];
   machines: Machine[];
   stageDefaultsByProductLine: Record<string, StageDefault[]>;
+  stageTypeDefinitionsByProductLine?: Record<string, StageTypeDefinition[]>;
   shutdownPeriods?: ShutdownPeriod[];
   turnaroundActivities?: TurnaroundActivity[];
 }
@@ -69,10 +70,12 @@ export function validateSchedule(input: ScheduleValidationInput): ScheduleValida
   for (const chain of input.batchChains) {
     const chainStages = (stagesByChain.get(chain.id) ?? []).slice().sort((a, b) => a.startDatetime.getTime() - b.startDatetime.getTime());
     const defaults = input.stageDefaultsByProductLine[chain.productLine] ?? [];
+    const typeDefs = input.stageTypeDefinitionsByProductLine?.[chain.productLine] ?? [];
     const configuredOrder = defaults.map((d) => d.stageType);
     const requiredStages = Array.from(new Set(configuredOrder));
     const defaultByType = new Map(defaults.map((d) => [d.stageType, d]));
     const stageIndex = new Map(configuredOrder.map((t, i) => [t, i]));
+    const stageTypeAllowedCount = new Map(typeDefs.map((d) => [d.id, Math.max(1, d.count || 1)]));
 
     for (const req of requiredStages) {
       if (!chainStages.some((s) => s.stageType === req)) {
@@ -100,7 +103,8 @@ export function validateSchedule(input: ScheduleValidationInput): ScheduleValida
       }
 
       const activeSameType = chainStages.filter((s) => s.stageType === stage.stageType && (s.state === 'planned' || s.state === 'active'));
-      if (activeSameType.length > 1) {
+      const allowedCount = stageTypeAllowedCount.get(stage.stageType) ?? 1;
+      if (activeSameType.length > allowedCount) {
         issues.push({ id: `dup-${chain.id}-${stage.stageType}`, code: 'CHAIN_DUPLICATE_ACTIVE_STAGE', severity: 'error', batchChainId: chain.id, stageId: stage.id, relatedStageIds: activeSameType.map((s) => s.id), message: `Chain ${chain.batchName} has duplicate active/planned ${stage.stageType} stages.` });
       }
 
@@ -130,8 +134,12 @@ export function validateSchedule(input: ScheduleValidationInput): ScheduleValida
     }
 
     const machine = input.machines.find((m) => m.id === stage.machineId);
-    if (machine && (isMachineUnavailable(machine, stage.startDatetime) || isMachineUnavailable(machine, stage.endDatetime))) {
-      issues.push({ id: `dt-${stage.id}`, code: 'EQUIPMENT_DOWNTIME_CONFLICT', severity: 'error', stageId: stage.id, machineId: stage.machineId, message: `Stage ${stage.id} is scheduled during machine downtime (${machine.name}).` });
+    if (machine) {
+      const overlapsDowntime = collectDowntimeWindows(machine, stage.startDatetime, stage.endDatetime)
+        .some((w) => w.blocksPlanning && w.start < stage.endDatetime && w.end > stage.startDatetime);
+      if (overlapsDowntime) {
+        issues.push({ id: `dt-${stage.id}`, code: 'EQUIPMENT_DOWNTIME_CONFLICT', severity: 'error', stageId: stage.id, machineId: stage.machineId, message: `Stage ${stage.id} is scheduled during machine downtime (${machine.name}).` });
+      }
     }
 
     for (const s of input.shutdownPeriods ?? []) {

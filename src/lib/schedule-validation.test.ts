@@ -27,12 +27,17 @@ describe('validateSchedule', () => {
   });
 
   it('detects equipment overlap and downtime conflict', () => {
-    const withDowntime = [{ ...machines[1], downtime: { startDate: d('2026-01-01T00:00:00Z'), endDate: d('2026-01-05T00:00:00Z'), blocksPlanning: true } }, machines[0]];
+    const withDowntime = [{ ...machines[1], downtime: { startDate: d('2026-01-02T06:00:00Z'), endDate: d('2026-01-02T08:00:00Z'), blocksPlanning: true } }, machines[0]];
     const stages: Stage[] = [
       { id: 'a', batchChainId: 'c1', machineId: 'm-fer', stageType: 'production', startDatetime: d('2026-01-02T00:00:00Z'), endDatetime: d('2026-01-03T00:00:00Z'), state: 'planned' },
       { id: 'b', batchChainId: 'c1', machineId: 'm-fer', stageType: 'production', startDatetime: d('2026-01-02T12:00:00Z'), endDatetime: d('2026-01-03T12:00:00Z'), state: 'planned' },
     ];
-    const result = validateSchedule({ stages, batchChains: [chain], machines: withDowntime, stageDefaultsByProductLine: { pl1: defaults } });
+    const result = validateSchedule({
+      stages,
+      batchChains: [chain],
+      machines: withDowntime,
+      stageDefaultsByProductLine: { pl1: defaults },
+    });
     expect(result.issues.some((i) => i.code === 'EQUIPMENT_STAGE_OVERLAP')).toBe(true);
     expect(result.issues.some((i) => i.code === 'EQUIPMENT_DOWNTIME_CONFLICT')).toBe(true);
   });
@@ -60,5 +65,52 @@ describe('validateSchedule', () => {
     ];
     const result = validateSchedule({ stages, batchChains: [chain2], machines, stageDefaultsByProductLine: { pl1: customDefaults } });
     expect(result.issues.some((i) => i.code === 'CHAIN_STAGE_SEQUENCE')).toBe(true);
+  });
+
+  it('allows parallel same-type stages up to configured stage count', () => {
+    const stages: Stage[] = [
+      { id: 'p1', batchChainId: 'c1', machineId: 'm-ino', stageType: 'inoculum', startDatetime: d('2026-03-01T00:00:00Z'), endDatetime: d('2026-03-01T10:00:00Z'), state: 'planned' },
+      { id: 'p2', batchChainId: 'c1', machineId: 'm-fer', stageType: 'inoculum', startDatetime: d('2026-03-01T00:00:00Z'), endDatetime: d('2026-03-01T10:00:00Z'), state: 'active' },
+      { id: 'p3', batchChainId: 'c1', machineId: 'm-fer', stageType: 'production', startDatetime: d('2026-03-02T00:00:00Z'), endDatetime: d('2026-03-04T00:00:00Z'), state: 'planned' },
+    ];
+    const result = validateSchedule({
+      stages,
+      batchChains: [chain],
+      machines,
+      stageDefaultsByProductLine: { pl1: defaults },
+      stageTypeDefinitionsByProductLine: { pl1: [{ id: 'inoculum', name: 'Inoculum', shortName: 'INO', count: 2, displayOrder: 1 }] },
+    });
+    expect(result.issues.some((i) => i.code === 'CHAIN_DUPLICATE_ACTIVE_STAGE')).toBe(false);
+  });
+
+  it('flags duplicate same-type stages when configured count is exceeded', () => {
+    const stages: Stage[] = [
+      { id: 'd1', batchChainId: 'c1', machineId: 'm-ino', stageType: 'inoculum', startDatetime: d('2026-03-01T00:00:00Z'), endDatetime: d('2026-03-01T10:00:00Z'), state: 'planned' },
+      { id: 'd2', batchChainId: 'c1', machineId: 'm-fer', stageType: 'inoculum', startDatetime: d('2026-03-01T00:00:00Z'), endDatetime: d('2026-03-01T10:00:00Z'), state: 'active' },
+      { id: 'd3', batchChainId: 'c1', machineId: 'm-fer', stageType: 'inoculum', startDatetime: d('2026-03-01T00:00:00Z'), endDatetime: d('2026-03-01T10:00:00Z'), state: 'planned' },
+      { id: 'd4', batchChainId: 'c1', machineId: 'm-fer', stageType: 'production', startDatetime: d('2026-03-02T00:00:00Z'), endDatetime: d('2026-03-04T00:00:00Z'), state: 'planned' },
+    ];
+    const result = validateSchedule({
+      stages,
+      batchChains: [chain],
+      machines,
+      stageDefaultsByProductLine: { pl1: defaults },
+      stageTypeDefinitionsByProductLine: { pl1: [{ id: 'inoculum', name: 'Inoculum', shortName: 'INO', count: 2, displayOrder: 1 }] },
+    });
+    expect(result.issues.some((i) => i.code === 'CHAIN_DUPLICATE_ACTIVE_STAGE')).toBe(true);
+  });
+
+  it('flags shutdown overlap occurring mid-stage interval', () => {
+    const stages: Stage[] = [
+      { id: 's-mid', batchChainId: 'c1', machineId: 'm-fer', stageType: 'production', startDatetime: d('2026-04-01T00:00:00Z'), endDatetime: d('2026-04-01T12:00:00Z'), state: 'planned' },
+    ];
+    const result = validateSchedule({
+      stages,
+      batchChains: [chain],
+      machines,
+      stageDefaultsByProductLine: { pl1: defaults },
+      shutdownPeriods: [{ id: 'sd1', name: 'Window', startDate: d('2026-04-01T05:00:00Z'), endDate: d('2026-04-01T06:00:00Z') }],
+    });
+    expect(result.issues.some((i) => i.code === 'EQUIPMENT_SHUTDOWN_CONFLICT')).toBe(true);
   });
 });

@@ -223,6 +223,9 @@ export default function PlannerPage() {
   const productLines = usePlantPulseStore((s) => s.productLines);
   const turnaroundActivities = usePlantPulseStore((s) => s.turnaroundActivities);
   const shutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
+  const stageTypesMode = usePlantPulseStore((s) => s.stageTypesMode);
+  const productLineStageTypes = usePlantPulseStore((s) => s.productLineStageTypes);
+  const stageTypeDefinitions = usePlantPulseStore((s) => s.stageTypeDefinitions);
   const setMachineGroups = usePlantPulseStore((s) => s.setMachineGroups);
   const updateStage = usePlantPulseStore((s) => s.updateStage);
   const loadDemoData = usePlantPulseStore((s) => s.loadDemoData);
@@ -535,11 +538,15 @@ export default function PlannerPage() {
   const handleStageDragEnd = useCallback(
     (stageId: string, newStart: Date, newEnd: Date) => {
       const draftStages = stages.map((s) => (s.id === stageId ? { ...s, startDatetime: newStart, endDatetime: newEnd } : s));
+      const stageTypeDefinitionsByProductLine = Object.fromEntries(
+        productLines.map((p) => [p.id, stageTypesMode === 'per_product_line' ? (productLineStageTypes[p.id] ?? stageTypeDefinitions) : stageTypeDefinitions])
+      );
       const validation = validateSchedule({
         stages: draftStages,
         batchChains,
         machines,
         stageDefaultsByProductLine: Object.fromEntries(productLines.map((p) => [p.id, p.stageDefaults])),
+        stageTypeDefinitionsByProductLine,
         turnaroundActivities,
         shutdownPeriods,
       });
@@ -550,17 +557,23 @@ export default function PlannerPage() {
       }
       updateStage(stageId, { startDatetime: newStart, endDatetime: newEnd });
     },
-    [updateStage, stages, batchChains, machines, productLines, turnaroundActivities, shutdownPeriods]
+    [updateStage, stages, batchChains, machines, productLines, turnaroundActivities, shutdownPeriods, stageTypesMode, productLineStageTypes, stageTypeDefinitions]
   );
 
-  const liveValidation = useMemo(() => validateSchedule({
-    stages,
-    batchChains,
-    machines,
-    stageDefaultsByProductLine: Object.fromEntries(productLines.map((p) => [p.id, p.stageDefaults])),
-    turnaroundActivities,
-    shutdownPeriods,
-  }), [stages, batchChains, machines, productLines, turnaroundActivities, shutdownPeriods]);
+  const liveValidation = useMemo(() => {
+    const stageTypeDefinitionsByProductLine = Object.fromEntries(
+      productLines.map((p) => [p.id, stageTypesMode === 'per_product_line' ? (productLineStageTypes[p.id] ?? stageTypeDefinitions) : stageTypeDefinitions])
+    );
+    return validateSchedule({
+      stages,
+      batchChains,
+      machines,
+      stageDefaultsByProductLine: Object.fromEntries(productLines.map((p) => [p.id, p.stageDefaults])),
+      stageTypeDefinitionsByProductLine,
+      turnaroundActivities,
+      shutdownPeriods,
+    });
+  }, [stages, batchChains, machines, productLines, turnaroundActivities, shutdownPeriods, stageTypesMode, productLineStageTypes, stageTypeDefinitions]);
 
   const handleImportConfirm = useCallback(() => {
     if (!importConfirm) return;
