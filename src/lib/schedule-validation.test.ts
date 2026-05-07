@@ -113,4 +113,19 @@ describe('validateSchedule', () => {
     });
     expect(result.issues.some((i) => i.code === 'EQUIPMENT_SHUTDOWN_CONFLICT')).toBe(true);
   });
+
+  it('rejects disconnected linked chains with continuity rule', () => {
+    const linkedChain: BatchChain = { ...chain, linkToNext: true };
+    const stages: Stage[] = [
+      { id: 'l1', batchChainId: 'c1', machineId: 'm-ino', stageType: 'inoculum', startDatetime: d('2026-05-01T00:00:00Z'), endDatetime: d('2026-05-01T08:00:00Z'), state: 'planned' },
+      { id: 'l2', batchChainId: 'c1', machineId: 'm-fer', stageType: 'production', startDatetime: d('2026-05-01T10:00:00Z'), endDatetime: d('2026-05-02T10:00:00Z'), state: 'planned' },
+    ];
+    const result = validateSchedule({
+      stages,
+      batchChains: [linkedChain],
+      machines,
+      stageDefaultsByProductLine: { pl1: defaults },
+    });
+    expect(result.issues.some((i) => i.code === 'CHAIN_LINK_CONTINUITY')).toBe(true);
+  });
 });

@@ -53,6 +53,14 @@ function inferViewMode(numberOfDays: number): ViewMode {
   return 'quarter';
 }
 
+function orderedChainStageIds(chainId: string, allStages: import('@/lib/types').Stage[], stageDefaults: import('@/lib/types').StageDefault[]): string[] {
+  const idx = new Map(stageDefaults.map((d, i) => [d.stageType, i]));
+  return allStages
+    .filter((s) => s.batchChainId === chainId)
+    .sort((a, b) => (idx.get(a.stageType) ?? 999) - (idx.get(b.stageType) ?? 999))
+    .map((s) => s.id);
+}
+
 // ─── Inline SVG icons (16×16, stroke-based) ───────────────────────────
 
 function IconPlus() {
@@ -537,7 +545,33 @@ export default function PlannerPage() {
 
   const handleStageDragEnd = useCallback(
     (stageId: string, newStart: Date, newEnd: Date) => {
-      const draftStages = stages.map((s) => (s.id === stageId ? { ...s, startDatetime: newStart, endDatetime: newEnd } : s));
+      const targetStage = stages.find((s) => s.id === stageId);
+      if (!targetStage) return;
+      const chain = batchChains.find((c) => c.id === targetStage.batchChainId);
+      const productLine = productLines.find((p) => p.id === chain?.productLine);
+      const stageOrderIds = orderedChainStageIds(targetStage.batchChainId, stages, productLine?.stageDefaults ?? []);
+      const durations = new Map(stages.map((s) => [s.id, s.endDatetime.getTime() - s.startDatetime.getTime()]));
+
+      let draftStages = stages.map((s) => (s.id === stageId ? { ...s, startDatetime: newStart, endDatetime: newEnd } : s));
+      if (chain?.linkToNext) {
+        const movedIdx = stageOrderIds.indexOf(stageId);
+        if (movedIdx > 0) {
+          const prev = draftStages.find((s) => s.id === stageOrderIds[movedIdx - 1]);
+          const moved = draftStages.find((s) => s.id === stageId);
+          if (prev && moved) {
+            moved.startDatetime = new Date(prev.endDatetime);
+            moved.endDatetime = new Date(moved.startDatetime.getTime() + (durations.get(stageId) ?? 0));
+          }
+        }
+        for (let i = Math.max(1, stageOrderIds.indexOf(stageId) + 1); i < stageOrderIds.length; i++) {
+          const prev = draftStages.find((s) => s.id === stageOrderIds[i - 1]);
+          const cur = draftStages.find((s) => s.id === stageOrderIds[i]);
+          if (prev && cur) {
+            cur.startDatetime = new Date(prev.endDatetime);
+            cur.endDatetime = new Date(cur.startDatetime.getTime() + (durations.get(cur.id) ?? 0));
+          }
+        }
+      }
       const stageTypeDefinitionsByProductLine = Object.fromEntries(
         productLines.map((p) => [p.id, stageTypesMode === 'per_product_line' ? (productLineStageTypes[p.id] ?? stageTypeDefinitions) : stageTypeDefinitions])
       );
@@ -555,7 +589,13 @@ export default function PlannerPage() {
         window.alert(`Cannot apply stage move: ${first?.message ?? 'Schedule validation failed.'}`);
         return;
       }
-      updateStage(stageId, { startDatetime: newStart, endDatetime: newEnd });
+      for (const s of draftStages) {
+        const original = stages.find((x) => x.id === s.id);
+        if (!original) continue;
+        if (original.startDatetime.getTime() !== s.startDatetime.getTime() || original.endDatetime.getTime() !== s.endDatetime.getTime()) {
+          updateStage(s.id, { startDatetime: s.startDatetime, endDatetime: s.endDatetime });
+        }
+      }
     },
     [updateStage, stages, batchChains, machines, productLines, turnaroundActivities, shutdownPeriods, stageTypesMode, productLineStageTypes, stageTypeDefinitions]
   );

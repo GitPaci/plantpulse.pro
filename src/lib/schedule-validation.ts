@@ -13,6 +13,8 @@ export type ValidationRuleCode =
   | 'CHAIN_MISSING_STAGE'
   | 'CHAIN_DUPLICATE_ACTIVE_STAGE'
   | 'CHAIN_NOT_CONTIGUOUS'
+  | 'CHAIN_LINK_CONTINUITY'
+  | 'CHAIN_NON_MONOTONIC'
   | 'DURATION_BELOW_MIN'
   | 'DURATION_ABOVE_MAX'
   | 'EQUIPMENT_STAGE_OVERLAP'
@@ -122,8 +124,14 @@ export function validateSchedule(input: ScheduleValidationInput): ScheduleValida
       .filter((s) => stageIndex.has(s.stageType))
       .sort((a, b) => (stageIndex.get(a.stageType) ?? -1) - (stageIndex.get(b.stageType) ?? -1));
     for (let i = 1; i < ordered.length; i++) {
+      if (ordered[i].startDatetime < ordered[i - 1].startDatetime) {
+        issues.push({ id: `mono-${ordered[i - 1].id}-${ordered[i].id}`, code: 'CHAIN_NON_MONOTONIC', severity: 'error', batchChainId: chain.id, stageId: ordered[i].id, relatedStageIds: [ordered[i - 1].id, ordered[i].id], message: `Chain ${chain.batchName} has non-monotonic stage timing.` });
+      }
       if (ordered[i].startDatetime < ordered[i - 1].endDatetime) {
         issues.push({ id: `contig-${ordered[i - 1].id}-${ordered[i].id}`, code: 'CHAIN_NOT_CONTIGUOUS', severity: 'error', batchChainId: chain.id, stageId: ordered[i].id, relatedStageIds: [ordered[i - 1].id, ordered[i].id], message: `Chain ${chain.batchName} is not contiguous between ${ordered[i - 1].stageType} and ${ordered[i].stageType}.` });
+      }
+      if (chain.linkToNext && ordered[i].startDatetime.getTime() !== ordered[i - 1].endDatetime.getTime()) {
+        issues.push({ id: `link-${ordered[i - 1].id}-${ordered[i].id}`, code: 'CHAIN_LINK_CONTINUITY', severity: 'error', batchChainId: chain.id, stageId: ordered[i].id, relatedStageIds: [ordered[i - 1].id, ordered[i].id], message: `Chain ${chain.batchName} link continuity broken between ${ordered[i - 1].stageType} and ${ordered[i].stageType}.` });
       }
     }
   }
