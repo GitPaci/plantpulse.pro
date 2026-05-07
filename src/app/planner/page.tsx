@@ -27,6 +27,7 @@ import {
 } from '@/lib/excel-io';
 import { subDays, addDays, startOfDay, differenceInDays, format } from 'date-fns';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { validateSchedule } from '@/lib/schedule-validation';
 
 // ─── View mode presets ────────────────────────────────────────────────
 type ViewMode = 'day' | 'week' | 'month' | 'quarter';
@@ -220,6 +221,8 @@ export default function PlannerPage() {
   const addMachine = usePlantPulseStore((s) => s.addMachine);
   const equipmentGroups = usePlantPulseStore((s) => s.equipmentGroups);
   const productLines = usePlantPulseStore((s) => s.productLines);
+  const turnaroundActivities = usePlantPulseStore((s) => s.turnaroundActivities);
+  const shutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
   const setMachineGroups = usePlantPulseStore((s) => s.setMachineGroups);
   const updateStage = usePlantPulseStore((s) => s.updateStage);
   const loadDemoData = usePlantPulseStore((s) => s.loadDemoData);
@@ -531,10 +534,37 @@ export default function PlannerPage() {
 
   const handleStageDragEnd = useCallback(
     (stageId: string, newStart: Date, newEnd: Date) => {
+      const draftStages = stages.map((s) => (s.id === stageId ? { ...s, startDatetime: newStart, endDatetime: newEnd } : s));
+      const validation = validateSchedule({
+        stages: draftStages,
+        batchChains,
+        machines,
+        stageDefaultsByProductLine: Object.fromEntries(productLines.map((p) => [p.id, p.stageDefaults])),
+        stageOrder: ['inoculum', 'seed_n2', 'seed_n1', 'production'],
+        requiredStages: ['inoculum', 'seed_n2', 'seed_n1', 'production'],
+        turnaroundActivities,
+        shutdownPeriods,
+      });
+      if (!validation.valid) {
+        const first = validation.issues[0];
+        window.alert(`Cannot apply stage move: ${first?.message ?? 'Schedule validation failed.'}`);
+        return;
+      }
       updateStage(stageId, { startDatetime: newStart, endDatetime: newEnd });
     },
-    [updateStage]
+    [updateStage, stages, batchChains, machines, productLines, turnaroundActivities, shutdownPeriods]
   );
+
+  const liveValidation = useMemo(() => validateSchedule({
+    stages,
+    batchChains,
+    machines,
+    stageDefaultsByProductLine: Object.fromEntries(productLines.map((p) => [p.id, p.stageDefaults])),
+    stageOrder: ['inoculum', 'seed_n2', 'seed_n1', 'production'],
+    requiredStages: ['inoculum', 'seed_n2', 'seed_n1', 'production'],
+    turnaroundActivities,
+    shutdownPeriods,
+  }), [stages, batchChains, machines, productLines, turnaroundActivities, shutdownPeriods]);
 
   const handleImportConfirm = useCallback(() => {
     if (!importConfirm) return;
@@ -777,6 +807,11 @@ export default function PlannerPage() {
             className="flex-1 min-h-0"
             onWheel={handleTimelineWheel}
           >
+            {!liveValidation.valid && (
+              <div className="mx-3 mt-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+                <strong>Scheduling conflicts detected:</strong> {liveValidation.issues.length} issue(s). First: {liveValidation.issues[0]?.message}
+              </div>
+            )}
             <WallboardCanvas onStageClick={(id) => setSelectedStageId(id)} onMachineLabelClick={handleMachineLabelClick} onShiftBandClick={() => setShiftScheduleOpen(true)} showDowntime={true} onDowntimeClick={handleDowntimeClick} enableDragResize={true} enableBackgroundPan={true} onStageDragEnd={handleStageDragEnd} showShutdownCrossing={true} showHoldRisk={true} showCheckpoints={true} onCheckpointClick={handleCheckpointClick} />
           </div>
           {/* Horizontal scrollbar */}
