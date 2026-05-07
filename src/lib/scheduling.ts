@@ -386,19 +386,47 @@ export function autoScheduleChain(
 ): ChainAssignment[] {
   const assignments: ChainAssignment[] = [];
 
+  // Accumulated delay (hours) propagated from downstream → upstream so the
+  // chain stays continuous when a vessel isn't free at the ideal time.
+  let chainDelayHours = 0;
+
   // Work from the last stage (production) backwards — the final stage is most
   // constrained (fermenter), upstream stages have more vessel options.
   for (let i = backCalculatedStages.length - 1; i >= 0; i--) {
     const calc = backCalculatedStages[i];
     const isProduction = i === backCalculatedStages.length - 1;
 
+    // Apply accumulated chain delay so this stage shifts with downstream
+    const proposedStart = chainDelayHours > 0
+      ? addHours(calc.startDatetime, chainDelayHours)
+      : calc.startDatetime;
+    const proposedEnd = addHours(proposedStart, calc.durationHours);
+
     let assignedMachine: { id: string; name: string } | null = null;
+    let actualStart = proposedStart;
 
     if (isProduction && productionMachineId) {
       // User pre-selected the fermenter
       const m = machines.find((m) => m.id === productionMachineId);
       if (m) {
         assignedMachine = { id: m.id, name: m.name };
+        // Even for pre-selected fermenter, respect its availability
+        const chainStages: Stage[] = assignments.map((a) => ({
+          id: `pending-${a.stageType}`,
+          machineId: a.machineId,
+          batchChainId: '',
+          stageType: a.stageType,
+          startDatetime: a.startDatetime,
+          endDatetime: a.endDatetime,
+          state: 'planned' as const,
+        }));
+        const allStages = [...existingStages, ...chainStages];
+        const earliest = earliestAvailableTime(
+          m.id, m.group, allStages, turnaroundActivities, shutdownPeriods
+        );
+        if (earliest > proposedStart) {
+          actualStart = earliest;
+        }
       }
     }
 
@@ -419,7 +447,7 @@ export function autoScheduleChain(
       const best = findBestVessel(
         calc.machineGroup,
         productLine,
-        calc.startDatetime,
+        proposedStart,
         calc.durationHours,
         machines,
         allStages,
@@ -429,10 +457,20 @@ export function autoScheduleChain(
 
       if (best) {
         assignedMachine = { id: best.machineId, name: best.machineName };
+        if (best.earliestStart > proposedStart) {
+          actualStart = best.earliestStart;
+        }
       }
     }
 
-    // Check overlaps on the assigned machine
+    const actualEnd = addHours(actualStart, calc.durationHours);
+
+    // If this stage was pushed later, propagate the extra delay upstream
+    if (actualStart > proposedStart) {
+      chainDelayHours += differenceInHours(actualStart, proposedStart);
+    }
+
+    // Check overlaps using actual times
     const chainStages: Stage[] = assignments.map((a) => ({
       id: `pending-${a.stageType}`,
       machineId: a.machineId,
@@ -445,15 +483,15 @@ export function autoScheduleChain(
     const allStages = [...existingStages, ...chainStages];
 
     const overlaps = assignedMachine
-      ? detectOverlaps(assignedMachine.id, calc.startDatetime, calc.endDatetime, allStages)
+      ? detectOverlaps(assignedMachine.id, actualStart, actualEnd, allStages)
       : [];
 
     assignments.unshift({
       stageType: calc.stageType,
       machineId: assignedMachine?.id || '',
       machineName: assignedMachine?.name || 'Unassigned',
-      startDatetime: calc.startDatetime,
-      endDatetime: calc.endDatetime,
+      startDatetime: actualStart,
+      endDatetime: actualEnd,
       durationHours: calc.durationHours,
       overlaps,
     });
