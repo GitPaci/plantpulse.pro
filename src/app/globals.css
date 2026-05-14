@@ -4908,3 +4908,611 @@ body {
 .pp-chain-integrity-tag-duration-below-min { background: #fef3c7; color: #92400e; }
 .pp-chain-integrity-tag-shutdown-conflict { background: #fde68a; color: #78350f; }
 .pp-chain-integrity-tag-equipment-conflict { background: #fee2e2; color: #991b1b; }
+
+/* ─── Planner Page Header ──────────────────────────────────────────────── */
+
+.planner-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px 12px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--pp-border);
+  flex-shrink: 0;
+}
+
+.planner-page-header-left h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--pp-pharma, #1a3a2a);
+  margin: 0 0 2px;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.planner-page-header-left p {
+  font-size: 12px;
+  color: var(--pp-muted);
+  margin: 0;
+}
+
+.planner-page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.planner-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--pp-border);
+  background: #ffffff;
+  color: var(--pp-pharma, #1a3a2a);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.planner-header-btn:hover {
+  background: var(--pp-surface, #f8f9fa);
+  border-color: #b0b8c1;
+}
+
+.planner-header-btn--primary {
+  background: var(--pp-pharma, #1a3a2a);
+  color: #ffffff;
+  border-color: var(--pp-pharma, #1a3a2a);
+}
+
+.planner-header-btn--primary:hover {
+  background: #2a5a3a;
+  border-color: #2a5a3a;
+}
+
+.planner-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--pp-muted);
+  border: 1px solid var(--pp-border);
+  background: #ffffff;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.planner-collapse-btn:hover {
+  background: var(--pp-surface);
+  color: var(--pp-pharma);
+}
+
+@media (max-width: 767px) {
+  .planner-page-header {
+    padding: 10px 14px 10px;
+  }
+  .planner-page-header-left h1 {
+    font-size: 15px;
+  }
+  .planner-header-btn {
+    padding: 5px 9px;
+    font-size: 12px;
+  }
+}
+
+/* ─── Planner Today Strip ─────────────────────────────────────────────── */
+
+.planner-today-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: #ffffff;
+  border-bottom: 1px solid var(--pp-border);
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.planner-today-strip::-webkit-scrollbar { display: none; }
+
+.planner-today-date {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px 20px 10px 20px;
+  border-right: 1px solid var(--pp-border);
+  min-width: 120px;
+  flex-shrink: 0;
+}
+
+.planner-today-date-num {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--pp-pharma, #1a3a2a);
+  line-height: 1;
+}
+
+.planner-today-date-label {
+  font-size: 11px;
+  color: var(--pp-muted);
+  margin-top: 3px;
+  white-space: nowrap;
+}
+
+.planner-today-stats {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+}
+
+.planner-stat {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px 18px;
+  border-right: 1px solid var(--pp-border);
+  min-width: 110px;
+  flex-shrink: 0;
+}
+
+.planner-stat-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--pp-muted);
+  margin-bottom: 3px;
+  white-space: nowrap;
+}
+
+.planner-stat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.planner-stat-dot--running { background: #22c55e; }
+.planner-stat-dot--starting { background: #3b82f6; }
+.planner-stat-dot--risk { background: #f59e0b; }
+.planner-stat-dot--maint { background: #8b5cf6; }
+
+.planner-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--pp-pharma, #1a3a2a);
+  line-height: 1;
+}
+
+.planner-stat-unit {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--pp-muted);
+  margin-left: 3px;
+}
+
+.planner-shift-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px 16px;
+  min-width: 160px;
+  flex-shrink: 0;
+  background: #fafcf8;
+  border-left: 1px solid var(--pp-border);
+  margin-left: auto;
+}
+
+.planner-shift-card-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--pp-muted);
+  margin-bottom: 3px;
+}
+
+.planner-shift-card-team {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pp-pharma, #1a3a2a);
+  line-height: 1.2;
+}
+
+.planner-shift-card-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.planner-shift-card-meta {
+  font-size: 11px;
+  color: var(--pp-muted);
+  margin-top: 2px;
+}
+
+@media (max-width: 767px) {
+  .planner-today-strip {
+    padding: 0;
+  }
+  .planner-today-date {
+    padding: 8px 14px;
+    min-width: 100px;
+  }
+  .planner-today-date-num { font-size: 18px; }
+  .planner-stat {
+    padding: 8px 12px;
+    min-width: 90px;
+  }
+  .planner-stat-value { font-size: 17px; }
+  .planner-shift-card {
+    padding: 8px 12px;
+    min-width: 130px;
+  }
+}
+
+/* ─── Planner Sidebar Tabs ────────────────────────────────────────────── */
+
+.planner-sidebar-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--pp-border);
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.planner-sidebar-tab {
+  padding: 10px 12px 9px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pp-muted);
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s;
+  white-space: nowrap;
+}
+
+.planner-sidebar-tab:hover {
+  color: var(--pp-pharma);
+}
+
+.planner-sidebar-tab--active {
+  color: var(--pp-pharma, #1a3a2a);
+  border-bottom-color: var(--pp-pharma, #1a3a2a);
+  font-weight: 600;
+}
+
+.planner-sidebar-tab-count {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--pp-muted);
+  margin-left: 4px;
+}
+
+.planner-sidebar-hide {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  color: var(--pp-muted);
+  border: none;
+  background: none;
+  cursor: pointer;
+  align-self: center;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.planner-sidebar-hide:hover {
+  background: var(--pp-surface, #f0f4f8);
+  color: var(--pp-pharma);
+}
+
+/* ─── Inspector (inline stage details in sidebar) ─────────────────────── */
+
+.planner-inspector-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--pp-muted);
+}
+
+.planner-inspector-empty-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--pp-surface, #f0f4f8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+  color: var(--pp-muted);
+}
+
+.planner-inspector-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pp-pharma);
+  margin-bottom: 6px;
+}
+
+.planner-inspector-empty-desc {
+  font-size: 12px;
+  color: var(--pp-muted);
+  line-height: 1.5;
+}
+
+.planner-inspector-content {
+  padding: 0 16px 16px;
+}
+
+.planner-inspector-header {
+  padding: 14px 0 12px;
+  border-bottom: 1px solid var(--pp-border);
+  margin-bottom: 14px;
+}
+
+.planner-inspector-code {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pp-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.planner-inspector-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--pp-pharma, #1a3a2a);
+  margin: 0 0 8px;
+  line-height: 1.2;
+}
+
+.planner-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.planner-status-pill--planned {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.planner-status-pill--active {
+  background: #f0fdf4;
+  color: #15803d;
+}
+.planner-status-pill--completed {
+  background: #f8fafc;
+  color: #475569;
+}
+.planner-status-pill--aborted {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.planner-progress-bar {
+  height: 5px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 10px 0 4px;
+}
+
+.planner-progress-fill {
+  height: 100%;
+  background: #22c55e;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.planner-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--pp-muted);
+  margin-bottom: 12px;
+}
+
+.planner-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 8px;
+  margin-bottom: 14px;
+}
+
+.planner-meta-item {}
+
+.planner-meta-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--pp-muted);
+  margin-bottom: 2px;
+}
+
+.planner-meta-value {
+  font-size: 13px;
+  color: var(--pp-pharma, #1a3a2a);
+  font-weight: 500;
+}
+
+.planner-meta-value--mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+}
+
+/* Chain path */
+.planner-chain-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--pp-muted);
+  margin: 0 0 10px;
+}
+
+.planner-chain-path {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.planner-chain-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: var(--pp-surface, #f8fafc);
+  transition: background 0.12s;
+}
+
+.planner-chain-step--current {
+  background: #f0fdf4;
+  outline: 1.5px solid #86efac;
+}
+
+.planner-chain-step--done {
+  opacity: 0.6;
+}
+
+.planner-chain-step-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: var(--pp-muted);
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.planner-chain-step--current .planner-chain-step-dot {
+  background: #22c55e;
+  color: #ffffff;
+}
+
+.planner-chain-step--done .planner-chain-step-dot {
+  background: #94a3b8;
+  color: #ffffff;
+}
+
+.planner-chain-step-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pp-pharma, #1a3a2a);
+  line-height: 1.2;
+}
+
+.planner-chain-step-machine {
+  font-size: 11px;
+  color: var(--pp-muted);
+}
+
+.planner-chain-step-time {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--pp-muted);
+  white-space: nowrap;
+}
+
+/* Inspector actions */
+.planner-inspector-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.planner-inspector-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--pp-border);
+  background: #ffffff;
+  color: var(--pp-pharma, #1a3a2a);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.planner-inspector-btn:hover {
+  background: var(--pp-surface, #f0f4f8);
+}
+.planner-inspector-btn--primary {
+  background: var(--pp-pharma, #1a3a2a);
+  color: #ffffff;
+  border-color: var(--pp-pharma, #1a3a2a);
+}
+.planner-inspector-btn--primary:hover {
+  background: #2a5a3a;
+}
+
+/* Collapsed sidebar show-tab */
+.planner-sidebar-show-tab {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 6px;
+  background: #ffffff;
+  border: 1px solid var(--pp-border);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  cursor: pointer;
+  color: var(--pp-muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  writing-mode: vertical-rl;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+  z-index: 10;
+  box-shadow: -2px 0 6px rgba(0,0,0,0.06);
+}
+.planner-sidebar-show-tab:hover {
+  background: var(--pp-surface, #f0f4f8);
+  color: var(--pp-pharma);
+}
+
