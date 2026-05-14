@@ -25,7 +25,8 @@ import {
   type UnknownMachineInfo,
   type PendingRow,
 } from '@/lib/excel-io';
-import { subDays, addDays, startOfDay, differenceInDays, format } from 'date-fns';
+import { currentShiftTeam } from '@/lib/shift-rotation';
+import { subDays, addDays, startOfDay, differenceInDays, format, isToday, isFuture } from 'date-fns';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { validateSchedule } from '@/lib/schedule-validation';
 
@@ -154,6 +155,40 @@ function IconChevronRight() {
   );
 }
 
+function IconChevronLeft({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 3L5 7l4 4" />
+    </svg>
+  );
+}
+
+function IconInbox({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 12l2-6h12l2 6" />
+      <rect x="2" y="12" width="20" height="8" rx="2" />
+      <path d="M9 16h6" />
+    </svg>
+  );
+}
+
+function IconCheck({ size = 10 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 5l2.5 2.5L8 3" />
+    </svg>
+  );
+}
+
+function IconEdit({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9.5 2.5l2 2-6 6H3.5v-2l6-6z" />
+    </svg>
+  );
+}
+
 // ─── Sidebar section (collapsible) ─────────────────────────────────────
 
 function SidebarSection({
@@ -214,6 +249,343 @@ function ToolButton({
   );
 }
 
+// ─── Stage Inspector (inline in sidebar) ─────────────────────────────
+
+function StageInspector({
+  stageId,
+  onEditChain,
+  onEditStage,
+}: {
+  stageId: string | null;
+  onEditChain: (chainId: string) => void;
+  onEditStage: (stageId: string) => void;
+}) {
+  const stages = usePlantPulseStore((s) => s.stages);
+  const batchChains = usePlantPulseStore((s) => s.batchChains);
+  const machines = usePlantPulseStore((s) => s.machines);
+  const productLines = usePlantPulseStore((s) => s.productLines);
+  const stageTypeDefinitions = usePlantPulseStore((s) => s.stageTypeDefinitions);
+  const stageTypesMode = usePlantPulseStore((s) => s.stageTypesMode);
+  const productLineStageTypes = usePlantPulseStore((s) => s.productLineStageTypes);
+
+  const stage = stageId ? stages.find((s) => s.id === stageId) : null;
+  const chain = stage ? batchChains.find((c) => c.id === stage.batchChainId) : null;
+  const machine = stage ? machines.find((m) => m.id === stage.machineId) : null;
+  const productLine = chain ? productLines.find((p) => p.id === chain.productLine) : null;
+
+  const stageTypeDefs = useMemo(() => {
+    if (!chain) return stageTypeDefinitions;
+    if (stageTypesMode === 'per_product_line' && chain.productLine) {
+      return productLineStageTypes[chain.productLine] ?? stageTypeDefinitions;
+    }
+    return stageTypeDefinitions;
+  }, [chain, stageTypesMode, productLineStageTypes, stageTypeDefinitions]);
+
+  const stageTypeDef = stage ? stageTypeDefs.find((d) => d.id === stage.stageType) : null;
+
+  // Ordered chain stages
+  const chainStages = useMemo(() => {
+    if (!stage) return [];
+    const stageDefaults = productLine?.stageDefaults ?? [];
+    const idx = new Map(stageDefaults.map((d, i) => [d.stageType, i]));
+    return stages
+      .filter((s) => s.batchChainId === stage.batchChainId)
+      .sort((a, b) => {
+        const ai = idx.get(a.stageType) ?? 999;
+        const bi = idx.get(b.stageType) ?? 999;
+        if (ai !== bi) return ai - bi;
+        return a.startDatetime.getTime() - b.startDatetime.getTime();
+      });
+  }, [stage, stages, productLine]);
+
+  if (!stage || !chain || !machine) {
+    return (
+      <div className="planner-inspector-empty">
+        <div className="planner-inspector-empty-icon">
+          <IconInbox size={20} />
+        </div>
+        <div className="planner-inspector-empty-title">No stage selected</div>
+        <div className="planner-inspector-empty-desc">
+          Click any batch bar on the timeline to inspect its details and chain path.
+        </div>
+      </div>
+    );
+  }
+
+  const durationHrs = Math.round((stage.endDatetime.getTime() - stage.startDatetime.getTime()) / 3600000);
+  const now = new Date();
+  const isActive = stage.state === 'active';
+  const progress = isActive
+    ? Math.min(1, Math.max(0, (now.getTime() - stage.startDatetime.getTime()) / (stage.endDatetime.getTime() - stage.startDatetime.getTime())))
+    : 0;
+  const remainingHrs = isActive ? Math.max(0, Math.round((stage.endDatetime.getTime() - now.getTime()) / 3600000)) : null;
+
+  const stateLabels: Record<string, string> = {
+    planned: 'Scheduled',
+    active: 'Running',
+    completed: 'Completed',
+    aborted: 'Aborted',
+  };
+  const stateLabel = stateLabels[stage.state] ?? stage.state;
+
+  return (
+    <div className="planner-inspector-content">
+      <div className="planner-inspector-header">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="planner-inspector-code">
+              <span>{chain.batchName}</span>
+              <span style={{ opacity: 0.5 }}>·</span>
+              <span>{machine.name}</span>
+            </div>
+            <h3 className="planner-inspector-title">
+              {stageTypeDef?.name ?? stage.stageType}
+            </h3>
+          </div>
+        </div>
+        <span className={`planner-status-pill planner-status-pill--${stage.state}`}>
+          <span style={{
+            width: 6, height: 6, borderRadius: '50%', display: 'inline-block',
+            background: stage.state === 'active' ? '#22c55e' : stage.state === 'completed' ? '#94a3b8' : stage.state === 'aborted' ? '#ef4444' : '#3b82f6',
+            flexShrink: 0,
+          }} />
+          {stateLabel}
+        </span>
+      </div>
+
+      {isActive && (
+        <>
+          <div className="planner-progress-bar">
+            <div className="planner-progress-fill" style={{ width: `${progress * 100}%` }} />
+          </div>
+          <div className="planner-progress-meta">
+            <span>{Math.round(progress * 100)}% complete</span>
+            {remainingHrs !== null && <span>{remainingHrs}h remaining</span>}
+          </div>
+        </>
+      )}
+
+      <div className="planner-meta-grid">
+        <div className="planner-meta-item">
+          <div className="planner-meta-label">Product Line</div>
+          <div className="planner-meta-value">{productLine?.name ?? '—'}</div>
+        </div>
+        <div className="planner-meta-item">
+          <div className="planner-meta-label">Equipment</div>
+          <div className="planner-meta-value planner-meta-value--mono">{machine.name}</div>
+        </div>
+        <div className="planner-meta-item">
+          <div className="planner-meta-label">Start</div>
+          <div className="planner-meta-value">{format(stage.startDatetime, 'MMM d, HH:mm')}</div>
+        </div>
+        <div className="planner-meta-item">
+          <div className="planner-meta-label">End</div>
+          <div className="planner-meta-value">{format(stage.endDatetime, 'MMM d, HH:mm')}</div>
+        </div>
+        <div className="planner-meta-item">
+          <div className="planner-meta-label">Duration</div>
+          <div className="planner-meta-value planner-meta-value--mono">{durationHrs}h</div>
+        </div>
+        <div className="planner-meta-item">
+          <div className="planner-meta-label">Batch</div>
+          <div className="planner-meta-value planner-meta-value--mono">{chain.batchName}</div>
+        </div>
+      </div>
+
+      {chainStages.length > 1 && (
+        <>
+          <div className="planner-chain-section-title">Chain path</div>
+          <div className="planner-chain-path">
+            {chainStages.map((s, i) => {
+              const isDone = s.state === 'completed' || s.state === 'aborted';
+              const isCurrent = s.id === stage.id;
+              const sm = machines.find((m) => m.id === s.machineId);
+              const std = stageTypeDefs.find((d) => d.id === s.stageType);
+              return (
+                <div
+                  key={s.id}
+                  className={`planner-chain-step${isCurrent ? ' planner-chain-step--current' : ''}${isDone ? ' planner-chain-step--done' : ''}`}
+                >
+                  <div className="planner-chain-step-dot">
+                    {isDone ? <IconCheck size={10} /> : i + 1}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="planner-chain-step-name">{std?.name ?? s.stageType}</div>
+                    <div className="planner-chain-step-machine">{sm?.name ?? s.machineId}</div>
+                  </div>
+                  <div className="planner-chain-step-time">
+                    {format(s.startDatetime, 'MMM d')}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      <div className="planner-inspector-actions">
+        <button
+          className="planner-inspector-btn"
+          onClick={() => onEditStage(stage.id)}
+          title="View full stage details"
+        >
+          <IconEdit size={14} />
+          Stage details
+        </button>
+        <button
+          className="planner-inspector-btn planner-inspector-btn--primary"
+          onClick={() => onEditChain(chain.id)}
+          title="Edit batch chain"
+        >
+          <IconEdit size={14} />
+          Edit chain
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Today Strip ──────────────────────────────────────────────────────
+
+function TodayStrip({
+  runningCount,
+  startingTodayCount,
+  atRiskCount,
+  maintenanceCount,
+  shiftTeamName,
+  shiftTeamColor,
+  shiftHours,
+}: {
+  runningCount: number;
+  startingTodayCount: number;
+  atRiskCount: number;
+  maintenanceCount: number;
+  shiftTeamName: string;
+  shiftTeamColor: string;
+  shiftHours: string;
+}) {
+  const today = new Date();
+  return (
+    <div className="planner-today-strip">
+      <div className="planner-today-date">
+        <div className="planner-today-date-num">
+          {format(today, 'MMM d')}
+        </div>
+        <div className="planner-today-date-label">
+          {format(today, 'EEEE')} · Today
+        </div>
+      </div>
+
+      <div className="planner-today-stats">
+        <div className="planner-stat">
+          <div className="planner-stat-label">
+            <span className="planner-stat-dot planner-stat-dot--running" />
+            Running now
+          </div>
+          <div className="planner-stat-value">
+            {runningCount}
+            <span className="planner-stat-unit">active</span>
+          </div>
+        </div>
+        <div className="planner-stat">
+          <div className="planner-stat-label">
+            <span className="planner-stat-dot planner-stat-dot--starting" />
+            Starting today
+          </div>
+          <div className="planner-stat-value">
+            {startingTodayCount}
+            <span className="planner-stat-unit">stages</span>
+          </div>
+        </div>
+        <div className="planner-stat">
+          <div className="planner-stat-label">
+            <span className="planner-stat-dot planner-stat-dot--risk" />
+            Needs attention
+          </div>
+          <div className="planner-stat-value">
+            {atRiskCount}
+            <span className="planner-stat-unit">conflicts</span>
+          </div>
+        </div>
+        <div className="planner-stat">
+          <div className="planner-stat-label">
+            <span className="planner-stat-dot planner-stat-dot--maint" />
+            Maintenance
+          </div>
+          <div className="planner-stat-value">
+            {maintenanceCount}
+            <span className="planner-stat-unit">this week</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="planner-shift-card">
+        <div className="planner-shift-card-head">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <circle cx="6" cy="6" r="4.5" />
+            <path d="M6 3.5V6l1.5 1" />
+          </svg>
+          On shift now
+        </div>
+        <div className="planner-shift-card-team">
+          <span
+            className="planner-shift-card-swatch"
+            style={{ background: shiftTeamColor }}
+          />
+          {shiftTeamName}
+        </div>
+        <div className="planner-shift-card-meta">{shiftHours}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page Header ──────────────────────────────────────────────────────
+
+function PageHeader({
+  machineCount,
+  chainCount,
+  stageCount,
+  onNewChain,
+  onImport,
+  onCollapse,
+}: {
+  machineCount: number;
+  chainCount: number;
+  stageCount: number;
+  onNewChain: () => void;
+  onImport: () => void;
+  onCollapse: () => void;
+}) {
+  return (
+    <div className="planner-page-header">
+      <div className="planner-page-header-left">
+        <h1>Production schedule</h1>
+        <p>
+          {machineCount} machines · {chainCount} active chains · {stageCount} stages
+        </p>
+      </div>
+      <div className="planner-page-header-actions">
+        <button className="planner-collapse-btn" onClick={onCollapse} title="Focus on the plan">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 9L3 6l3-3" />
+            <path d="M9 9L6 6l3-3" />
+          </svg>
+          Focus plan
+        </button>
+        <button className="planner-header-btn" onClick={onImport} title="Import schedule">
+          <IconUpload />
+          Import
+        </button>
+        <button className="planner-header-btn planner-header-btn--primary" onClick={onNewChain} title="Create new batch chain">
+          <IconPlus />
+          New batch chain
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ─────────────────────────────────────────────────────────
 
 export default function PlannerPage() {
@@ -237,6 +609,7 @@ export default function PlannerPage() {
   const setMachineGroups = usePlantPulseStore((s) => s.setMachineGroups);
   const updateStage = usePlantPulseStore((s) => s.updateStage);
   const loadDemoData = usePlantPulseStore((s) => s.loadDemoData);
+  const shiftRotation = usePlantPulseStore((s) => s.shiftRotation);
 
   // Load demo data on mount (page-level, not inside WallboardCanvas)
   useEffect(() => {
@@ -255,9 +628,22 @@ export default function PlannerPage() {
   const [chainEditorOpen, setChainEditorOpen] = useState(false);
   const [chainEditorChainId, setChainEditorChainId] = useState<string | null>(null);
   const [equipmentSetupFocusSection, setEquipmentSetupFocusSection] = useState<string | null>(null);
+  const [stageDetailOpen, setStageDetailOpen] = useState(false);
 
-  // Sidebar visibility
+  // Sidebar state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<'inspector' | 'tools'>('tools');
+
+  // Page header collapse state
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+
+  // Auto-switch to inspector tab when a stage is selected
+  useEffect(() => {
+    if (selectedStageId) {
+      setSidebarTab('inspector');
+      setSidebarCollapsed(false);
+    }
+  }, [selectedStageId]);
 
   // View mode (Day / Week / Month / Quarter)
   const [viewMode, setViewMode] = useState<ViewMode>(() => inferViewMode(viewConfig.numberOfDays));
@@ -399,13 +785,11 @@ export default function PlannerPage() {
   // Horizontal scroll — pan the timeline by scrolling or dragging the scrollbar
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  // Total scrollable range: 90 days before today to 90 days after = ~180 days
   const SCROLL_RANGE_DAYS = 180;
   const SCROLL_RANGE_BEFORE = 90;
   const today = startOfDay(new Date());
   const scrollMin = subDays(today, SCROLL_RANGE_BEFORE);
 
-  // Current position as fraction (0..1) of the scroll range
   const currentOffset = differenceInDays(viewConfig.viewStart, scrollMin);
   const maxOffset = SCROLL_RANGE_DAYS - viewConfig.numberOfDays;
   const scrollFraction = Math.max(0, Math.min(1, currentOffset / maxOffset));
@@ -413,7 +797,6 @@ export default function PlannerPage() {
 
   const handleTimelineWheel = useCallback(
     (e: React.WheelEvent) => {
-      // Shift + wheel or horizontal wheel → pan timeline
       const delta = e.shiftKey ? e.deltaY : e.deltaX;
       if (delta === 0) return;
       e.preventDefault();
@@ -437,7 +820,6 @@ export default function PlannerPage() {
     [maxOffset, scrollMin, setViewConfig]
   );
 
-  // Drag state for scrollbar thumb
   const [dragging, setDragging] = useState(false);
   const scrollbarRef = useRef<HTMLDivElement>(null);
 
@@ -482,7 +864,7 @@ export default function PlannerPage() {
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      e.target.value = ''; // reset so same file can be re-selected
+      e.target.value = '';
       const buffer = await file.arrayBuffer();
       const result = parseScheduleXlsx(buffer, machines);
       setImportConfirm({
@@ -494,7 +876,6 @@ export default function PlannerPage() {
         pendingRows: result.pendingRows,
         existingChainIds: result.existingChainIds,
       });
-      // Initialize resolutions: default to "create" with suggested group
       if (result.unknownMachines.length > 0) {
         const initial = new Map<string, { action: 'create' | 'map' | 'skip'; group?: string; mapTo?: string }>();
         for (const um of result.unknownMachines) {
@@ -615,13 +996,52 @@ export default function PlannerPage() {
     });
   }, [stages, batchChains, machines, productLines, turnaroundActivities, shutdownPeriods, stageTypesMode, productLineStageTypes, stageTypeDefinitions]);
 
+  // ── Today Strip stats ──────────────────────────────────────────────
+  const todayStats = useMemo(() => {
+    const now = new Date();
+    const weekEnd = addDays(now, 7);
+    return {
+      running: stages.filter((s) => s.state === 'active').length,
+      startingToday: stages.filter((s) => isToday(s.startDatetime) && s.state === 'planned').length,
+      atRisk: liveValidation.issues.length,
+      maintenance: maintenanceTasks.filter((mt) => {
+        const start = mt.plannedStart instanceof Date ? mt.plannedStart : new Date(mt.plannedStart);
+        return isFuture(start) && start <= weekEnd;
+      }).length,
+    };
+  }, [stages, maintenanceTasks, liveValidation.issues.length]);
+
+  // Current shift info
+  const shiftInfo = useMemo(() => {
+    const now = new Date();
+    const teamIdx = currentShiftTeam(
+      now,
+      shiftRotation.anchorDate,
+      shiftRotation.cyclePattern,
+      shiftRotation.shiftLengthHours
+    );
+    const team = shiftRotation.teams[teamIdx];
+    const shiftLengthHrs = shiftRotation.shiftLengthHours;
+    // Compute shift start and end
+    const hoursSinceAnchor = Math.floor((now.getTime() - shiftRotation.anchorDate.getTime()) / 3600000);
+    const shiftIdx = Math.floor(hoursSinceAnchor / shiftLengthHrs);
+    const shiftStartMs = shiftRotation.anchorDate.getTime() + shiftIdx * shiftLengthHrs * 3600000;
+    const shiftEndMs = shiftStartMs + shiftLengthHrs * 3600000;
+    const shiftStart = new Date(shiftStartMs);
+    const shiftEnd = new Date(shiftEndMs);
+    return {
+      teamName: team?.name ?? `Team ${teamIdx + 1}`,
+      teamColor: team?.color ?? '#3b82f6',
+      shiftHours: `${format(shiftStart, 'HH:mm')} – ${format(shiftEnd, 'HH:mm')}`,
+    };
+  }, [shiftRotation]);
+
   const handleImportConfirm = useCallback(() => {
     if (!importConfirm) return;
     if (importConfirm.type === 'schedule' && importConfirm.chains && importConfirm.stages) {
       let finalChains = [...importConfirm.chains];
       let finalStages = [...importConfirm.stages];
 
-      // Resolve unknown machines if any
       const unknowns = importConfirm.unknownMachines ?? [];
       const pending = importConfirm.pendingRows ?? [];
       if (unknowns.length > 0 && pending.length > 0) {
@@ -662,7 +1082,6 @@ export default function PlannerPage() {
           finalStages = [...finalStages, ...newStages];
         }
 
-        // Re-derive display groups with new machines
         const updatedMachines = usePlantPulseStore.getState().machines;
         const derivedGroups = [...productLines]
           .sort((a, b) => a.displayOrder - b.displayOrder)
@@ -696,10 +1115,52 @@ export default function PlannerPage() {
     <div className="h-screen flex flex-col overflow-hidden">
       <Navigation />
 
+      {/* Page Header (collapsible) */}
+      {!headerCollapsed && (
+        <PageHeader
+          machineCount={machines.length}
+          chainCount={batchChains.length}
+          stageCount={stages.length}
+          onNewChain={() => setNewChainWizardOpen(true)}
+          onImport={handleImportSchedule}
+          onCollapse={() => setHeaderCollapsed(true)}
+        />
+      )}
+
+      {/* Today Strip (collapsible with header) */}
+      {!headerCollapsed && (
+        <TodayStrip
+          runningCount={todayStats.running}
+          startingTodayCount={todayStats.startingToday}
+          atRiskCount={todayStats.atRisk}
+          maintenanceCount={todayStats.maintenance}
+          shiftTeamName={shiftInfo.teamName}
+          shiftTeamColor={shiftInfo.teamColor}
+          shiftHours={shiftInfo.shiftHours}
+        />
+      )}
+
       {/* Toolbar */}
       <div className="bg-white border-b border-[var(--pp-border)] shrink-0 relative">
         {/* Desktop toolbar (>= 768px) */}
         <div className="h-10 hidden md:flex items-center px-4 gap-4 text-sm">
+
+          {/* Expand header button when collapsed */}
+          {headerCollapsed && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 text-xs text-[var(--pp-muted)] hover:text-[var(--pp-pharma)] border border-[var(--pp-border)] rounded px-2 py-1 bg-white"
+              onClick={() => setHeaderCollapsed(false)}
+              title="Show header and stats"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 3L9 6l-3 3" />
+                <path d="M3 3L6 6l-3 3" />
+              </svg>
+              Stats
+            </button>
+          )}
+
           {/* View mode segmented control */}
           <div className="planner-viewmode-bar" role="radiogroup" aria-label="View time range">
             {VIEW_MODES.map((m) => (
@@ -749,6 +1210,14 @@ export default function PlannerPage() {
 
           <div className="flex-1" />
 
+          {/* Live conflict indicator */}
+          {!liveValidation.valid && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M6 1L1 11h10L6 1zm0 2l3.5 7h-7L6 3zm0 2.5v2h-1v-2h1zm0 3v1H5v-1h1z"/></svg>
+              {liveValidation.issues.length} conflict{liveValidation.issues.length !== 1 ? 's' : ''}
+            </span>
+          )}
+
           <span className="text-xs text-[var(--pp-muted)]">
             {batchChains.length} chains &middot; {stages.length} stages
           </span>
@@ -758,23 +1227,21 @@ export default function PlannerPage() {
             type="button"
             onClick={() => setSidebarCollapsed((v) => !v)}
             className="inline-flex items-center justify-center rounded border border-[var(--pp-border)] p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-            aria-label={sidebarCollapsed ? 'Show Planning Tools' : 'Hide Planning Tools'}
-            title={sidebarCollapsed ? 'Show Planning Tools' : 'Hide Planning Tools'}
+            aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+            title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               {sidebarCollapsed ? (
-                /* panel-left-open icon */
                 <>
                   <rect x="3" y="3" width="18" height="18" rx="2" />
                   <line x1="9" y1="3" x2="9" y2="21" />
                   <polyline points="14 9 17 12 14 15" />
                 </>
               ) : (
-                /* panel-left-close icon */
                 <>
                   <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <line x1="9" y1="3" x2="9" y2="21" />
-                  <polyline points="16 9 13 12 16 15" />
+                  <line x1="15" y1="3" x2="15" y2="21" />
+                  <polyline points="10 9 7 12 10 15" />
                 </>
               )}
             </svg>
@@ -849,19 +1316,27 @@ export default function PlannerPage() {
       </div>
 
       {/* Main content: timeline + sidebar */}
-      <div className="flex-1 min-h-0 flex">
+      <div className="flex-1 min-h-0 flex relative">
         {/* Timeline + horizontal scrollbar */}
         <div className="flex-1 min-w-0 flex flex-col" ref={timelineRef}>
           <div
             className="flex-1 min-h-0"
             onWheel={handleTimelineWheel}
           >
-            {!liveValidation.valid && (
-              <div className="mx-3 mt-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
-                <strong>Scheduling conflicts detected:</strong> {liveValidation.issues.length} issue(s). First: {liveValidation.issues[0]?.message}
-              </div>
-            )}
-            <WallboardCanvas onStageClick={(id) => setSelectedStageId(id)} onMachineLabelClick={handleMachineLabelClick} onShiftBandClick={() => setShiftScheduleOpen(true)} showDowntime={true} onDowntimeClick={handleDowntimeClick} enableDragResize={true} enableBackgroundPan={true} onStageDragEnd={handleStageDragEnd} showShutdownCrossing={true} showHoldRisk={true} showCheckpoints={true} onCheckpointClick={handleCheckpointClick} />
+            <WallboardCanvas
+              onStageClick={(id) => setSelectedStageId(id)}
+              onMachineLabelClick={handleMachineLabelClick}
+              onShiftBandClick={() => setShiftScheduleOpen(true)}
+              showDowntime={true}
+              onDowntimeClick={handleDowntimeClick}
+              enableDragResize={true}
+              enableBackgroundPan={true}
+              onStageDragEnd={handleStageDragEnd}
+              showShutdownCrossing={true}
+              showHoldRisk={true}
+              showCheckpoints={true}
+              onCheckpointClick={handleCheckpointClick}
+            />
           </div>
           {/* Horizontal scrollbar */}
           <div
@@ -883,97 +1358,155 @@ export default function PlannerPage() {
         {/* Sidebar backdrop (mobile only) */}
         {sidebarOpen && <div className="planner-sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
 
+        {/* Show-tab when sidebar is collapsed */}
+        {sidebarCollapsed && (
+          <button
+            className="planner-sidebar-show-tab"
+            onClick={() => setSidebarCollapsed(false)}
+            title="Show sidebar"
+          >
+            <IconChevronLeft size={14} />
+            <span>Inspector</span>
+          </button>
+        )}
+
         {/* Planning sidebar */}
         <div className={`planner-sidebar${sidebarOpen ? ' planner-sidebar-open' : ''}${sidebarCollapsed ? ' planner-sidebar-collapsed' : ''}`}>
-          <div className="planner-sidebar-header">
-            <h3>Planning Tools</h3>
+
+          {/* Sidebar tabs */}
+          <div className="planner-sidebar-tabs">
             <button
-              type="button"
-              className="planner-sidebar-close md:hidden"
-              onClick={() => setSidebarOpen(false)}
-              aria-label="Close Planning Tools"
+              className={`planner-sidebar-tab${sidebarTab === 'inspector' ? ' planner-sidebar-tab--active' : ''}`}
+              onClick={() => setSidebarTab('inspector')}
             >
-              ✕
+              Inspector
+              {selectedStageId && <span className="planner-sidebar-tab-count">· selected</span>}
+            </button>
+            <button
+              className={`planner-sidebar-tab${sidebarTab === 'tools' ? ' planner-sidebar-tab--active' : ''}`}
+              onClick={() => setSidebarTab('tools')}
+            >
+              Planning Tools
+            </button>
+            <button
+              className="planner-sidebar-hide"
+              onClick={() => setSidebarCollapsed(true)}
+              title="Hide sidebar"
+              aria-label="Hide sidebar"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 3L9 7l-4 4" />
+              </svg>
             </button>
           </div>
 
-          <div className="planner-sidebar-scroll">
-            {/* ── Batch Operations ─────────────────────────── */}
-            <SidebarSection title="Batch Operations">
-              <ToolButton
-                icon={<IconPlus />}
-                label="New Batch Chain"
-                description="Auto-schedule with seed train wizard"
-                onClick={() => setNewChainWizardOpen(true)}
+          {/* Tab content */}
+          {sidebarTab === 'inspector' ? (
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <StageInspector
+                stageId={selectedStageId}
+                onEditChain={(chainId) => {
+                  setChainEditorChainId(chainId);
+                  setChainEditorOpen(true);
+                }}
+                onEditStage={(stageId) => {
+                  setSelectedStageId(stageId);
+                  setStageDetailOpen(true);
+                }}
               />
-              <ToolButton
-                icon={<IconBulkShift />}
-                label="Bulk Shift"
-                description="Shift batches by hours after cutoff"
-                onClick={() => setBulkShiftOpen(true)}
-              />
-            </SidebarSection>
+            </div>
+          ) : (
+            <>
+              <div className="planner-sidebar-scroll">
+                {/* ── Batch Operations ─────────────────────────── */}
+                <SidebarSection title="Batch Operations">
+                  <ToolButton
+                    icon={<IconPlus />}
+                    label="New Batch Chain"
+                    description="Auto-schedule with seed train wizard"
+                    onClick={() => setNewChainWizardOpen(true)}
+                  />
+                  <ToolButton
+                    icon={<IconBulkShift />}
+                    label="Bulk Shift"
+                    description="Shift batches by hours after cutoff"
+                    onClick={() => setBulkShiftOpen(true)}
+                  />
+                </SidebarSection>
 
-            {/* ── Schedule Data ─────────────────────────────── */}
-            <SidebarSection title="Schedule Data">
-              <ToolButton
-                icon={<IconUpload />}
-                label="Import Schedule"
-                description="Load schedule from .xlsx file"
-                onClick={handleImportSchedule}
-              />
-              <ToolButton
-                icon={<IconDownload />}
-                label="Export Schedule"
-                description="Download schedule as .xlsx"
-                onClick={handleExportSchedule}
-              />
-              <ToolButton
-                icon={<IconUpload />}
-                label="Import Maintenance"
-                description="Load maintenance tasks from .xlsx"
-                onClick={handleImportMaintenance}
-                badge="MT"
-              />
-              <ToolButton
-                icon={<IconDownload />}
-                label="Export Maintenance"
-                description="Download maintenance tasks as .xlsx"
-                onClick={handleExportMaintenance}
-                badge="MT"
-              />
-            </SidebarSection>
+                {/* ── Schedule Data ─────────────────────────────── */}
+                <SidebarSection title="Schedule Data">
+                  <ToolButton
+                    icon={<IconUpload />}
+                    label="Import Schedule"
+                    description="Load schedule from .xlsx file"
+                    onClick={handleImportSchedule}
+                  />
+                  <ToolButton
+                    icon={<IconDownload />}
+                    label="Export Schedule"
+                    description="Download schedule as .xlsx"
+                    onClick={handleExportSchedule}
+                  />
+                  <ToolButton
+                    icon={<IconUpload />}
+                    label="Import Maintenance"
+                    description="Load maintenance tasks from .xlsx"
+                    onClick={handleImportMaintenance}
+                    badge="MT"
+                  />
+                  <ToolButton
+                    icon={<IconDownload />}
+                    label="Export Maintenance"
+                    description="Download maintenance tasks as .xlsx"
+                    onClick={handleExportMaintenance}
+                    badge="MT"
+                  />
+                </SidebarSection>
 
-            {/* ── Setup ─────────────────────────────────────── */}
-            <SidebarSection title="Setup">
-              <ToolButton
-                icon={<IconEquipment />}
-                label="Equipment Setup"
-                description="Names, groups, product line assignments"
-                onClick={() => setEquipmentSetupOpen(true)}
-              />
-              <ToolButton
-                icon={<IconProcess />}
-                label="Process Setup"
-                description="Stage defaults, CIP/turnaround, shutdown and holiday rules"
-                onClick={() => setProcessSetupOpen(true)}
-              />
-              <ToolButton
-                icon={<IconShift />}
-                label="Shift Schedule"
-                description="Teams, rotation pattern, shift bar colors"
-                onClick={() => setShiftScheduleOpen(true)}
-              />
-            </SidebarSection>
-          </div>
+                {/* ── Setup ─────────────────────────────────────── */}
+                <SidebarSection title="Setup">
+                  <ToolButton
+                    icon={<IconEquipment />}
+                    label="Equipment Setup"
+                    description="Names, groups, product line assignments"
+                    onClick={() => setEquipmentSetupOpen(true)}
+                  />
+                  <ToolButton
+                    icon={<IconProcess />}
+                    label="Process Setup"
+                    description="Stage defaults, CIP/turnaround, shutdown and holiday rules"
+                    onClick={() => setProcessSetupOpen(true)}
+                  />
+                  <ToolButton
+                    icon={<IconShift />}
+                    label="Shift Schedule"
+                    description="Teams, rotation pattern, shift bar colors"
+                    onClick={() => setShiftScheduleOpen(true)}
+                  />
+                </SidebarSection>
+              </div>
 
-          {/* Footer help text */}
-          <div className="planner-sidebar-footer">
-            <p>
-              Click a batch bar on the timeline to view and edit stage details.
-              Setup menus configure your facility, processes, and shift patterns.
-            </p>
-          </div>
+              {/* Footer help text */}
+              <div className="planner-sidebar-footer">
+                <p>
+                  Click a batch bar on the timeline to inspect its details in the Inspector tab.
+                  Setup menus configure your facility, processes, and shift patterns.
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* Close button (mobile only) */}
+          <button
+            type="button"
+            className="planner-sidebar-close md:hidden"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close sidebar"
+            style={{ position: 'absolute', top: 12, right: 12 }}
+          >
+            ✕
+          </button>
         </div>
       </div>
 
@@ -1007,9 +1540,10 @@ export default function PlannerPage() {
         onClose={() => setShiftScheduleOpen(false)}
       />
       <StageDetailPanel
-        stageId={selectedStageId}
-        onClose={() => setSelectedStageId(null)}
+        stageId={stageDetailOpen ? selectedStageId : null}
+        onClose={() => { setStageDetailOpen(false); }}
         onEditChain={(chainId) => {
+          setStageDetailOpen(false);
           setChainEditorChainId(chainId);
           setChainEditorOpen(true);
         }}
@@ -1201,7 +1735,6 @@ export default function PlannerPage() {
                   {(() => {
                     const unknowns = importConfirm.unknownMachines!;
                     if (unknowns.length < 2) return null;
-                    // Find most common prefix
                     const prefixCounts = new Map<string, number>();
                     for (const um of unknowns) {
                       const p = um.namePrefix ?? um.name;
@@ -1209,7 +1742,6 @@ export default function PlannerPage() {
                     }
                     const [commonPrefix, count] = [...prefixCounts.entries()].sort((a, b) => b[1] - a[1])[0];
                     if (count < 2) return null;
-                    // Find suggested group for this prefix
                     const sugGroup = unknowns.find((um) => (um.namePrefix ?? um.name) === commonPrefix)?.suggestedGroup;
                     const groupName = equipmentGroups.find((eg) => eg.id === sugGroup)?.name ?? equipmentGroups[0]?.name ?? 'Fermenter';
                     const groupId = sugGroup ?? equipmentGroups[0]?.id ?? 'fermenter';
