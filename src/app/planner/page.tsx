@@ -1498,6 +1498,7 @@ export default function PlannerPage() {
                     equipmentGroups={equipmentGroups}
                     stages={stages}
                     shutdownPeriods={shutdownPeriods}
+                    turnaroundActivities={turnaroundActivities}
                   />
                 </SidebarSection>
               </div>
