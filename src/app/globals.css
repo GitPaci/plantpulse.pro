@@ -5516,3 +5516,232 @@ body {
   color: var(--pp-pharma);
 }
 
+/* ─── Capacity Utilization Panel ─────────────────────────────────────────── */
+.pp-cap-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0 2px;
+}
+.pp-cap-period {
+  font-size: 11px;
+  color: var(--pp-muted);
+  padding: 4px 2px 8px;
+  letter-spacing: 0.2px;
+}
+.pp-cap-empty {
+  font-size: 12px;
+  color: var(--pp-muted);
+  padding: 8px 4px;
+  font-style: italic;
+}
+
+/* Group rows */
+.pp-cap-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+.pp-cap-group {
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--pp-border);
+  background: #fff;
+}
+.pp-cap-group-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+.pp-cap-group-row:hover {
+  background: var(--pp-surface);
+}
+.pp-cap-group-row--active {
+  background: #eff6ff;
+  border-bottom: 1px solid #bfdbfe;
+}
+.pp-cap-group-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pp-pharma);
+  flex: 0 0 auto;
+  min-width: 80px;
+}
+.pp-cap-group-count {
+  font-size: 10px;
+  color: #fff;
+  background: var(--pp-muted);
+  border-radius: 10px;
+  padding: 1px 5px;
+  flex: 0 0 auto;
+}
+.pp-cap-group-bar {
+  flex: 1;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.pp-cap-group-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.pp-cap-group-pct {
+  font-size: 12px;
+  font-weight: 700;
+  flex: 0 0 32px;
+  text-align: right;
+}
+
+/* Detail card */
+.pp-cap-detail {
+  padding: 10px 10px 12px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* Stacked breakdown bar */
+.pp-cap-stack {
+  display: flex;
+  height: 10px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #e2e8f0;
+  margin-bottom: 6px;
+}
+.pp-cap-stack-seg {
+  height: 100%;
+  transition: width 0.3s ease;
+  min-width: 0;
+}
+.pp-cap-stack-shutdown  { background: #fca5a5; }
+.pp-cap-stack-limiting  { background: #fde68a; }
+.pp-cap-stack-idle      { background: #fed7aa; }
+.pp-cap-stack-scheduled { background: #3b82f6; }
+.pp-cap-stack-slack     { background: #cbd5e1; }
+
+/* Stack legend */
+.pp-cap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-bottom: 10px;
+}
+.pp-cap-legend span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--pp-muted);
+}
+.pp-cap-sw {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.pp-cap-sw-scheduled { background: #3b82f6; }
+.pp-cap-sw-idle      { background: #fed7aa; }
+.pp-cap-sw-limiting  { background: #fde68a; }
+.pp-cap-sw-shutdown  { background: #fca5a5; }
+
+/* Metric list */
+.pp-cap-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+.pp-cap-metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11.5px;
+  color: var(--pp-muted);
+  padding: 2px 0;
+}
+.pp-cap-metric-row dt {
+  font-weight: 400;
+}
+.pp-cap-metric-row dd {
+  font-weight: 500;
+  color: #334155;
+  margin: 0;
+}
+.pp-cap-metric-bold {
+  border-top: 1px solid #e2e8f0;
+  margin-top: 2px;
+  padding-top: 4px !important;
+}
+.pp-cap-metric-bold dt,
+.pp-cap-metric-bold dd {
+  font-weight: 700;
+  color: var(--pp-pharma);
+}
+.pp-cap-metric-pct {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--pp-muted);
+  margin-left: 2px;
+}
+
+/* Assumptions section */
+.pp-cap-assumptions {
+  border-top: 1px solid var(--pp-border);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pp-cap-assump-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--pp-muted);
+}
+.pp-cap-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pp-cap-slider-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: #334155;
+}
+.pp-cap-slider-val {
+  font-weight: 700;
+  color: var(--pp-pharma);
+}
+.pp-cap-slider input[type="range"] {
+  width: 100%;
+  accent-color: var(--pp-pharma);
+  cursor: pointer;
+  height: 4px;
+}
+.pp-cap-slider-hint {
+  font-size: 10px;
+  color: var(--pp-muted);
+  font-style: italic;
+}
+.pp-cap-note {
+  font-size: 10px;
+  color: var(--pp-muted);
+  font-style: italic;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+

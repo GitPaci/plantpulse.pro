@@ -13,6 +13,7 @@ import StageDetailPanel from '@/components/planner/StageDetailPanel';
 import NewChainWizard from '@/components/planner/NewChainWizard';
 import BulkShiftTool from '@/components/planner/BulkShiftTool';
 import ChainEditor from '@/components/planner/ChainEditor';
+import CapacityPanel from '@/components/planner/CapacityPanel';
 import { usePlantPulseStore, generateId } from '@/lib/store';
 import {
   parseScheduleXlsx,
@@ -683,6 +684,8 @@ export default function PlannerPage() {
     }
     return `${format(start, 'MMM d, yy')} – ${format(end, 'MMM d, yy')}`;
   }, [viewConfig.viewStart, viewConfig.numberOfDays]);
+
+  const viewEnd = addDays(viewConfig.viewStart, viewConfig.numberOfDays);
 
   // Mobile state
   const [plannerMobileOpen, setPlannerMobileOpen] = useState(false);
@@ -1483,6 +1486,18 @@ export default function PlannerPage() {
                     label="Shift Schedule"
                     description="Teams, rotation pattern, shift bar colors"
                     onClick={() => setShiftScheduleOpen(true)}
+                  />
+                </SidebarSection>
+
+                {/* ── Capacity Utilization ──────────────────────── */}
+                <SidebarSection title="Capacity Utilization" defaultOpen={false}>
+                  <CapacityPanel
+                    viewStart={viewConfig.viewStart}
+                    viewEnd={viewEnd}
+                    machines={machines}
+                    equipmentGroups={equipmentGroups}
+                    stages={stages}
+                    shutdownPeriods={shutdownPeriods}
                   />
                 </SidebarSection>
               </div>
