@@ -376,6 +376,45 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Implementation: `components/planner/ShiftSchedule.tsx` (modal) + `lib/shift-rotation.ts` (data) + `WallboardCanvas.tsx` (rendering)
 - CSS: `.pp-shift-section`, `.pp-shift-team-card`, `.pp-shift-preview-*`, `.pp-shift-sequence-*`, `.pp-shift-heatmap-*`, `.pp-shift-operation-*`, `.pp-shift-day-toggle`, `.pp-shift-timing-grid` in `globals.css`
 
+#### 24. Capacity Utilization panel (Planner sidebar, modern, no VBA equivalent)
+
+- **Location**: Planning Tools sidebar → "Capacity Utilization" collapsible section (collapsed by default)
+- **Purpose**: Live MAM-aligned capacity calculator; derives all numbers from the Zustand store — no separate data entry required for the core metrics
+- **Period selector**: four-button pill row at the top of the panel; analysis window is independent of the planner view window:
+  - **View** (default): mirrors the planner's current `viewStart` / `viewEnd`
+  - **Quarter**: `startOfQuarter(now)` → `endOfQuarter(now)` (current calendar quarter)
+  - **Year**: `startOfYear(now)` → `endOfYear(now)` (current calendar year)
+  - **Custom**: two `<input type="date">` pickers (From / To); falls back to View window if range is invalid
+- **Capacity hierarchy** (MAM-aligned, computed per equipment group):
+  - **Nameplate** = `machineCount × periodDays × 24`
+  - **Shutdown hours** = sum of `ShutdownPeriod[]` overlapping the scope window × machineCount
+  - **Optimal** = Nameplate − Shutdown
+  - **Limiting factor** = Optimal × (user slider %)
+  - **Standard capacity** = Optimal − Limiting factor
+  - **Idle capacity** = Standard × (user slider %)
+  - **Planned utilization** = Standard − Idle
+  - **Batch stage hours** = sum of `Stage.startDatetime`→`Stage.endDatetime` clipped to scope window, for all machines in the group
+  - **Turnaround hours** = inter-batch gap time attributed to CIP/SIP/media prep (see below)
+  - **Scheduled hours** = Batch stage hours + Turnaround hours
+  - **Scheduled Util %** = Scheduled / Standard × 100 (headline KPI)
+  - **Planned Util %** = Planned / Standard × 100
+- **Turnaround hours computation** (key architectural decision):
+  - Turnaround activities (`TurnaroundActivity[]`) are **gap rules, not Stage records** — CIP/SIP/media prep time never appears in `Stage[]`
+  - For each machine, consecutive stage pairs are walked; the gap is clipped to the scope window; contribution = `min(actual gap hours, requiredTurnaroundGap(group))` — this counts only actual turnaround time, not idle slack
+  - Reuses `requiredTurnaroundGap(machineGroup, turnaroundActivities)` from `lib/scheduling.ts` and `turnaroundTotalHours(t)` from `lib/types.ts`
+- **Per-group summary rows**: one row per equipment group (sorted by `displayOrder`) showing group name, machine count badge, fill bar (green ≥ 80%, amber 50–79%, red < 50%), and Scheduled Util %
+- **Expanded detail card** (click a group row to toggle accordion):
+  - Stacked horizontal bar: Shutdown / Limiting / Idle / Turnaround / Batch / Slack segments
+  - Turnaround activities breakdown: list of default activities for the group with name + decimal hours, total per batch, event count
+  - Full metric list: Nameplate → Shutdown → Optimal → Limiting → **Standard** → Idle → Planned Util → **Scheduled** (bold), with Batch stages and Turnaround as indented sub-rows
+- **Assumption sliders** (bottom of panel, affect all groups simultaneously):
+  - Limiting factor % (0–50%): bottleneck deduction from Optimal (e.g. downstream constraint limits 3 of 4 vessels → 25%)
+  - Idle capacity % (0–30%): reserved slots / extraordinary shutdowns inside Standard capacity
+  - Slider values are local component state (not persisted in Free edition)
+- **CSS prefix**: `.pp-cap-*` in `globals.css`; `.pp-cap-preset-*` for period buttons; `.pp-cap-date-*` for custom pickers; `.pp-cap-ta-*` for turnaround activity list; `.pp-cap-metric-sub` for indented sub-rows
+- **Implementation**: `components/planner/CapacityPanel.tsx` (self-contained component) + wired into `app/planner/page.tsx` as `<SidebarSection title="Capacity Utilization" defaultOpen={false}>`
+- **Planning reference**: `docs/plans/capacity-utilization.md` (MAM capacity hierarchy formulas, phasing, open questions)
+
 ---
 
 ## Target Data Model (Modern)
@@ -605,6 +644,7 @@ interface RecurringDowntimeRule {
 | *(no VBA equivalent)* | BatchNamingConfig — batch nomenclature rules (prefix, suffix, step, counter reset, per-line or shared) |
 | Hardcoded 4-team 12h shift cycle | ShiftRotation — configurable teams, presets, variable shift lengths, plant coverage, gap detection |
 | *(no VBA equivalent)* | RecurringDowntimeRule — periodic machine unavailability (weekly/monthly recurrence) |
+| *(no VBA equivalent)* | CapacityUtilization panel — MAM-aligned Nameplate→Optimal→Standard→Planned→Scheduled hierarchy per equipment group; turnaround hours inferred from inter-batch gaps |
 
 ---
 

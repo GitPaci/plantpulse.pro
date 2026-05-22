@@ -1,5 +1,22 @@
 # Capacity Utilization — Planner View Feature Plan
 
+> **Status: Implemented** (Phase A + B complete — see `components/planner/CapacityPanel.tsx`)
+>
+> What was built:
+> - Per-group rows with colour-coded utilisation bar and % (green/amber/red)
+> - Period selector: View / Quarter / Year / Custom date range (independent of planner window)
+> - MAM capacity hierarchy: Nameplate → Optimal → Standard → Planned → Scheduled
+> - Turnaround hours inferred from inter-batch gaps using `requiredTurnaroundGap()` + `turnaroundTotalHours()`
+> - Expanded detail card: stacked bar, turnaround activity list (names + durations), full metric list
+> - Two assumption sliders: Limiting factor % and Idle capacity %
+> - CSS prefix: `.pp-cap-*` in `globals.css`
+>
+> What remains (Phase C — Enterprise):
+> - Export utilisation table to Excel (one row per machine group per month)
+> - Actual Capacity Utilization from logged hours (requires time-tracking data)
+> - Period comparison (current vs. prior year same period)
+> - Per-group limiting factor inputs (Free edition uses a single slider for all groups)
+
 ## Why this fits the Planner
 
 The Planner already holds every data point required to compute capacity utilization:
