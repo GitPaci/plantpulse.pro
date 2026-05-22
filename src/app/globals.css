@@ -5745,3 +5745,63 @@ body {
   margin-top: 2px;
 }
 
+/* Turnaround activity list inside detail card */
+.pp-cap-ta-list {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+}
+.pp-cap-ta-header {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--pp-muted);
+  margin-bottom: 4px;
+}
+.pp-cap-ta-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #475569;
+  padding: 1px 0;
+}
+.pp-cap-ta-row span:last-child {
+  font-variant-numeric: tabular-nums;
+  color: #334155;
+}
+.pp-cap-ta-total {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--pp-pharma);
+  border-top: 1px solid #e2e8f0;
+  margin-top: 4px;
+  padding-top: 4px;
+}
+.pp-cap-ta-events {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--pp-muted);
+  margin-left: 3px;
+}
+
+/* Sub-row inside metric list (batch stages / turnaround breakdown) */
+.pp-cap-metric-sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 10.5px;
+  color: var(--pp-muted);
+  padding: 1px 0 1px 10px;
+}
+.pp-cap-metric-sub dt { font-weight: 400; }
+.pp-cap-metric-sub dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+/* Turnaround segment in stacked bar */
+.pp-cap-stack-turnaround { background: #a78bfa; }
+.pp-cap-sw-turnaround    { background: #a78bfa; }
+

@@ -3,10 +3,14 @@
 // Capacity Utilization Panel — Planning Tools sidebar section
 // Derives MAM capacity hierarchy from live schedule data.
 // No server calls; all numbers are computed from Zustand store data.
+// Turnaround hours (CIP/SIP/media prep) are inferred from TurnaroundActivity[]
+// rules — they never appear as Stage records but DO occupy equipment time.
 
 import { useState, useMemo } from 'react';
 import { differenceInHours, differenceInDays, max, min, format, addDays } from 'date-fns';
-import type { Machine, EquipmentGroup, Stage, ShutdownPeriod } from '@/lib/types';
+import type { Machine, EquipmentGroup, Stage, ShutdownPeriod, TurnaroundActivity } from '@/lib/types';
+import { turnaroundTotalHours } from '@/lib/types';
+import { requiredTurnaroundGap } from '@/lib/scheduling';
 
 interface CapacityPanelProps {
   viewStart: Date;
@@ -15,6 +19,7 @@ interface CapacityPanelProps {
   equipmentGroups: EquipmentGroup[];
   stages: Stage[];
   shutdownPeriods: ShutdownPeriod[];
+  turnaroundActivities: TurnaroundActivity[];
 }
 
 interface GroupMetrics {
@@ -29,13 +34,21 @@ interface GroupMetrics {
   standard: number;
   idleH: number;
   planned: number;
+  batchH: number;
+  turnaroundH: number;
+  turnaroundEvents: number;
   scheduled: number;
   scheduledPct: number;
   plannedPct: number;
+  turnaroundActivitiesList: { name: string; hours: number }[];
 }
 
 function fmtH(h: number): string {
   return Math.round(h).toLocaleString() + ' h';
+}
+
+function fmtHDecimal(h: number): string {
+  return Number.isInteger(h) ? h + '.0 h' : h.toFixed(1) + ' h';
 }
 
 function utilColor(pct: number): string {
@@ -51,6 +64,7 @@ export default function CapacityPanel({
   equipmentGroups,
   stages,
   shutdownPeriods,
+  turnaroundActivities,
 }: CapacityPanelProps) {
   const [limitingPct, setLimitingPct] = useState(0);
   const [idlePct, setIdlePct] = useState(0);
@@ -94,13 +108,47 @@ export default function CapacityPanel({
         const idleH = standard * (idlePct / 100);
         const planned = standard - idleH;
 
-        const scheduled = stages.reduce((acc, s) => {
+        // Batch stage hours — stages clipped to the view window
+        const batchH = stages.reduce((acc, s) => {
           if (!ids.has(s.machineId)) return acc;
           const start = max([s.startDatetime, viewStart]);
           const end = min([s.endDatetime, viewEnd]);
           return end > start ? acc + differenceInHours(end, start) : acc;
         }, 0);
 
+        // Turnaround hours — inferred from inter-batch gaps, capped at required gap
+        // Turnaround activities are rules (not Stage records); we count actual gaps
+        // between consecutive batches on each machine up to the required minimum.
+        const requiredGapH = requiredTurnaroundGap(g.id, turnaroundActivities);
+        const groupStages = stages
+          .filter((s) => ids.has(s.machineId))
+          .sort(
+            (a, b) =>
+              a.machineId.localeCompare(b.machineId) ||
+              a.startDatetime.getTime() - b.startDatetime.getTime()
+          );
+
+        let turnaroundH = 0;
+        let turnaroundEvents = 0;
+        for (let i = 1; i < groupStages.length; i++) {
+          if (groupStages[i].machineId !== groupStages[i - 1].machineId) continue;
+          const gapStart = groupStages[i - 1].endDatetime;
+          const gapEnd = groupStages[i].startDatetime;
+          const clippedStart = max([gapStart, viewStart]);
+          const clippedEnd = min([gapEnd, viewEnd]);
+          if (clippedEnd > clippedStart) {
+            const actualGapH = differenceInHours(clippedEnd, clippedStart);
+            turnaroundH += Math.min(actualGapH, requiredGapH);
+            turnaroundEvents++;
+          }
+        }
+
+        // Default activities list for the detail card
+        const turnaroundActivitiesList = turnaroundActivities
+          .filter((ta) => ta.equipmentGroup === g.id && ta.isDefault)
+          .map((ta) => ({ name: ta.name, hours: turnaroundTotalHours(ta) }));
+
+        const scheduled = batchH + turnaroundH;
         const effectiveStandard = Math.max(standard, 1);
         const scheduledPct = (scheduled / effectiveStandard) * 100;
         const plannedPct = (planned / effectiveStandard) * 100;
@@ -117,13 +165,28 @@ export default function CapacityPanel({
           standard,
           idleH,
           planned,
+          batchH,
+          turnaroundH,
+          turnaroundEvents,
           scheduled,
           scheduledPct,
           plannedPct,
+          turnaroundActivitiesList,
         } satisfies GroupMetrics;
       })
       .filter((m): m is GroupMetrics => m !== null);
-  }, [equipmentGroups, machineIdsByGroup, periodDays, shutdownHoursBase, limitingPct, idlePct, stages, viewStart, viewEnd]);
+  }, [
+    equipmentGroups,
+    machineIdsByGroup,
+    periodDays,
+    shutdownHoursBase,
+    limitingPct,
+    idlePct,
+    stages,
+    viewStart,
+    viewEnd,
+    turnaroundActivities,
+  ]);
 
   const periodLabel = useMemo(() => {
     const end = addDays(viewEnd, -1);
@@ -154,6 +217,8 @@ export default function CapacityPanel({
         {groupMetrics.map((m) => {
           const isExpanded = expandedGroupId === m.groupId;
           const color = utilColor(m.scheduledPct);
+          const totalPerBatch = m.turnaroundActivitiesList.reduce((s, a) => s + a.hours, 0);
+
           return (
             <div key={m.groupId} className="pp-cap-group">
               {/* Summary row */}
@@ -200,9 +265,14 @@ export default function CapacityPanel({
                         title={`Idle · ${fmtH(m.idleH)}`}
                       />
                       <div
+                        className="pp-cap-stack-seg pp-cap-stack-turnaround"
+                        style={{ width: `${Math.min(100, (m.turnaroundH / m.nameplate) * 100)}%` }}
+                        title={`Turnaround · ${fmtH(m.turnaroundH)}`}
+                      />
+                      <div
                         className="pp-cap-stack-seg pp-cap-stack-scheduled"
-                        style={{ width: `${Math.min(100, (m.scheduled / m.nameplate) * 100)}%` }}
-                        title={`Scheduled · ${fmtH(m.scheduled)}`}
+                        style={{ width: `${Math.min(100, (m.batchH / m.nameplate) * 100)}%` }}
+                        title={`Batch stages · ${fmtH(m.batchH)}`}
                       />
                       <div
                         className="pp-cap-stack-seg pp-cap-stack-slack"
@@ -216,11 +286,34 @@ export default function CapacityPanel({
 
                   {/* Stack legend */}
                   <div className="pp-cap-legend">
-                    <span><span className="pp-cap-sw pp-cap-sw-scheduled" />Scheduled</span>
+                    <span><span className="pp-cap-sw pp-cap-sw-scheduled" />Batch</span>
+                    <span><span className="pp-cap-sw pp-cap-sw-turnaround" />Turnaround</span>
                     <span><span className="pp-cap-sw pp-cap-sw-idle" />Idle</span>
                     <span><span className="pp-cap-sw pp-cap-sw-limiting" />Limiting</span>
                     <span><span className="pp-cap-sw pp-cap-sw-shutdown" />Shutdown</span>
                   </div>
+
+                  {/* Turnaround activities breakdown */}
+                  {m.turnaroundActivitiesList.length > 0 && (
+                    <div className="pp-cap-ta-list">
+                      <div className="pp-cap-ta-header">Turnaround per batch</div>
+                      {m.turnaroundActivitiesList.map((ta, i) => (
+                        <div key={i} className="pp-cap-ta-row">
+                          <span>{ta.name}</span>
+                          <span>{fmtHDecimal(ta.hours)}</span>
+                        </div>
+                      ))}
+                      <div className="pp-cap-ta-total">
+                        <span>Total per batch</span>
+                        <span>
+                          {fmtHDecimal(totalPerBatch)}
+                          {m.turnaroundEvents > 0 && (
+                            <span className="pp-cap-ta-events"> · {m.turnaroundEvents} events</span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Metric list */}
                   <dl className="pp-cap-metrics">
@@ -250,6 +343,15 @@ export default function CapacityPanel({
                       <dt>Scheduled</dt>
                       <dd style={{ color }}>{fmtH(m.scheduled)} <span className="pp-cap-metric-pct">({m.scheduledPct.toFixed(0)}%)</span></dd>
                     </div>
+                    <div className="pp-cap-metric-sub">
+                      <dt>Batch stages</dt><dd>{fmtH(m.batchH)}</dd>
+                    </div>
+                    {m.turnaroundH > 0 && (
+                      <div className="pp-cap-metric-sub">
+                        <dt>+ Turnaround</dt>
+                        <dd>{fmtH(m.turnaroundH)}</dd>
+                      </div>
+                    )}
                   </dl>
                 </div>
               )}
@@ -292,7 +394,8 @@ export default function CapacityPanel({
           <div className="pp-cap-slider-hint">Reserved slots / extraordinary shutdowns</div>
         </label>
         <div className="pp-cap-note">
-          Shutdown hours are auto-calculated from planned shutdowns in Process Setup.
+          Shutdown hours auto-calculated from Process Setup. Turnaround hours inferred
+          from inter-batch gaps (capped at required minimum per group).
         </div>
       </div>
     </div>
