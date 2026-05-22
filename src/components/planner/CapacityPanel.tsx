@@ -5,9 +5,23 @@
 // No server calls; all numbers are computed from Zustand store data.
 // Turnaround hours (CIP/SIP/media prep) are inferred from TurnaroundActivity[]
 // rules — they never appear as Stage records but DO occupy equipment time.
+// The analysis period is independent of the planner view window and can be
+// set via presets (current view, quarter, year) or a custom date range.
 
 import { useState, useMemo } from 'react';
-import { differenceInHours, differenceInDays, max, min, format, addDays } from 'date-fns';
+import {
+  differenceInHours,
+  differenceInDays,
+  max,
+  min,
+  format,
+  startOfQuarter,
+  endOfQuarter,
+  startOfYear,
+  endOfYear,
+  parseISO,
+  isValid,
+} from 'date-fns';
 import type { Machine, EquipmentGroup, Stage, ShutdownPeriod, TurnaroundActivity } from '@/lib/types';
 import { turnaroundTotalHours } from '@/lib/types';
 import { requiredTurnaroundGap } from '@/lib/scheduling';
@@ -43,6 +57,8 @@ interface GroupMetrics {
   turnaroundActivitiesList: { name: string; hours: number }[];
 }
 
+type PeriodPreset = 'view' | 'quarter' | 'year' | 'custom';
+
 function fmtH(h: number): string {
   return Math.round(h).toLocaleString() + ' h';
 }
@@ -55,6 +71,10 @@ function utilColor(pct: number): string {
   if (pct >= 80) return '#16a34a';
   if (pct >= 50) return '#d97706';
   return '#dc2626';
+}
+
+function toDateInputValue(d: Date): string {
+  return format(d, 'yyyy-MM-dd');
 }
 
 export default function CapacityPanel({
@@ -70,16 +90,41 @@ export default function CapacityPanel({
   const [idlePct, setIdlePct] = useState(0);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
-  const periodDays = Math.max(0, differenceInDays(viewEnd, viewStart));
+  // Period selection — defaults to the current planner view window
+  const [preset, setPreset] = useState<PeriodPreset>('view');
+  const [customStart, setCustomStart] = useState<string>(toDateInputValue(viewStart));
+  const [customEnd, setCustomEnd] = useState<string>(toDateInputValue(viewEnd));
 
-  // Total shutdown hours overlapping the view window (plant-wide — applies to all groups)
+  // Resolve the active analysis window based on the selected preset
+  const { scopeStart, scopeEnd } = useMemo(() => {
+    const now = new Date();
+    if (preset === 'quarter') {
+      return { scopeStart: startOfQuarter(now), scopeEnd: endOfQuarter(now) };
+    }
+    if (preset === 'year') {
+      return { scopeStart: startOfYear(now), scopeEnd: endOfYear(now) };
+    }
+    if (preset === 'custom') {
+      const s = parseISO(customStart);
+      const e = parseISO(customEnd);
+      if (isValid(s) && isValid(e) && e > s) {
+        return { scopeStart: s, scopeEnd: e };
+      }
+    }
+    // 'view' or invalid custom — use planner window
+    return { scopeStart: viewStart, scopeEnd: viewEnd };
+  }, [preset, customStart, customEnd, viewStart, viewEnd]);
+
+  const periodDays = Math.max(0, differenceInDays(scopeEnd, scopeStart));
+
+  // Total shutdown hours overlapping the scope window (plant-wide)
   const shutdownHoursBase = useMemo(() => {
     return shutdownPeriods.reduce((acc, sp) => {
-      const s = max([sp.startDate, viewStart]);
-      const e = min([sp.endDate, viewEnd]);
+      const s = max([sp.startDate, scopeStart]);
+      const e = min([sp.endDate, scopeEnd]);
       return e > s ? acc + differenceInHours(e, s) : acc;
     }, 0);
-  }, [shutdownPeriods, viewStart, viewEnd]);
+  }, [shutdownPeriods, scopeStart, scopeEnd]);
 
   // Build machine ID sets per group for fast stage lookups
   const machineIdsByGroup = useMemo(() => {
@@ -108,17 +153,15 @@ export default function CapacityPanel({
         const idleH = standard * (idlePct / 100);
         const planned = standard - idleH;
 
-        // Batch stage hours — stages clipped to the view window
+        // Batch stage hours — stages clipped to the scope window
         const batchH = stages.reduce((acc, s) => {
           if (!ids.has(s.machineId)) return acc;
-          const start = max([s.startDatetime, viewStart]);
-          const end = min([s.endDatetime, viewEnd]);
+          const start = max([s.startDatetime, scopeStart]);
+          const end = min([s.endDatetime, scopeEnd]);
           return end > start ? acc + differenceInHours(end, start) : acc;
         }, 0);
 
         // Turnaround hours — inferred from inter-batch gaps, capped at required gap
-        // Turnaround activities are rules (not Stage records); we count actual gaps
-        // between consecutive batches on each machine up to the required minimum.
         const requiredGapH = requiredTurnaroundGap(g.id, turnaroundActivities);
         const groupStages = stages
           .filter((s) => ids.has(s.machineId))
@@ -134,8 +177,8 @@ export default function CapacityPanel({
           if (groupStages[i].machineId !== groupStages[i - 1].machineId) continue;
           const gapStart = groupStages[i - 1].endDatetime;
           const gapEnd = groupStages[i].startDatetime;
-          const clippedStart = max([gapStart, viewStart]);
-          const clippedEnd = min([gapEnd, viewEnd]);
+          const clippedStart = max([gapStart, scopeStart]);
+          const clippedEnd = min([gapEnd, scopeEnd]);
           if (clippedEnd > clippedStart) {
             const actualGapH = differenceInHours(clippedEnd, clippedStart);
             turnaroundH += Math.min(actualGapH, requiredGapH);
@@ -183,21 +226,21 @@ export default function CapacityPanel({
     limitingPct,
     idlePct,
     stages,
-    viewStart,
-    viewEnd,
+    scopeStart,
+    scopeEnd,
     turnaroundActivities,
   ]);
 
+  // Period label shown below the preset buttons
   const periodLabel = useMemo(() => {
-    const end = addDays(viewEnd, -1);
     const sameMonth =
-      viewStart.getMonth() === end.getMonth() &&
-      viewStart.getFullYear() === end.getFullYear();
+      scopeStart.getMonth() === scopeEnd.getMonth() &&
+      scopeStart.getFullYear() === scopeEnd.getFullYear();
     const label = sameMonth
-      ? `${format(viewStart, 'MMM d')} – ${format(end, 'd')}`
-      : `${format(viewStart, 'MMM d')} – ${format(end, 'MMM d')}`;
+      ? `${format(scopeStart, 'MMM d')} – ${format(scopeEnd, 'd')}`
+      : `${format(scopeStart, 'MMM d')} – ${format(scopeEnd, 'MMM d, yyyy')}`;
     return `${label} · ${periodDays}d`;
-  }, [viewStart, viewEnd, periodDays]);
+  }, [scopeStart, scopeEnd, periodDays]);
 
   if (groupMetrics.length === 0) {
     return (
@@ -209,8 +252,51 @@ export default function CapacityPanel({
 
   return (
     <div className="pp-cap-panel">
-      {/* Period */}
-      <div className="pp-cap-period">{periodLabel}</div>
+      {/* Period selector */}
+      <div className="pp-cap-period-selector">
+        <div className="pp-cap-preset-row">
+          {(['view', 'quarter', 'year', 'custom'] as PeriodPreset[]).map((p) => (
+            <button
+              key={p}
+              className={`pp-cap-preset-btn${preset === p ? ' pp-cap-preset-btn--active' : ''}`}
+              onClick={() => {
+                setPreset(p);
+                if (p === 'custom') {
+                  setCustomStart(toDateInputValue(scopeStart));
+                  setCustomEnd(toDateInputValue(scopeEnd));
+                }
+              }}
+            >
+              {p === 'view' ? 'View' : p === 'quarter' ? 'Quarter' : p === 'year' ? 'Year' : 'Custom'}
+            </button>
+          ))}
+        </div>
+
+        {preset === 'custom' && (
+          <div className="pp-cap-custom-dates">
+            <label className="pp-cap-date-field">
+              <span>From</span>
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="pp-cap-date-input"
+              />
+            </label>
+            <label className="pp-cap-date-field">
+              <span>To</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="pp-cap-date-input"
+              />
+            </label>
+          </div>
+        )}
+
+        <div className="pp-cap-period">{periodLabel}</div>
+      </div>
 
       {/* Group rows */}
       <div className="pp-cap-groups">
