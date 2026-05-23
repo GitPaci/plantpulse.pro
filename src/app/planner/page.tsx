@@ -664,6 +664,16 @@ export default function PlannerPage() {
   });
   useEffect(() => { localStorage.setItem('pp.planner.density', density); }, [density]);
 
+  // Show Turnaround Activities toggle (visualization only — does not affect scheduling)
+  const [showTurnaround, setShowTurnaround] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('pp.planner.showTurnaround');
+      if (saved === 'true' || saved === 'false') return saved === 'true';
+    }
+    return true;
+  });
+  useEffect(() => { localStorage.setItem('pp.planner.showTurnaround', String(showTurnaround)); }, [showTurnaround]);
+
   // View mode (Day / Week / Month / Quarter)
   const [viewMode, setViewMode] = useState<ViewMode>(() => inferViewMode(viewConfig.numberOfDays));
 
@@ -1222,6 +1232,18 @@ export default function PlannerPage() {
             ))}
           </div>
 
+          {/* Show Turnaround Activities toggle */}
+          <button
+            type="button"
+            className={`pp-turnaround-toggle${showTurnaround ? ' pp-turnaround-toggle--on' : ''}`}
+            onClick={() => setShowTurnaround((v) => !v)}
+            aria-pressed={showTurnaround}
+            title={showTurnaround ? 'Hide turnaround activities' : 'Show turnaround activities'}
+          >
+            <span className="pp-turnaround-toggle-swatch" aria-hidden="true" />
+            <span className="pp-turnaround-toggle-label">Turnaround</span>
+          </button>
+
           {/* Date range navigation */}
           <div className="planner-timenav">
             <button
@@ -1383,7 +1405,7 @@ export default function PlannerPage() {
               onCheckpointClick={handleCheckpointClick}
               rowHeight={ROW_HEIGHT_BY_DENSITY[density]}
               selectedStageId={selectedStageId}
-              showTurnaroundBlocks={true}
+              showTurnaroundBlocks={showTurnaround}
             />
           </div>
           {/* Horizontal scrollbar */}
