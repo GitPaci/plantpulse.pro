@@ -256,10 +256,12 @@ function StageInspector({
   stageId,
   onEditChain,
   onEditStage,
+  onSelectStage,
 }: {
   stageId: string | null;
   onEditChain: (chainId: string) => void;
   onEditStage: (stageId: string) => void;
+  onSelectStage: (stageId: string) => void;
 }) {
   const stages = usePlantPulseStore((s) => s.stages);
   const batchChains = usePlantPulseStore((s) => s.batchChains);
@@ -403,21 +405,25 @@ function StageInspector({
               const sm = machines.find((m) => m.id === s.machineId);
               const std = stageTypeDefs.find((d) => d.id === s.stageType);
               return (
-                <div
+                <button
+                  type="button"
                   key={s.id}
                   className={`planner-chain-step${isCurrent ? ' planner-chain-step--current' : ''}${isDone ? ' planner-chain-step--done' : ''}`}
+                  onClick={() => onSelectStage(s.id)}
+                  disabled={isCurrent}
+                  title={isCurrent ? undefined : `View ${std?.name ?? s.stageType} on ${sm?.name ?? s.machineId}`}
                 >
                   <div className="planner-chain-step-dot">
                     {isDone ? <IconCheck size={10} /> : i + 1}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                     <div className="planner-chain-step-name">{std?.name ?? s.stageType}</div>
                     <div className="planner-chain-step-machine">{sm?.name ?? s.machineId}</div>
                   </div>
                   <div className="planner-chain-step-time">
                     {format(s.startDatetime, 'MMM d')}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -1447,6 +1453,7 @@ export default function PlannerPage() {
             <div style={{ flex: 1, overflowY: 'auto' }}>
               <StageInspector
                 stageId={selectedStageId}
+                onSelectStage={(stageId) => setSelectedStageId(stageId)}
                 onEditChain={(chainId) => {
                   setChainEditorChainId(chainId);
                   setChainEditorOpen(true);

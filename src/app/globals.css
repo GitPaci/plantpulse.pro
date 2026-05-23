@@ -5445,8 +5445,27 @@ body {
   gap: 10px;
   padding: 7px 10px;
   border-radius: 7px;
+  border: none;
+  width: 100%;
+  text-align: left;
   background: var(--pp-surface, #f8fafc);
   transition: background 0.12s;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.planner-chain-step:hover:not(:disabled) {
+  background: #eef2f7;
+}
+
+.planner-chain-step:focus-visible {
+  outline: 2px solid var(--pp-pharma);
+  outline-offset: 1px;
+}
+
+.planner-chain-step:disabled {
+  cursor: default;
 }
 
 .planner-chain-step--current {
@@ -5456,6 +5475,10 @@ body {
 
 .planner-chain-step--done {
   opacity: 0.6;
+}
+
+.planner-chain-step--done:hover:not(:disabled) {
+  opacity: 0.85;
 }
 
 .planner-chain-step-dot {
