@@ -22,8 +22,8 @@ import {
   getDay,
   differenceInHours,
 } from 'date-fns';
-import type { Machine, Stage, MachineDisplayGroup, ShutdownPeriod, BatchChain, BatchNamingConfig, DowntimeWindow, CheckpointWindow, CheckpointStatus } from '@/lib/types';
-import { batchNamePreview, collectDowntimeWindows, collectCheckpointWindows } from '@/lib/types';
+import type { Machine, Stage, MachineDisplayGroup, ShutdownPeriod, BatchChain, BatchNamingConfig, DowntimeWindow, CheckpointWindow, CheckpointStatus, TurnaroundActivity } from '@/lib/types';
+import { batchNamePreview, collectDowntimeWindows, collectCheckpointWindows, turnaroundTotalHours } from '@/lib/types';
 
 // ─── Batch naming helper ────────────────────────────────────────────────
 
@@ -80,6 +80,7 @@ interface CanvasTheme {
   notifyShiftArrow: string;
   shutdownCrossing: string;
   holdRisk: string;
+  selectionOutline: string;
   checkpointMarker: string;
   checkpointPlanned: string;
   checkpointDone: string;
@@ -125,6 +126,7 @@ const DAY_THEME: CanvasTheme = {
   notifyShiftArrow: '#D946EF',
   shutdownCrossing: '#D97706',
   holdRisk: '#DC2626',
+  selectionOutline: '#2563eb',
   shutdownText: 'rgba(100, 100, 120, 0.55)',
   checkpointMarker: '#0d9488',
   checkpointPlanned: '#D97706',
@@ -162,6 +164,7 @@ const NIGHT_THEME: CanvasTheme = {
   notifyShiftArrow: '#E879F9',
   shutdownCrossing: '#F59E0B',
   holdRisk: '#F87171',
+  selectionOutline: '#22d3ee',
   shutdownText: 'rgba(180, 180, 200, 0.45)',
   checkpointMarker: '#14b8a6',
   checkpointPlanned: '#F59E0B',
@@ -182,7 +185,8 @@ interface RowInfo {
 
 function buildRowLayout(
   machines: Machine[],
-  groups: MachineDisplayGroup[]
+  groups: MachineDisplayGroup[],
+  rowHeight: number = ROW_HEIGHT
 ): RowInfo[] {
   const rows: RowInfo[] = [];
   let y = TOP_MARGIN;
@@ -209,7 +213,7 @@ function buildRowLayout(
           type: 'machine',
           rowIndex: rowIndex++,
         });
-        y += ROW_HEIGHT;
+        y += rowHeight;
       }
     }
   }
@@ -223,7 +227,8 @@ function drawRowBackgrounds(
   ctx: CanvasRenderingContext2D,
   rows: RowInfo[],
   width: number,
-  theme: CanvasTheme
+  theme: CanvasTheme,
+  rowHeight: number = ROW_HEIGHT
 ) {
   let machineIdx = 0;
   for (const row of rows) {
@@ -232,7 +237,7 @@ function drawRowBackgrounds(
       ctx.fillRect(0, row.y, width, SEPARATOR_HEIGHT);
     } else {
       ctx.fillStyle = machineIdx % 2 === 0 ? theme.rowEven : theme.rowOdd;
-      ctx.fillRect(0, row.y, width, ROW_HEIGHT);
+      ctx.fillRect(0, row.y, width, rowHeight);
       machineIdx++;
     }
   }
@@ -551,7 +556,8 @@ function drawHoldRiskIndicators(
   width: number,
   theme: CanvasTheme,
   turnaroundGapByGroup: Map<string, number>,
-  machineGroupMap: Map<string, string>
+  machineGroupMap: Map<string, string>,
+  rowHeight: number = ROW_HEIGHT
 ) {
   if (stages.length === 0) return;
 
@@ -601,7 +607,7 @@ function drawHoldRiskIndicators(
     const pos = stageBarPosition(viewStart, stage.startDatetime, stage.endDatetime, width, LEFT_MARGIN, numDays);
     if (pos.offScreen) continue;
 
-    const barY = row.y + BAR_Y_PAD;
+    const barY = row.y + (rowHeight - BAR_HEIGHT) / 2;
     const dotX = pos.left + pos.width - DOT_R - 1;
     const dotY = barY + DOT_R + 1;
 
@@ -869,6 +875,139 @@ function drawMachineLabels(
   }
 }
 
+function drawTurnaroundBlocks(
+  ctx: CanvasRenderingContext2D,
+  stages: Stage[],
+  rows: RowInfo[],
+  viewStart: Date,
+  numDays: number,
+  width: number,
+  nightMode: boolean,
+  turnaroundActivities: TurnaroundActivity[],
+  machineGroupMap: Map<string, string>,
+  rowHeight: number = ROW_HEIGHT
+) {
+  if (stages.length === 0 || turnaroundActivities.length === 0) return;
+
+  const machineRowMap = new Map<string, RowInfo>();
+  for (const r of rows) {
+    if (r.type === 'machine') machineRowMap.set(r.machineId, r);
+  }
+
+  const byMachine = new Map<string, Stage[]>();
+  for (const s of stages) {
+    const arr = byMachine.get(s.machineId) ?? [];
+    arr.push(s);
+    byMachine.set(s.machineId, arr);
+  }
+
+  const ppd = getPPD(width, LEFT_MARGIN, numDays);
+  const pph = ppd / 24;
+  const blockH = Math.max(8, Math.round(rowHeight * 0.55));
+  const blockYOff = Math.round((rowHeight - blockH) / 2);
+
+  // Per-activity color palettes [fill, stroke] for day and night
+  function actColors(name: string): [string, string] {
+    const n = name.toLowerCase();
+    if (nightMode) {
+      if (n.includes('cip')) return ['rgba(100,116,139,0.28)', 'rgba(100,116,139,0.55)'];
+      if (n.includes('media')) return ['rgba(96,165,250,0.18)', 'rgba(96,165,250,0.45)'];
+      if (n.includes('sip')) return ['rgba(251,191,36,0.18)', 'rgba(251,191,36,0.45)'];
+      return ['rgba(100,116,139,0.22)', 'rgba(100,116,139,0.48)'];
+    } else {
+      if (n.includes('cip')) return ['rgba(148,163,184,0.22)', 'rgba(148,163,184,0.50)'];
+      if (n.includes('media')) return ['rgba(59,130,246,0.13)', 'rgba(59,130,246,0.38)'];
+      if (n.includes('sip')) return ['rgba(245,158,11,0.14)', 'rgba(245,158,11,0.40)'];
+      return ['rgba(148,163,184,0.18)', 'rgba(148,163,184,0.42)'];
+    }
+  }
+
+  for (const [machineId, machineStages] of byMachine) {
+    const row = machineRowMap.get(machineId);
+    if (!row) continue;
+
+    const group = machineGroupMap.get(machineId) ?? '';
+    const defaultActs = turnaroundActivities.filter(
+      (t) => t.equipmentGroup === group && t.isDefault
+    );
+    if (defaultActs.length === 0) continue;
+
+    const sorted = [...machineStages].sort(
+      (a, b) => a.startDatetime.getTime() - b.startDatetime.getTime()
+    );
+
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const prev = sorted[i];
+      const next = sorted[i + 1];
+      const gapH = differenceInHours(next.startDatetime, prev.endDatetime);
+      const totalNeeded = defaultActs.reduce((s, a) => s + turnaroundTotalHours(a), 0);
+      if (gapH < totalNeeded - 0.5) continue;
+
+      let cursor = prev.endDatetime;
+      for (const act of defaultActs) {
+        const actH = turnaroundTotalHours(act);
+        const blockStart = cursor;
+        const blockEnd = addHours(cursor, actH);
+        cursor = blockEnd;
+
+        const startHoursFromView = differenceInHours(blockStart, viewStart);
+        const endHoursFromView = differenceInHours(blockEnd, viewStart);
+        const bLeft = LEFT_MARGIN + startHoursFromView * pph;
+        const bRight = LEFT_MARGIN + endHoursFromView * pph;
+
+        if (bRight < LEFT_MARGIN || bLeft > width) continue;
+
+        const drawLeft = Math.max(bLeft, LEFT_MARGIN);
+        const drawRight = Math.min(bRight, width);
+        const drawW = drawRight - drawLeft;
+        if (drawW < 0.5) continue;
+
+        const blockY = row.y + blockYOff;
+        const [fillColor, strokeColor] = actColors(act.name);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(drawLeft, blockY, drawW, blockH);
+        ctx.clip();
+
+        ctx.fillStyle = fillColor;
+        ctx.fillRect(drawLeft, blockY, drawW, blockH);
+
+        // 135° diagonal hatch
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 0.8;
+        const step = 5;
+        for (let xi = -blockH; xi < drawW + blockH; xi += step) {
+          ctx.beginPath();
+          ctx.moveTo(drawLeft + xi, blockY);
+          ctx.lineTo(drawLeft + xi + blockH, blockY + blockH);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(drawLeft, blockY, drawW, blockH);
+
+        if (drawW >= 22) {
+          const labelText = drawW >= 60 ? act.name : act.name.substring(0, 3).toUpperCase();
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(drawLeft, blockY, drawW, blockH);
+          ctx.clip();
+          ctx.font = '7px sans-serif';
+          ctx.fillStyle = nightMode ? 'rgba(148,163,184,0.80)' : 'rgba(51,65,85,0.70)';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(labelText, drawLeft + drawW / 2, blockY + blockH / 2);
+          ctx.restore();
+        }
+      }
+    }
+  }
+}
+
 function drawBatchBars(
   ctx: CanvasRenderingContext2D,
   stages: Stage[],
@@ -878,13 +1017,16 @@ function drawBatchBars(
   viewStart: Date,
   numDays: number,
   width: number,
-  theme: CanvasTheme
+  theme: CanvasTheme,
+  selectedStageId: string | null = null,
+  rowHeight: number = ROW_HEIGHT
 ) {
   const now = new Date();
   const machineRowMap = new Map<string, RowInfo>();
   for (const r of rows) {
     if (r.type === 'machine') machineRowMap.set(r.machineId, r);
   }
+  const barYPad = (rowHeight - BAR_HEIGHT) / 2;
 
   for (const stage of stages) {
     const row = machineRowMap.get(stage.machineId);
@@ -904,7 +1046,7 @@ function drawBatchBars(
     const seriesNum = batchSeriesMap.get(stage.batchChainId) ?? 0;
     const label = batchLabelMap.get(stage.batchChainId) ?? String(seriesNum);
     const isFuture = stage.startDatetime > now;
-    const barY = row.y + BAR_Y_PAD;
+    const barY = row.y + barYPad;
 
     // Bar fill
     ctx.fillStyle = isFuture ? theme.barFuture : theme.barFill;
@@ -919,6 +1061,20 @@ function drawBatchBars(
     ctx.strokeStyle = theme.barBorder;
     ctx.lineWidth = 0.5;
     ctx.strokeRect(pos.left, barY, pos.width, BAR_HEIGHT);
+
+    // Selection outline — 2px outset around the selected bar
+    if (stage.id === selectedStageId) {
+      ctx.save();
+      ctx.strokeStyle = theme.selectionOutline;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(
+        Math.round(pos.left - 2) + 0.5,
+        Math.round(barY - 2) + 0.5,
+        Math.round(pos.width + 4),
+        Math.round(BAR_HEIGHT + 4)
+      );
+      ctx.restore();
+    }
 
     // Start hour label at left edge
     if (pos.width > 25) {
@@ -1058,6 +1214,12 @@ interface WallboardCanvasProps {
   onCheckpointClick?: (machineId: string, defId: string) => void;
   /** Enable click-and-drag panning of the timeline background (Planner only). */
   enableBackgroundPan?: boolean;
+  /** Override row height in pixels (Planner density control). Wallboard uses default 26 px. */
+  rowHeight?: number;
+  /** Stage ID to highlight with a selection outline (Planner only). */
+  selectedStageId?: string | null;
+  /** When true, draws subtle diagonal-hatch turnaround activity blocks between consecutive batches (Planner only). */
+  showTurnaroundBlocks?: boolean;
 }
 
 export default function WallboardCanvas({
@@ -1082,6 +1244,9 @@ export default function WallboardCanvas({
   checkpointNotifyOnly = false,
   onCheckpointClick,
   enableBackgroundPan = false,
+  rowHeight = ROW_HEIGHT,
+  selectedStageId = null,
+  showTurnaroundBlocks = false,
 }: WallboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1121,7 +1286,7 @@ export default function WallboardCanvas({
   const groups = filteredGroupIds
     ? baseGroups.filter((g) => filteredGroupIds.includes(g.id))
     : baseGroups;
-  const rows = buildRowLayout(machines, groups);
+  const rows = buildRowLayout(machines, groups, rowHeight);
 
   // Build batch chain maps: series number (for color) and display label (from naming config)
   const batchSeriesMap = new Map<string, number>();
@@ -1211,7 +1376,7 @@ export default function WallboardCanvas({
   // Calculate total canvas height
   const lastRow = rows[rows.length - 1];
   const totalHeight = lastRow
-    ? lastRow.y + (lastRow.type === 'separator' ? SEPARATOR_HEIGHT : ROW_HEIGHT) + 4
+    ? lastRow.y + (lastRow.type === 'separator' ? SEPARATOR_HEIGHT : rowHeight) + 4
     : TOP_MARGIN + 100;
 
   // Select color theme
@@ -1241,12 +1406,15 @@ export default function WallboardCanvas({
     ctx.fillRect(0, 0, dims.width, canvasHeight);
 
     // Draw layers (back to front)
-    drawRowBackgrounds(ctx, rows, dims.width, theme);
+    drawRowBackgrounds(ctx, rows, dims.width, theme, rowHeight);
     drawCalendarColumns(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, canvasHeight, showTodayHighlight, theme, shutdownPeriods);
     if (showDowntime && downtimeWindows.length > 0) {
       drawDowntimeBlocks(ctx, downtimeWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     }
-    drawBatchBars(ctx, visibleStages, batchSeriesMap, batchLabelMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
+    if (showTurnaroundBlocks) {
+      drawTurnaroundBlocks(ctx, visibleStages, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, nightMode, turnaroundActivities, machineGroupMap, rowHeight);
+    }
+    drawBatchBars(ctx, visibleStages, batchSeriesMap, batchLabelMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, selectedStageId, rowHeight);
     // Checkpoint markers drawn on top of batch bars so they remain visible
     if (showCheckpoints && checkpointWindows.length > 0) {
       drawCheckpointMarkers(ctx, checkpointWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
@@ -1257,7 +1425,7 @@ export default function WallboardCanvas({
     }
     // Hold risk indicators — red dots on stages with tight turnaround gaps
     if (showHoldRisk) {
-      drawHoldRiskIndicators(ctx, visibleStages, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, turnaroundGapByGroup, machineGroupMap);
+      drawHoldRiskIndicators(ctx, visibleStages, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, turnaroundGapByGroup, machineGroupMap, rowHeight);
     }
     if (notifyShiftWindows.length > 0) {
       drawNotifyShiftArrows(ctx, notifyShiftWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
@@ -1274,7 +1442,7 @@ export default function WallboardCanvas({
       drawShiftBand(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, shiftRotation.anchorDate, shiftRotation.cyclePattern, shiftRotation.teams.map((t) => t.color), shiftRotation.shiftLengthHours, shiftRotation);
     }
     drawDateHeader(ctx, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
-  }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods, shiftRotation, showDowntime, downtimeWindows, notifyShiftWindows, showShutdownCrossing, showHoldRisk, showShutdownLabels, turnaroundGapByGroup, machineGroupMap, showCheckpoints, checkpointWindows]);
+  }, [dims, rows, visibleStages, batchSeriesMap, batchLabelMap, viewConfig, totalHeight, showTodayHighlight, showNowLineProp, showShiftBandProp, theme, shutdownPeriods, shiftRotation, showDowntime, downtimeWindows, notifyShiftWindows, showShutdownCrossing, showHoldRisk, showShutdownLabels, turnaroundGapByGroup, machineGroupMap, showCheckpoints, checkpointWindows, rowHeight, selectedStageId, showTurnaroundBlocks, nightMode, turnaroundActivities]);
 
   // Redraw on any change
   useEffect(() => {
@@ -1300,6 +1468,7 @@ export default function WallboardCanvas({
 
   const hitTestStage = useCallback(
     (cssX: number, cssY: number): string | null => {
+      const barYPad = (rowHeight - BAR_HEIGHT) / 2;
       for (const stage of visibleStages) {
         const row = machineRowMap.get(stage.machineId);
         if (!row) continue;
@@ -1314,7 +1483,7 @@ export default function WallboardCanvas({
         );
         if (pos.offScreen) continue;
 
-        const barY = row.y + BAR_Y_PAD;
+        const barY = row.y + barYPad;
         if (
           cssX >= pos.left &&
           cssX <= pos.left + pos.width &&
@@ -1327,7 +1496,7 @@ export default function WallboardCanvas({
       return null;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visibleStages, viewConfig, dims.width, rows]
+    [visibleStages, viewConfig, dims.width, rows, rowHeight]
   );
 
   const hitTestMachineLabel = useCallback(
@@ -1335,13 +1504,13 @@ export default function WallboardCanvas({
       if (cssX >= LEFT_MARGIN) return null;
       for (const row of rows) {
         if (row.type === 'separator') continue;
-        if (cssY >= row.y && cssY < row.y + ROW_HEIGHT) {
+        if (cssY >= row.y && cssY < row.y + rowHeight) {
           return row.machineId;
         }
       }
       return null;
     },
-    [rows]
+    [rows, rowHeight]
   );
 
   const hitTestDowntime = useCallback(
@@ -1368,7 +1537,7 @@ export default function WallboardCanvas({
             cssX >= pos.left &&
             cssX <= pos.left + pos.width &&
             cssY >= row.y &&
-            cssY <= row.y + ROW_HEIGHT
+            cssY <= row.y + rowHeight
           ) {
             return win;
           }
@@ -1387,7 +1556,7 @@ export default function WallboardCanvas({
       return null;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [showDowntime, downtimeWindows, notifyShiftWindows, viewConfig, dims.width, rows]
+    [showDowntime, downtimeWindows, notifyShiftWindows, viewConfig, dims.width, rows, rowHeight]
   );
 
   const hitTestCheckpoint = useCallback(
@@ -1411,13 +1580,13 @@ export default function WallboardCanvas({
           cssX >= pos.left - 8 &&
           cssX <= pos.left + 8 &&
           cssY >= row.y &&
-          cssY <= row.y + ROW_HEIGHT
+          cssY <= row.y + rowHeight
         ) return win;
       }
       return null;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [showCheckpoints, checkpointWindows, viewConfig, dims.width, rows]
+    [showCheckpoints, checkpointWindows, viewConfig, dims.width, rows, rowHeight]
   );
 
   // ── Drag/resize state (Planner only) ────────────────────────────────
@@ -1459,7 +1628,7 @@ export default function WallboardCanvas({
           dims.width, LEFT_MARGIN, viewConfig.numberOfDays
         );
         if (pos.offScreen) continue;
-        const barY = row.y + BAR_Y_PAD;
+        const barY = row.y + (rowHeight - BAR_HEIGHT) / 2;
         if (cssY < barY || cssY > barY + BAR_HEIGHT) continue;
         if (cssX < pos.left || cssX > pos.left + pos.width) continue;
 
@@ -1471,7 +1640,7 @@ export default function WallboardCanvas({
       return null;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [enableDragResize, visibleStages, viewConfig, dims.width, rows]
+    [enableDragResize, visibleStages, viewConfig, dims.width, rows, rowHeight]
   );
 
   const handleCanvasMouseDown = useCallback(

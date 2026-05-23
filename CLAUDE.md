@@ -415,6 +415,23 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - **Implementation**: `components/planner/CapacityPanel.tsx` (self-contained component) + wired into `app/planner/page.tsx` as `<SidebarSection title="Capacity Utilization" defaultOpen={false}>`
 - **Planning reference**: `docs/plans/capacity-utilization.md` (MAM capacity hierarchy formulas, phasing, open questions)
 
+#### 25. Planner view — density control, selection frame, turnaround activity blocks
+
+- **Density control**: Three-button segmented pill in the Planner toolbar (compact / comfortable / spacious) that changes the canvas row height. Row heights: compact = 20 px, comfortable = 26 px (default, matches original), spacious = 34 px. Selected density persisted to `localStorage` key `pp.planner.density` (read on mount, updated on change). Only the Planner view honours it; the Wallboard page uses its fixed default of 26 px by not passing the `rowHeight` prop.
+  - Toolbar UI: `.pp-density-toggle` pill next to the Day/Week/Month/Quarter segmented control; each button uses `.pp-density-icon` (3 horizontal lines with varying `marginTop` conveying the row spacing); active state via `.pp-density-btn--active` (white background, inset border)
+  - Plumbing: `rowHeight` prop on `WallboardCanvas` replaces the hardcoded `const ROW_HEIGHT = 26` constant, which is now the prop default. All dependent layout (row layout, backgrounds, bar positioning, hold-risk indicators, all hit-test callbacks) use the dynamic `rowHeight` value.
+
+- **Selection frame**: When a batch bar is clicked, a 2 px outline is drawn 2 px outset around the bar on the canvas. Previously `selectedStageId` only updated the sidebar inspector with no visual feedback on the canvas itself.
+  - Implementation: `selectedStageId?: string | null` prop added to `WallboardCanvasProps`; in `drawBatchBars()` after the bar fill/border, `ctx.strokeRect(left-2, barY-2, width+4, BAR_HEIGHT+4)` with `lineWidth=2` and colour `theme.selectionOutline`. New theme key `selectionOutline` added to both `DAY_THEME` (`#2563eb` pharma blue) and `NIGHT_THEME` (`#22d3ee` cyan).
+
+- **Turnaround activity blocks**: Subtle diagonal-hatch blocks rendered in the inter-batch gap between consecutive batches on the same machine, one block per default turnaround activity for the group (CIP, Media Preparation, SIP). Drawn *before* batch bars so bars always render on top.
+  - Algorithm: walk consecutive stage pairs per machine; if `gapH >= totalNeeded - 0.5h`, walk a cursor from `prev.endDatetime` and render one block per default activity; block height ≈ 55 % of `rowHeight`, vertically centred in the row.
+  - Colors: CIP = neutral gray hatch, Media = muted blue hatch, SIP = amber hatch; all very low alpha so they don't compete with bars. Night mode uses slightly higher alpha values.
+  - Labels: short activity name (first 3 chars uppercase) visible at block width ≥ 22 px; full name at ≥ 60 px.
+  - Props: `showTurnaroundBlocks?: boolean` (default `false`; set to `true` in Planner, omitted in Wallboard to keep Wallboard clean); `showTurnaroundBlocks` defaults to off; Planner passes `showTurnaroundBlocks={true}`.
+  - New function `drawTurnaroundBlocks()` in `WallboardCanvas.tsx`. Uses `turnaroundActivities` already read from the Zustand store, and `machineGroupMap` already computed for hold-risk.
+  - CSS: `.pp-density-*` classes in `globals.css`.
+
 ---
 
 ## Target Data Model (Modern)
