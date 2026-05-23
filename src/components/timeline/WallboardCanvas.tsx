@@ -943,12 +943,16 @@ function drawTurnaroundBlocks(
       const totalNeeded = defaultActs.reduce((s, a) => s + turnaroundTotalHours(a), 0);
       if (gapH < totalNeeded - 0.5) continue;
 
-      let cursor = prev.endDatetime;
-      for (const act of defaultActs) {
+      // Pre-phase activities prep the vessel for the next batch, so anchor
+      // them to next.startDatetime and walk backwards (last activity ends
+      // exactly when the next batch begins).
+      let cursor = next.startDatetime;
+      for (let a = defaultActs.length - 1; a >= 0; a--) {
+        const act = defaultActs[a];
         const actH = turnaroundTotalHours(act);
-        const blockStart = cursor;
-        const blockEnd = addHours(cursor, actH);
-        cursor = blockEnd;
+        const blockEnd = cursor;
+        const blockStart = addHours(cursor, -actH);
+        cursor = blockStart;
 
         const startHoursFromView = differenceInHours(blockStart, viewStart);
         const endHoursFromView = differenceInHours(blockEnd, viewStart);
