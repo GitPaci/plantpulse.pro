@@ -1243,6 +1243,54 @@ body {
   color: var(--pp-pharma);
 }
 
+.pp-turnaround-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  height: 28px;
+  border: 1px solid var(--pp-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pp-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+.pp-turnaround-toggle:hover {
+  background: #edf2f7;
+  color: var(--pp-text, #1a202c);
+}
+
+.pp-turnaround-toggle--on {
+  background: #eff6ff;
+  color: var(--pp-pharma);
+  border-color: var(--pp-pharma);
+}
+
+.pp-turnaround-toggle-swatch {
+  width: 14px;
+  height: 10px;
+  border-radius: 2px;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.55) 0,
+    rgba(59, 130, 246, 0.55) 1.5px,
+    transparent 1.5px,
+    transparent 4px
+  );
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  background-color: rgba(59, 130, 246, 0.12);
+}
+
+.pp-turnaround-toggle:not(.pp-turnaround-toggle--on) .pp-turnaround-toggle-swatch {
+  filter: grayscale(0.7);
+  opacity: 0.65;
+}
+
 .planner-timenav {
   display: flex;
   align-items: center;

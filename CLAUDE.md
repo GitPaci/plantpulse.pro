@@ -424,13 +424,14 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - **Selection frame**: When a batch bar is clicked, a 2 px outline is drawn 2 px outset around the bar on the canvas. Previously `selectedStageId` only updated the sidebar inspector with no visual feedback on the canvas itself.
   - Implementation: `selectedStageId?: string | null` prop added to `WallboardCanvasProps`; in `drawBatchBars()` after the bar fill/border, `ctx.strokeRect(left-2, barY-2, width+4, BAR_HEIGHT+4)` with `lineWidth=2` and colour `theme.selectionOutline`. New theme key `selectionOutline` added to both `DAY_THEME` (`#2563eb` pharma blue) and `NIGHT_THEME` (`#22d3ee` cyan).
 
-- **Turnaround activity blocks**: Subtle diagonal-hatch blocks rendered in the inter-batch gap between consecutive batches on the same machine, one block per default turnaround activity for the group (CIP, Media Preparation, SIP). Drawn *before* batch bars so bars always render on top.
-  - Algorithm: walk consecutive stage pairs per machine; if `gapH >= totalNeeded - 0.5h`, walk a cursor from `prev.endDatetime` and render one block per default activity; block height ≈ 55 % of `rowHeight`, vertically centred in the row.
+- **Turnaround activity blocks**: Subtle diagonal-hatch blocks rendered around each batch on its machine lane — pre-phase activities (CIP → Media → SIP) walk backward from `stage.startDatetime`, post-phase activities (Transfer, Handoff, Cleaning) walk forward from `stage.endDatetime`. Drawn *before* batch bars so the production batch always wins visual hierarchy.
+  - Algorithm (per machine, per stage): split default activities by `phase` field. Post-chain: forward-walk cursor from `stage.endDatetime`, clipped at the next batch's start so blocks never bleed across batches. Pre-chain: backward-walk cursor from `stage.startDatetime` (reversed order so the last pre activity ends exactly at batch start), clipped at the previous batch's end. Block height ≈ 55 % of `rowHeight`, vertically centred.
   - Colors: CIP = neutral gray hatch, Media = muted blue hatch, SIP = amber hatch; all very low alpha so they don't compete with bars. Night mode uses slightly higher alpha values.
   - Labels: short activity name (first 3 chars uppercase) visible at block width ≥ 22 px; full name at ≥ 60 px.
-  - Props: `showTurnaroundBlocks?: boolean` (default `false`; set to `true` in Planner, omitted in Wallboard to keep Wallboard clean); `showTurnaroundBlocks` defaults to off; Planner passes `showTurnaroundBlocks={true}`.
-  - New function `drawTurnaroundBlocks()` in `WallboardCanvas.tsx`. Uses `turnaroundActivities` already read from the Zustand store, and `machineGroupMap` already computed for hold-risk.
-  - CSS: `.pp-density-*` classes in `globals.css`.
+  - **Planner toolbar toggle** "Turnaround": pp-turnaround-toggle button after the density pill. ON = blocks visible; OFF = production batches only (simplified scheduling focus). Toggle is **visualization-only** — scheduling integrity (`requiredTurnaroundGap()` in `lib/scheduling.ts`) reads from the store regardless of the toggle, so drag/move/stretch operations and batch-chain movement always respect turnaround constraints even when hidden. Persisted in `localStorage` key `pp.planner.showTurnaround` (default `true`).
+  - Props: `showTurnaroundBlocks?: boolean` (default `false`; Planner passes the toggle state, Wallboard omits to keep its view clean).
+  - Function `drawTurnaroundBlocks()` in `WallboardCanvas.tsx`. Uses `turnaroundActivities` from the Zustand store and `machineGroupMap` already computed for hold-risk.
+  - CSS: `.pp-density-*`, `.pp-turnaround-toggle*` classes in `globals.css`.
 
 ---
 

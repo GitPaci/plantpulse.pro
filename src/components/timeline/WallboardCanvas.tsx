@@ -922,86 +922,117 @@ function drawTurnaroundBlocks(
     }
   }
 
+  // Render one hatch block for a single activity occurrence on a row.
+  // Returns true if any pixels were actually drawn (after clipping).
+  function renderBlock(
+    row: RowInfo,
+    act: TurnaroundActivity,
+    blockStart: Date,
+    blockEnd: Date
+  ) {
+    const startHoursFromView = differenceInHours(blockStart, viewStart);
+    const endHoursFromView = differenceInHours(blockEnd, viewStart);
+    const bLeft = LEFT_MARGIN + startHoursFromView * pph;
+    const bRight = LEFT_MARGIN + endHoursFromView * pph;
+    if (bRight < LEFT_MARGIN || bLeft > width) return;
+
+    const drawLeft = Math.max(bLeft, LEFT_MARGIN);
+    const drawRight = Math.min(bRight, width);
+    const drawW = drawRight - drawLeft;
+    if (drawW < 0.5) return;
+
+    const blockY = row.y + blockYOff;
+    const [fillColor, strokeColor] = actColors(act.name);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(drawLeft, blockY, drawW, blockH);
+    ctx.clip();
+
+    ctx.fillStyle = fillColor;
+    ctx.fillRect(drawLeft, blockY, drawW, blockH);
+
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 0.8;
+    const step = 5;
+    for (let xi = -blockH; xi < drawW + blockH; xi += step) {
+      ctx.beginPath();
+      ctx.moveTo(drawLeft + xi, blockY);
+      ctx.lineTo(drawLeft + xi + blockH, blockY + blockH);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(drawLeft, blockY, drawW, blockH);
+
+    if (drawW >= 22) {
+      const labelText = drawW >= 60 ? act.name : act.name.substring(0, 3).toUpperCase();
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(drawLeft, blockY, drawW, blockH);
+      ctx.clip();
+      ctx.font = '7px sans-serif';
+      ctx.fillStyle = nightMode ? 'rgba(148,163,184,0.80)' : 'rgba(51,65,85,0.70)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(labelText, drawLeft + drawW / 2, blockY + blockH / 2);
+      ctx.restore();
+    }
+  }
+
   for (const [machineId, machineStages] of byMachine) {
     const row = machineRowMap.get(machineId);
     if (!row) continue;
 
     const group = machineGroupMap.get(machineId) ?? '';
-    const defaultActs = turnaroundActivities.filter(
-      (t) => t.equipmentGroup === group && t.isDefault && (t.phase ?? 'pre') === 'pre'
+    const groupActs = turnaroundActivities.filter(
+      (t) => t.equipmentGroup === group && t.isDefault
     );
-    if (defaultActs.length === 0) continue;
+    if (groupActs.length === 0) continue;
+
+    // Split by phase; default phase is 'pre' for legacy/unset activities.
+    const preActs = groupActs.filter((t) => (t.phase ?? 'pre') === 'pre');
+    const postActs = groupActs.filter((t) => t.phase === 'post');
 
     const sorted = [...machineStages].sort(
       (a, b) => a.startDatetime.getTime() - b.startDatetime.getTime()
     );
 
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const prev = sorted[i];
-      const next = sorted[i + 1];
-      const gapH = differenceInHours(next.startDatetime, prev.endDatetime);
-      const totalNeeded = defaultActs.reduce((s, a) => s + turnaroundTotalHours(a), 0);
-      if (gapH < totalNeeded - 0.5) continue;
+    for (let i = 0; i < sorted.length; i++) {
+      const stage = sorted[i];
+      const prev = i > 0 ? sorted[i - 1] : null;
+      const next = i < sorted.length - 1 ? sorted[i + 1] : null;
 
-      let cursor = prev.endDatetime;
-      for (const act of defaultActs) {
-        const actH = turnaroundTotalHours(act);
-        const blockStart = cursor;
-        const blockEnd = addHours(cursor, actH);
-        cursor = blockEnd;
-
-        const startHoursFromView = differenceInHours(blockStart, viewStart);
-        const endHoursFromView = differenceInHours(blockEnd, viewStart);
-        const bLeft = LEFT_MARGIN + startHoursFromView * pph;
-        const bRight = LEFT_MARGIN + endHoursFromView * pph;
-
-        if (bRight < LEFT_MARGIN || bLeft > width) continue;
-
-        const drawLeft = Math.max(bLeft, LEFT_MARGIN);
-        const drawRight = Math.min(bRight, width);
-        const drawW = drawRight - drawLeft;
-        if (drawW < 0.5) continue;
-
-        const blockY = row.y + blockYOff;
-        const [fillColor, strokeColor] = actColors(act.name);
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(drawLeft, blockY, drawW, blockH);
-        ctx.clip();
-
-        ctx.fillStyle = fillColor;
-        ctx.fillRect(drawLeft, blockY, drawW, blockH);
-
-        // 135° diagonal hatch
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 0.8;
-        const step = 5;
-        for (let xi = -blockH; xi < drawW + blockH; xi += step) {
-          ctx.beginPath();
-          ctx.moveTo(drawLeft + xi, blockY);
-          ctx.lineTo(drawLeft + xi + blockH, blockY + blockH);
-          ctx.stroke();
+      // --- Post-batch activities: walk forward from this stage's end. ---
+      // Clip the chain to the next batch's start so we never bleed across.
+      if (postActs.length > 0) {
+        const postLimit = next ? next.startDatetime : addHours(stage.endDatetime, 24 * 30);
+        let cursor = stage.endDatetime;
+        for (const act of postActs) {
+          if (cursor >= postLimit) break;
+          const actH = turnaroundTotalHours(act);
+          const naturalEnd = addHours(cursor, actH);
+          const blockEnd = naturalEnd > postLimit ? postLimit : naturalEnd;
+          if (blockEnd > cursor) renderBlock(row, act, cursor, blockEnd);
+          cursor = naturalEnd; // advance by full duration even if clipped
         }
+      }
 
-        ctx.restore();
-
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 0.5;
-        ctx.strokeRect(drawLeft, blockY, drawW, blockH);
-
-        if (drawW >= 22) {
-          const labelText = drawW >= 60 ? act.name : act.name.substring(0, 3).toUpperCase();
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(drawLeft, blockY, drawW, blockH);
-          ctx.clip();
-          ctx.font = '7px sans-serif';
-          ctx.fillStyle = nightMode ? 'rgba(148,163,184,0.80)' : 'rgba(51,65,85,0.70)';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(labelText, drawLeft + drawW / 2, blockY + blockH / 2);
-          ctx.restore();
+      // --- Pre-batch activities: walk backward from this stage's start. ---
+      // Clip the chain to the previous batch's end so we never bleed across.
+      if (preActs.length > 0) {
+        const preLimit = prev ? prev.endDatetime : addHours(stage.startDatetime, -24 * 30);
+        let cursor = stage.startDatetime;
+        for (let a = preActs.length - 1; a >= 0; a--) {
+          if (cursor <= preLimit) break;
+          const act = preActs[a];
+          const actH = turnaroundTotalHours(act);
+          const naturalStart = addHours(cursor, -actH);
+          const blockStart = naturalStart < preLimit ? preLimit : naturalStart;
+          if (cursor > blockStart) renderBlock(row, act, blockStart, cursor);
+          cursor = naturalStart; // advance by full duration even if clipped
         }
       }
     }
