@@ -237,12 +237,32 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Configured per equipment group in Process Setup modal (Turnaround Activities tab)
 - Duration specified as days:hours:minutes; `turnaroundTotalHours()` computes effective gap for scheduling math
 - `isDefault` flag marks activities for auto-insertion during batch scheduling
+- **`phase` field** (`'pre' | 'post'`, default `'pre'` for legacy/unset activities):
+  - `pre` — executed **before** the next batch starts (CIP, SIP, Media Preparation). These anchor to `stage.startDatetime` and walk backward in the timeline visualization.
+  - `post` — executed **after** the current batch ends (Transfer to Downstream, Handoff). These anchor to `stage.endDatetime` and walk forward in the timeline visualization.
+- **Validity window** (`validityValue: number`, `validityUnit: 'h' | 'd' | 'w'`): how long a completed activity remains valid before it must be repeated. `validityValue: 0` means no expiry.
+- **Auto-repeat** (`autoRepeat: boolean`): if validity expires before the next batch starts, the activity is automatically reinserted.
+- **`turnaroundValidityHours(t)`** — computes validity window in hours (days×24 + hours + weeks×168).
+- **`normalizeTurnaroundActivity(t)`** — migration helper that infers `phase`/`validityValue`/`validityUnit`/`autoRepeat` from activity name patterns for legacy activities that predate the field. Idempotent — safe to call on already-normalized records. Infers:
+  - `CIP` → `phase: 'pre', validityValue: 7, validityUnit: 'd', autoRepeat: true`
+  - `SIP` → `phase: 'pre', validityValue: 8, validityUnit: 'h', autoRepeat: true`
+  - `Media Preparation` → `phase: 'pre', validityValue: 24, validityUnit: 'h', autoRepeat: false`
+  - `transfer` / `harvest` / `handoff` → `phase: 'post', validityValue: 0, autoRepeat: false`
+  - Applied on ProcessSetup modal open to migrate existing store data.
 - **Pre-populated defaults** for all 4 equipment groups (11 activities total):
-  - Inoculum: Media Preparation & Inoculation (2h)
-  - Propagator: CIP (1h), Media Preparation (2h), SIP (1h)
-  - Pre-fermenter: CIP (1h), Media Preparation (4h), SIP (2h)
-  - Fermenter: CIP (1h), Media Preparation (6h), SIP (3h), Transfer to Downstream (3h)
-- Still pending: wiring into overlap detection engine (`lib/scheduling.ts`)
+  - Inoculum: Media Preparation (2h, pre), Inoculation (2h, pre)
+  - Propagator: CIP (1h, pre/7d validity), Media Preparation (2h, pre/24h validity), SIP (1h, pre/8h validity)
+  - Pre-fermenter: CIP (1h, pre/7d validity), Media Preparation (4h, pre/24h validity), SIP (2h, pre/8h validity)
+  - Fermenter: CIP (1h, pre/7d validity), Media Preparation (6h, pre/24h validity), SIP (3h, pre/8h validity), Transfer to Downstream (3h, post)
+- **Process Setup Turnaround Activities tab (v2)** — redesigned UI with:
+  - Per-group segmented selector at the top (one tab per equipment group, no "All" view)
+  - Cycle summary strip: proportional colored blocks showing Pre activities → PRODUCTION BATCH → Post activities
+  - Pre and Post sections separated by a "PRODUCTION BATCH" divider
+  - Inline row editor on click: Name, When (phase seg), Duration (d:h:m), Validity (value + unit dropdown), Auto-insert toggle, sequence hint, Remove button
+  - `expandedActivityId` state for accordion-style inline editor; only one row open at a time
+  - Add buttons for Pre and Post sections independently
+  - CSS prefix: `.pp-ta-*` in `globals.css`
+- Still pending: wiring phase-aware validity/auto-repeat logic into overlap detection engine (`lib/scheduling.ts`)
 
 #### 13. Shutdown periods (modern, no VBA equivalent)
 - Plant-wide shutdown windows with name, date range, and optional reason
@@ -415,7 +435,7 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - **Implementation**: `components/planner/CapacityPanel.tsx` (self-contained component) + wired into `app/planner/page.tsx` as `<SidebarSection title="Capacity Utilization" defaultOpen={false}>`
 - **Planning reference**: `docs/plans/capacity-utilization.md` (MAM capacity hierarchy formulas, phasing, open questions)
 
-#### 25. Planner view — density control, selection frame, turnaround activity blocks
+#### 25. Planner view — density control, selection frame, turnaround activity blocks, clickable chain path
 
 - **Density control**: Three-button segmented pill in the Planner toolbar (compact / comfortable / spacious) that changes the canvas row height. Row heights: compact = 20 px, comfortable = 26 px (default, matches original), spacious = 34 px. Selected density persisted to `localStorage` key `pp.planner.density` (read on mount, updated on change). Only the Planner view honours it; the Wallboard page uses its fixed default of 26 px by not passing the `rowHeight` prop.
   - Toolbar UI: `.pp-density-toggle` pill next to the Day/Week/Month/Quarter segmented control; each button uses `.pp-density-icon` (3 horizontal lines with varying `marginTop` conveying the row spacing); active state via `.pp-density-btn--active` (white background, inset border)
@@ -423,6 +443,9 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 
 - **Selection frame**: When a batch bar is clicked, a 2 px outline is drawn 2 px outset around the bar on the canvas. Previously `selectedStageId` only updated the sidebar inspector with no visual feedback on the canvas itself.
   - Implementation: `selectedStageId?: string | null` prop added to `WallboardCanvasProps`; in `drawBatchBars()` after the bar fill/border, `ctx.strokeRect(left-2, barY-2, width+4, BAR_HEIGHT+4)` with `lineWidth=2` and colour `theme.selectionOutline`. New theme key `selectionOutline` added to both `DAY_THEME` (`#2563eb` pharma blue) and `NIGHT_THEME` (`#22d3ee` cyan).
+
+- **Clickable chain path in sidebar inspector**: Each step in the "Chain Path" list in `StageInspector` is a `<button>` that switches `selectedStageId` to that stage, scrolling focus within the inspector and moving the canvas selection outline to the new bar. The current stage is rendered as a disabled button (no click). Previously all steps were non-interactive `<div>` elements.
+  - Implementation: `onSelectStage: (stageId: string) => void` prop added to `StageInspector`; steps use `<button onClick={() => onSelectStage(s.id)} disabled={isCurrent}>`; call site passes `setSelectedStageId`. CSS: `.planner-chain-step` updated from `<div>` to `<button>` styles with hover/focus/disabled states in `globals.css`.
 
 - **Turnaround activity blocks**: Subtle diagonal-hatch blocks rendered around each batch on its machine lane — pre-phase activities (CIP → Media → SIP) walk backward from `stage.startDatetime`, post-phase activities (Transfer, Handoff, Cleaning) walk forward from `stage.endDatetime`. Drawn *before* batch bars so the production batch always wins visual hierarchy.
   - Algorithm (per machine, per stage): split default activities by `phase` field. Post-chain: forward-walk cursor from `stage.endDatetime`, clipped at the next batch's start so blocks never bleed across batches. Pre-chain: backward-walk cursor from `stage.startDatetime` (reversed order so the last pre activity ends exactly at batch start), clipped at the previous batch's end. Block height ≈ 55 % of `rowHeight`, vertically centred.
@@ -556,6 +579,9 @@ interface MaintenanceTask {
 
 // Turnaround activity type — defines required gap activities between batches
 // (e.g. CIP, SIP, Cleaning). Configured per equipment group in Process Setup.
+export type TurnaroundPhase = 'pre' | 'post';
+export type ValidityUnit = 'h' | 'd' | 'w';
+
 interface TurnaroundActivity {
   id: string;
   name: string;               // user-defined label, e.g. "CIP", "SIP", "Cleaning"
@@ -564,7 +590,17 @@ interface TurnaroundActivity {
   durationMinutes: number;    // minutes component of duration
   equipmentGroup: string;     // references EquipmentGroup.id
   isDefault: boolean;         // if true, auto-inserted when scheduling new batches
+  phase?: TurnaroundPhase;    // 'pre' = before next batch (default), 'post' = after current batch
+  validityValue?: number;     // how long the activity stays valid; 0 = no expiry
+  validityUnit?: ValidityUnit; // 'h' | 'd' | 'w' — unit for validityValue
+  autoRepeat?: boolean;       // re-run if validity expires before next batch starts
+  description?: string;       // optional operator note
 }
+
+// Helper functions exported from lib/types.ts:
+// turnaroundTotalHours(t)    — duration in hours (days×24 + hours + minutes/60)
+// turnaroundValidityHours(t) — validity window in hours (0 if validityValue is 0 or undefined)
+// normalizeTurnaroundActivity(t) — infers phase/validity from name patterns; idempotent
 
 // Planned shutdown period — blocks all machines for the duration.
 // Used for plant-wide shutdowns, annual maintenance windows, etc.
