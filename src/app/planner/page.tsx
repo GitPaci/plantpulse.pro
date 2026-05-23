@@ -646,6 +646,18 @@ export default function PlannerPage() {
     }
   }, [selectedStageId]);
 
+  // Row density for the canvas timeline
+  type Density = 'compact' | 'comfortable' | 'spacious';
+  const ROW_HEIGHT_BY_DENSITY: Record<Density, number> = { compact: 20, comfortable: 26, spacious: 34 };
+  const [density, setDensity] = useState<Density>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('pp.planner.density');
+      if (saved === 'compact' || saved === 'comfortable' || saved === 'spacious') return saved;
+    }
+    return 'comfortable';
+  });
+  useEffect(() => { localStorage.setItem('pp.planner.density', density); }, [density]);
+
   // View mode (Day / Week / Month / Quarter)
   const [viewMode, setViewMode] = useState<ViewMode>(() => inferViewMode(viewConfig.numberOfDays));
 
@@ -1180,6 +1192,30 @@ export default function PlannerPage() {
             ))}
           </div>
 
+          {/* Density control */}
+          <div className="pp-density-toggle" role="group" aria-label="Row density">
+            {([
+              { key: 'compact', title: 'Compact rows', lines: [1, 1, 1] },
+              { key: 'comfortable', title: 'Comfortable rows', lines: [2, 2, 2] },
+              { key: 'spacious', title: 'Spacious rows', lines: [4, 4, 4] },
+            ] as { key: Density; title: string; lines: number[] }[]).map(({ key, title, lines }) => (
+              <button
+                key={key}
+                type="button"
+                className={`pp-density-btn${density === key ? ' pp-density-btn--active' : ''}`}
+                title={title}
+                aria-pressed={density === key}
+                onClick={() => setDensity(key)}
+              >
+                <span className="pp-density-icon">
+                  {lines.map((gap, i) => (
+                    <span key={i} style={i > 0 ? { marginTop: gap } : undefined} />
+                  ))}
+                </span>
+              </button>
+            ))}
+          </div>
+
           {/* Date range navigation */}
           <div className="planner-timenav">
             <button
@@ -1339,6 +1375,9 @@ export default function PlannerPage() {
               showHoldRisk={true}
               showCheckpoints={true}
               onCheckpointClick={handleCheckpointClick}
+              rowHeight={ROW_HEIGHT_BY_DENSITY[density]}
+              selectedStageId={selectedStageId}
+              showTurnaroundBlocks={true}
             />
           </div>
           {/* Horizontal scrollbar */}
