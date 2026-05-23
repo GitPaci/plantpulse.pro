@@ -10,13 +10,15 @@ import type {
   ProductLine,
   StageDefault,
   TurnaroundActivity,
+  TurnaroundPhase,
+  ValidityUnit,
   EquipmentGroup,
   ShutdownPeriod,
   StageTypeDefinition,
   BatchNamingConfig,
   BatchNamingRule,
 } from '@/lib/types';
-import { turnaroundTotalHours, batchNamePreviewSequence } from '@/lib/types';
+import { turnaroundTotalHours, turnaroundValidityHours, normalizeTurnaroundActivity, batchNamePreviewSequence } from '@/lib/types';
 
 // ─── Date helpers ──────────────────────────────────────────────────────
 
@@ -169,6 +171,297 @@ function StageTypeTable({
   );
 }
 
+// ─── Turnaround Activities sub-components ──────────────────────────────
+
+function activityKind(name: string): 'cip' | 'media' | 'sip' | 'post' | 'other' {
+  const n = (name || '').toLowerCase();
+  if (n.includes('cip')) return 'cip';
+  if (n.includes('media')) return 'media';
+  if (n.includes('sip')) return 'sip';
+  if (n.includes('transfer') || n.includes('harvest') || n.includes('handoff')) return 'post';
+  return 'other';
+}
+
+function formatTaShort(t: TurnaroundActivity): string {
+  const d = t.durationDays, h = t.durationHours, m = t.durationMinutes;
+  const parts: string[] = [];
+  if (d) parts.push(`${d}d`);
+  if (h) parts.push(`${h}h`);
+  if (m) parts.push(`${m}m`);
+  return parts.join(' ') || '0m';
+}
+
+function TurnaroundSummary({ pre, post }: { pre: TurnaroundActivity[]; post: TurnaroundActivity[] }) {
+  const BATCH_HOURS = 96;
+  const preTotal = pre.reduce((s, a) => s + turnaroundTotalHours(a), 0);
+  const postTotal = post.reduce((s, a) => s + turnaroundTotalHours(a), 0);
+  const total = preTotal + BATCH_HOURS + postTotal;
+  const segs = [
+    ...pre.map((a) => ({ name: a.name, h: turnaroundTotalHours(a), kind: activityKind(a.name) })),
+    { name: 'Batch', h: BATCH_HOURS, kind: 'batch' as const },
+    ...post.map((a) => ({ name: a.name, h: turnaroundTotalHours(a), kind: 'post' as const })),
+  ];
+  return (
+    <div className="pp-ta-summary-wrap">
+      <div className="pp-ta-summary-strip" title="Composed cycle preview (96h batch placeholder)">
+        {segs.map((s, i) => {
+          const w = total > 0 ? (s.h / total) * 100 : 0;
+          return (
+            <div
+              key={i}
+              className={`pp-ta-ss-seg pp-ta-ss-${s.kind}`}
+              style={{ width: `${w}%` }}
+              title={`${s.name} · ${s.h.toFixed(1)}h`}
+            >
+              {w > 8 ? (s.kind === 'batch' ? 'BATCH' : s.name) : ''}
+            </div>
+          );
+        })}
+      </div>
+      <div className="pp-ta-summary-caption">
+        <span>{preTotal.toFixed(1)}h turnaround → 96h batch{postTotal > 0 && ` → ${postTotal.toFixed(1)}h handoff`}</span>
+        <span>cycle {total.toFixed(1)}h</span>
+      </div>
+    </div>
+  );
+}
+
+function TurnaroundSection({
+  phase,
+  title,
+  emptyMsg,
+  activities,
+  allInGroup,
+  expandedId,
+  onSelect,
+  onUpdate,
+  onDelete,
+  onAdd,
+}: {
+  phase: TurnaroundPhase;
+  title: string;
+  emptyMsg: string;
+  activities: TurnaroundActivity[];
+  allInGroup: TurnaroundActivity[];
+  expandedId: string | null;
+  onSelect: (id: string) => void;
+  onUpdate: (id: string, updates: Partial<Omit<TurnaroundActivity, 'id'>>) => void;
+  onDelete: (id: string) => void;
+  onAdd: () => void;
+}) {
+  const total = activities.reduce((s, a) => s + turnaroundTotalHours(a), 0);
+  return (
+    <div className={`pp-ta-section pp-ta-section--${phase}`}>
+      <div className="pp-ta-section-head">
+        <div className={`pp-ta-section-title pp-ta-section-title--${phase}`}>
+          <span className="pp-ta-phase-dot" />
+          {title}
+        </div>
+        <div className="pp-ta-section-meta">
+          {activities.length} {activities.length === 1 ? 'activity' : 'activities'}
+          {total > 0 && ` · ${total.toFixed(1)}h total`}
+        </div>
+      </div>
+      <div className="pp-ta-table">
+        {activities.length === 0 && (
+          <div className="pp-ta-empty">{emptyMsg}</div>
+        )}
+        {activities.map((a, i) => {
+          const noExpiry = !a.validityValue;
+          const expanded = a.id === expandedId;
+          return (
+            <div key={a.id}>
+              <div
+                className={`pp-ta-row pp-ta-row--${phase}${expanded ? ' pp-ta-row--selected' : ''}`}
+                onClick={() => onSelect(a.id)}
+              >
+                <div className="pp-ta-row-num">{i + 1}</div>
+                <div className="pp-ta-row-name">{a.name || '(unnamed)'}</div>
+                <div className="pp-ta-row-dur">{formatTaShort(a)}</div>
+                <div className={`pp-ta-row-valid${noExpiry ? ' pp-ta-row-valid--none' : ''}`}
+                     title={noExpiry ? 'No expiry — always valid' : `Valid ${a.validityValue}${a.validityUnit ?? 'h'} after completion`}>
+                  {noExpiry
+                    ? <span>—</span>
+                    : <>
+                        <span>{a.validityValue}{a.validityUnit ?? 'h'}</span>
+                        {a.autoRepeat && <span className="pp-ta-row-repeat" title="Auto-repeats if expired">↻</span>}
+                      </>
+                  }
+                </div>
+                <div className="pp-ta-row-default" title={a.isDefault ? 'Auto-inserted in new batches' : 'Manual only'}>
+                  {a.isDefault ? '✓' : ''}
+                </div>
+                <div className={`pp-ta-row-chev${expanded ? ' pp-ta-row-chev--open' : ''}`}>›</div>
+              </div>
+              {expanded && (
+                <TurnaroundEditor
+                  act={a}
+                  siblings={allInGroup.filter((x) => (x.phase ?? 'pre') === (a.phase ?? 'pre'))}
+                  onChange={(updates) => onUpdate(a.id, updates)}
+                  onDelete={() => onDelete(a.id)}
+                />
+              )}
+            </div>
+          );
+        })}
+        <button type="button" className="pp-ta-add" onClick={onAdd}>
+          <span className="pp-ta-add-plus">+</span> Add {phase === 'pre' ? 'pre-batch' : 'post-batch'} activity
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TurnaroundEditor({
+  act,
+  siblings,
+  onChange,
+  onDelete,
+}: {
+  act: TurnaroundActivity;
+  siblings: TurnaroundActivity[];
+  onChange: (updates: Partial<Omit<TurnaroundActivity, 'id'>>) => void;
+  onDelete: () => void;
+}) {
+  const idxInPhase = siblings.findIndex((a) => a.id === act.id);
+  const prevAct = idxInPhase > 0 ? siblings[idxInPhase - 1] : null;
+  const nextAct = idxInPhase < siblings.length - 1 ? siblings[idxInPhase + 1] : null;
+  const phase = act.phase ?? 'pre';
+  const validityValue = act.validityValue ?? 0;
+  const validityUnit = act.validityUnit ?? 'h';
+  const autoRepeat = act.autoRepeat ?? false;
+
+  return (
+    <div className={`pp-ta-edit pp-ta-edit--${phase}`}>
+      {/* Name */}
+      <div className="pp-ta-field pp-ta-col-4">
+        <label className="pp-ta-field-label">Name</label>
+        <input
+          className="pp-ta-input"
+          value={act.name}
+          onChange={(e) => onChange({ name: e.target.value })}
+        />
+      </div>
+
+      {/* When (phase) */}
+      <div className="pp-ta-field pp-ta-col-4">
+        <label className="pp-ta-field-label">When</label>
+        <div className="pp-ta-seg">
+          <button
+            type="button"
+            className={`${phase === 'pre' ? 'active pre' : ''}`}
+            onClick={() => onChange({ phase: 'pre' })}
+          >
+            <span className="pp-ta-seg-swatch pp-ta-seg-swatch--pre" />Before batch
+          </button>
+          <button
+            type="button"
+            className={`${phase === 'post' ? 'active post' : ''}`}
+            onClick={() => onChange({ phase: 'post', validityValue: 0, autoRepeat: false })}
+          >
+            <span className="pp-ta-seg-swatch pp-ta-seg-swatch--post" />After batch
+          </button>
+        </div>
+      </div>
+
+      {/* Duration */}
+      <div className="pp-ta-field pp-ta-col-4">
+        <label className="pp-ta-field-label">Duration</label>
+        <div className="pp-ta-dur-row">
+          <input type="number" min={0} className="pp-ta-num" value={act.durationDays}
+            onChange={(e) => onChange({ durationDays: Math.max(0, Number(e.target.value) || 0) })} />
+          <span className="pp-ta-dur-unit">d</span>
+          <input type="number" min={0} max={23} className="pp-ta-num" value={act.durationHours}
+            onChange={(e) => onChange({ durationHours: Math.min(23, Math.max(0, Number(e.target.value) || 0)) })} />
+          <span className="pp-ta-dur-unit">h</span>
+          <input type="number" min={0} max={59} className="pp-ta-num" value={act.durationMinutes}
+            onChange={(e) => onChange({ durationMinutes: Math.min(59, Math.max(0, Number(e.target.value) || 0)) })} />
+          <span className="pp-ta-dur-unit">m</span>
+        </div>
+      </div>
+
+      {/* Validity window */}
+      <div className="pp-ta-field pp-ta-col-6">
+        <label className="pp-ta-field-label">Validity window</label>
+        <div className="pp-ta-validity-row">
+          <label className="pp-ta-toggle-row">
+            <span
+              className={`pp-ta-toggle${validityValue > 0 ? ' pp-ta-toggle--on' : ''}`}
+              onClick={() => onChange({
+                validityValue: validityValue > 0 ? 0 : (phase === 'pre' ? 24 : 0),
+                validityUnit: validityUnit || 'h',
+              })}
+            />
+            <span>{validityValue > 0 ? 'Expires' : 'No expiry'}</span>
+          </label>
+          <div className={`pp-ta-validity-controls${validityValue > 0 ? '' : ' pp-ta-validity-controls--disabled'}`}>
+            <input
+              type="number"
+              min={1}
+              value={validityValue || ''}
+              onChange={(e) => onChange({ validityValue: Math.max(0, Number(e.target.value) || 0) })}
+            />
+            <select
+              value={validityUnit}
+              onChange={(e) => onChange({ validityUnit: e.target.value as ValidityUnit })}
+            >
+              <option value="h">hours</option>
+              <option value="d">days</option>
+              <option value="w">weeks</option>
+            </select>
+          </div>
+        </div>
+        {validityValue > 0 && (
+          <label className="pp-ta-toggle-row" style={{ marginTop: 6 }}>
+            <span
+              className={`pp-ta-toggle${autoRepeat ? ' pp-ta-toggle--on' : ''}`}
+              onClick={() => onChange({ autoRepeat: !autoRepeat })}
+            />
+            <span>Auto-repeat if expired before next batch</span>
+          </label>
+        )}
+      </div>
+
+      {/* Sequence hint + isDefault toggle */}
+      <div className="pp-ta-field pp-ta-col-6">
+        <label className="pp-ta-field-label">Sequence</label>
+        <div className="pp-ta-hint">
+          {prevAct
+            ? <>Runs <strong>after {prevAct.name || '(unnamed)'}</strong>.</>
+            : <>First {phase === 'pre' ? 'pre-batch' : 'post-batch'} activity.</>}
+          {nextAct && <> Must finish before <strong>{nextAct.name || '(unnamed)'}</strong>.</>}
+          {!nextAct && phase === 'pre' && <> Must finish before the batch starts.</>}
+          {!nextAct && phase === 'post' && <> Must finish before the next batch's turnaround can begin.</>}
+        </div>
+        <label className="pp-ta-toggle-row" style={{ marginTop: 8 }}>
+          <span
+            className={`pp-ta-toggle${act.isDefault ? ' pp-ta-toggle--on' : ''}`}
+            onClick={() => onChange({ isDefault: !act.isDefault })}
+          />
+          <span>Auto-insert in new batches</span>
+        </label>
+      </div>
+
+      {/* Description */}
+      <div className="pp-ta-field pp-ta-col-12">
+        <label className="pp-ta-field-label">Notes (optional)</label>
+        <input
+          className="pp-ta-input"
+          value={act.description ?? ''}
+          placeholder="Short note shown in the planner inspector"
+          onChange={(e) => onChange({ description: e.target.value })}
+        />
+      </div>
+
+      <div className="pp-ta-edit-foot">
+        <button type="button" className="pp-ta-danger-btn" onClick={onDelete}>
+          Remove activity
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ProcessSetup({
   open,
   onClose,
@@ -210,8 +503,10 @@ export default function ProcessSetup({
   const [draftNaming, setDraftNaming] = useState<BatchNamingConfig>(() => ({ ...storeBatchNamingConfig }));
   const [dirty, setDirty] = useState(false);
 
-  // Turnaround activity filter
-  const [activityGroupFilter, setActivityGroupFilter] = useState('all');
+  // Turnaround activity filter (single equipment group at a time; required selection)
+  const [activityGroupFilter, setActivityGroupFilter] = useState<string>('');
+  // Currently expanded activity row (inline editor)
+  const [expandedActivityId, setExpandedActivityId] = useState<string | null>(null);
 
   // Shutdown editing
   const [editingShutdownId, setEditingShutdownId] = useState<string | null>(null);
@@ -250,7 +545,7 @@ export default function ProcessSetup({
         ...pl,
         stageDefaults: pl.stageDefaults.map((sd) => ({ ...sd })),
       })));
-      setDraftActivities(storeTurnaroundActivities.map((a) => ({ ...a })));
+      setDraftActivities(storeTurnaroundActivities.map((a) => normalizeTurnaroundActivity({ ...a })));
       setDraftShutdowns(storeShutdownPeriods.map((s) => ({
         ...s,
         startDate: new Date(s.startDate),
@@ -816,19 +1111,26 @@ export default function ProcessSetup({
 
   // ── Turnaround activity helpers ────────────────────────────────────
 
-  const addActivity = useCallback(() => {
+  const addActivity = useCallback((phase: TurnaroundPhase = 'pre') => {
+    const group = activityGroupFilter || storeEquipmentGroups[0]?.id || 'fermenter';
     const newAct: TurnaroundActivity = {
       id: generateId('ta-'),
-      name: '',
+      name: 'New activity',
       durationDays: 0,
-      durationHours: 4,
+      durationHours: 1,
       durationMinutes: 0,
-      equipmentGroup: storeEquipmentGroups[0]?.id || 'fermenter',
-      isDefault: false,
+      equipmentGroup: group,
+      isDefault: true,
+      phase,
+      validityValue: phase === 'pre' ? 24 : 0,
+      validityUnit: 'h',
+      autoRepeat: phase === 'pre',
+      description: '',
     };
     setDraftActivities((prev) => [...prev, newAct]);
+    setExpandedActivityId(newAct.id);
     setDirty(true);
-  }, [storeEquipmentGroups]);
+  }, [activityGroupFilter, storeEquipmentGroups]);
 
   const updateActivity = useCallback(
     (id: string, updates: Partial<Omit<TurnaroundActivity, 'id'>>) => {
@@ -880,10 +1182,45 @@ export default function ProcessSetup({
 
   // ── Filtered activities ────────────────────────────────────────────
 
-  const filteredActivities = useMemo(() => {
-    if (activityGroupFilter === 'all') return draftActivities;
-    return draftActivities.filter((a) => a.equipmentGroup === activityGroupFilter);
-  }, [draftActivities, activityGroupFilter]);
+  // Initialise activity group filter to first available group when modal opens
+  useEffect(() => {
+    if (!open) return;
+    if (!activityGroupFilter && storeEquipmentGroups.length > 0) {
+      setActivityGroupFilter(storeEquipmentGroups[0].id);
+    }
+  }, [open, activityGroupFilter, storeEquipmentGroups]);
+
+  const filteredActivities = useMemo(
+    () => draftActivities.filter((a) => a.equipmentGroup === activityGroupFilter),
+    [draftActivities, activityGroupFilter]
+  );
+
+  // Count activities per group for the segmented selector
+  const activityCountByGroup = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const a of draftActivities) map[a.equipmentGroup] = (map[a.equipmentGroup] ?? 0) + 1;
+    return map;
+  }, [draftActivities]);
+
+  // Pre/Post split for the active group
+  const preActivities = useMemo(
+    () => filteredActivities.filter((a) => (a.phase ?? 'pre') === 'pre'),
+    [filteredActivities]
+  );
+  const postActivities = useMemo(
+    () => filteredActivities.filter((a) => a.phase === 'post'),
+    [filteredActivities]
+  );
+
+  // Helper: format minutes as "1d 2h 30m"
+  const formatTaDuration = (a: TurnaroundActivity): string => {
+    const d = a.durationDays, h = a.durationHours, m = a.durationMinutes;
+    const parts: string[] = [];
+    if (d) parts.push(`${d}d`);
+    if (h) parts.push(`${h}h`);
+    if (m) parts.push(`${m}m`);
+    return parts.join(' ') || '0m';
+  };
 
   // ── Shutdown conflict detection ───────────────────────────────────
 
@@ -1290,146 +1627,72 @@ export default function ProcessSetup({
 
           {/* ═══════ Turnaround Activities tab ═══════ */}
           {tab === 'turnaround' && (
-            <div className="pp-process-turnaround">
+            <div className="pp-ta-tab">
               <p className="pp-process-help">
-                Define turnaround activities (CIP, SIP, Cleaning, etc.) that must fit between
-                consecutive batches on the same vessel. The scheduling engine uses these to
-                enforce minimum gaps.
+                Activities that must fit between consecutive batches on the same vessel.
+                Pre-batch activities (CIP → Media → SIP → Ready) run before the next batch can start.
+                Post-batch activities (e.g. Transfer to Downstream) run after the current batch ends.
+                Validity windows let the scheduler repeat an activity if it expires before the next batch.
               </p>
 
-              {/* Filter + Add */}
-              <div className="pp-setup-filter-bar">
-                <select
-                  value={activityGroupFilter}
-                  onChange={(e) => setActivityGroupFilter(e.target.value)}
-                  className="pp-setup-select"
-                >
-                  <option value="all">All equipment groups</option>
+              {/* Group switcher — segmented, one group at a time */}
+              <div className="pp-ta-group-bar">
+                <div className="pp-ta-group-seg" role="tablist">
                   {storeEquipmentGroups.map((eg) => (
-                    <option key={eg.id} value={eg.id}>
+                    <button
+                      key={eg.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={activityGroupFilter === eg.id}
+                      className={activityGroupFilter === eg.id ? 'active' : ''}
+                      onClick={() => { setActivityGroupFilter(eg.id); setExpandedActivityId(null); }}
+                    >
                       {eg.name}
-                    </option>
+                      <span className="pp-ta-group-count">{activityCountByGroup[eg.id] ?? 0}</span>
+                    </button>
                   ))}
-                </select>
-                <button className="pp-setup-add-btn" onClick={addActivity}>
-                  + Activity
-                </button>
+                </div>
               </div>
 
-              {filteredActivities.length === 0 && (
-                <div className="pp-setup-empty">
-                  No turnaround activities{activityGroupFilter !== 'all' ? ' for this group' : ''}. Click &ldquo;+ Activity&rdquo; to add one.
-                </div>
-              )}
-
+              {/* Composed cycle summary strip */}
               {filteredActivities.length > 0 && (
-                <div className="pp-process-activity-list">
-                  <div className="pp-process-activity-header-row">
-                    <span className="pp-process-activity-col-name">Name</span>
-                    <span className="pp-process-activity-col-dur">Duration</span>
-                    <span className="pp-process-activity-col-group">Equipment Group</span>
-                    <span className="pp-process-activity-col-default">Default</span>
-                    <span className="pp-process-activity-col-actions">Actions</span>
-                  </div>
-
-                  {filteredActivities.map((a) => (
-                    <div key={a.id} className="pp-process-activity-row">
-                      <span className="pp-process-activity-col-name">
-                        <input
-                          type="text"
-                          value={a.name}
-                          onChange={(e) => updateActivity(a.id, { name: e.target.value })}
-                          placeholder="e.g. CIP"
-                          className="pp-setup-input"
-                          style={{ width: '100%' }}
-                        />
-                      </span>
-
-                      <span className="pp-process-activity-col-dur">
-                        <span className="pp-process-dhm">
-                          <input
-                            type="number"
-                            min={0}
-                            value={a.durationDays}
-                            onChange={(e) =>
-                              updateActivity(a.id, {
-                                durationDays: Math.max(0, Number(e.target.value) || 0),
-                              })
-                            }
-                            className="pp-setup-input pp-process-dhm-input"
-                            title="Days"
-                          />
-                          <span className="pp-process-dhm-label">d</span>
-                          <input
-                            type="number"
-                            min={0}
-                            max={23}
-                            value={a.durationHours}
-                            onChange={(e) =>
-                              updateActivity(a.id, {
-                                durationHours: Math.min(23, Math.max(0, Number(e.target.value) || 0)),
-                              })
-                            }
-                            className="pp-setup-input pp-process-dhm-input"
-                            title="Hours"
-                          />
-                          <span className="pp-process-dhm-label">h</span>
-                          <input
-                            type="number"
-                            min={0}
-                            max={59}
-                            value={a.durationMinutes}
-                            onChange={(e) =>
-                              updateActivity(a.id, {
-                                durationMinutes: Math.min(59, Math.max(0, Number(e.target.value) || 0)),
-                              })
-                            }
-                            className="pp-setup-input pp-process-dhm-input"
-                            title="Minutes"
-                          />
-                          <span className="pp-process-dhm-label">m</span>
-                        </span>
-                        <span className="pp-process-dhm-total">
-                          = {turnaroundTotalHours(a).toFixed(1)}h
-                        </span>
-                      </span>
-
-                      <span className="pp-process-activity-col-group">
-                        <select
-                          value={a.equipmentGroup}
-                          onChange={(e) => updateActivity(a.id, { equipmentGroup: e.target.value })}
-                          className="pp-setup-select"
-                        >
-                          {storeEquipmentGroups.map((eg) => (
-                            <option key={eg.id} value={eg.id}>
-                              {eg.name}
-                            </option>
-                          ))}
-                        </select>
-                      </span>
-
-                      <span className="pp-process-activity-col-default">
-                        <input
-                          type="checkbox"
-                          checked={a.isDefault}
-                          onChange={(e) => updateActivity(a.id, { isDefault: e.target.checked })}
-                          title="Auto-insert when scheduling new batches"
-                        />
-                      </span>
-
-                      <span className="pp-process-activity-col-actions">
-                        <button
-                          className="pp-setup-action-btn pp-setup-delete-btn"
-                          onClick={() => deleteActivity(a.id)}
-                          title="Delete activity"
-                        >
-                          Del
-                        </button>
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <TurnaroundSummary pre={preActivities} post={postActivities} />
               )}
+
+              {/* Pre-batch section */}
+              <TurnaroundSection
+                phase="pre"
+                title="Before batch · Turnaround"
+                emptyMsg="No pre-batch activities. Add CIP, media prep, or SIP below."
+                activities={preActivities}
+                allInGroup={filteredActivities}
+                expandedId={expandedActivityId}
+                onSelect={(id) => setExpandedActivityId(expandedActivityId === id ? null : id)}
+                onUpdate={updateActivity}
+                onDelete={(id) => { deleteActivity(id); if (expandedActivityId === id) setExpandedActivityId(null); }}
+                onAdd={() => addActivity('pre')}
+              />
+
+              {/* Production batch divider */}
+              <div className="pp-ta-batch-divider">
+                <span className="pp-ta-batch-line" />
+                <span className="pp-ta-batch-pip"><span className="pp-ta-batch-dot" /> Production Batch</span>
+                <span className="pp-ta-batch-line" />
+              </div>
+
+              {/* Post-batch section */}
+              <TurnaroundSection
+                phase="post"
+                title="After batch · Handoff"
+                emptyMsg="No post-batch activities. e.g. Transfer to Downstream."
+                activities={postActivities}
+                allInGroup={filteredActivities}
+                expandedId={expandedActivityId}
+                onSelect={(id) => setExpandedActivityId(expandedActivityId === id ? null : id)}
+                onUpdate={updateActivity}
+                onDelete={(id) => { deleteActivity(id); if (expandedActivityId === id) setExpandedActivityId(null); }}
+                onAdd={() => addActivity('post')}
+              />
             </div>
           )}
 

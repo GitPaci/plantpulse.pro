@@ -39,23 +39,23 @@ export const DEFAULT_STAGE_TYPE_DEFINITIONS: StageTypeDefinition[] = [
 
 export const DEFAULT_TURNAROUND_ACTIVITIES: TurnaroundActivity[] = [
   // Inoculum — minimal turnaround (flask-scale)
-  { id: 'ta-ino-media',    name: 'Media Preparation & Inoculation', durationDays: 0, durationHours: 2, durationMinutes: 0, equipmentGroup: 'inoculum',      isDefault: true },
+  { id: 'ta-ino-media',    name: 'Media Preparation & Inoculation', durationDays: 0, durationHours: 2, durationMinutes: 0, equipmentGroup: 'inoculum',      isDefault: true, phase: 'pre',  validityValue: 24, validityUnit: 'h', autoRepeat: false, description: 'Flask-scale media prep and inoculation' },
 
   // Propagator (Seed n-2) — small vessel CIP/media/SIP cycle
-  { id: 'ta-pr-cip',       name: 'CIP',                durationDays: 0, durationHours: 1, durationMinutes: 0, equipmentGroup: 'propagator',    isDefault: true },
-  { id: 'ta-pr-media',     name: 'Media Preparation',  durationDays: 0, durationHours: 2, durationMinutes: 0, equipmentGroup: 'propagator',    isDefault: true },
-  { id: 'ta-pr-sip',       name: 'SIP',                durationDays: 0, durationHours: 1, durationMinutes: 0, equipmentGroup: 'propagator',    isDefault: true },
+  { id: 'ta-pr-cip',       name: 'CIP',                durationDays: 0, durationHours: 1, durationMinutes: 0, equipmentGroup: 'propagator',    isDefault: true, phase: 'pre',  validityValue: 7,  validityUnit: 'd', autoRepeat: true,  description: 'Clean in Place — alkaline/acid rinse' },
+  { id: 'ta-pr-media',     name: 'Media Preparation',  durationDays: 0, durationHours: 2, durationMinutes: 0, equipmentGroup: 'propagator',    isDefault: true, phase: 'pre',  validityValue: 24, validityUnit: 'h', autoRepeat: false, description: '' },
+  { id: 'ta-pr-sip',       name: 'SIP',                durationDays: 0, durationHours: 1, durationMinutes: 0, equipmentGroup: 'propagator',    isDefault: true, phase: 'pre',  validityValue: 8,  validityUnit: 'h', autoRepeat: true,  description: 'Steam in Place — sterility window' },
 
   // Pre-fermenter (Seed n-1) — medium vessel CIP/media/SIP cycle
-  { id: 'ta-pf-cip',       name: 'CIP',                durationDays: 0, durationHours: 1, durationMinutes: 0, equipmentGroup: 'pre_fermenter', isDefault: true },
-  { id: 'ta-pf-media',     name: 'Media Preparation',  durationDays: 0, durationHours: 4, durationMinutes: 0, equipmentGroup: 'pre_fermenter', isDefault: true },
-  { id: 'ta-pf-sip',       name: 'SIP',                durationDays: 0, durationHours: 2, durationMinutes: 0, equipmentGroup: 'pre_fermenter', isDefault: true },
+  { id: 'ta-pf-cip',       name: 'CIP',                durationDays: 0, durationHours: 1, durationMinutes: 0, equipmentGroup: 'pre_fermenter', isDefault: true, phase: 'pre',  validityValue: 7,  validityUnit: 'd', autoRepeat: true,  description: '' },
+  { id: 'ta-pf-media',     name: 'Media Preparation',  durationDays: 0, durationHours: 4, durationMinutes: 0, equipmentGroup: 'pre_fermenter', isDefault: true, phase: 'pre',  validityValue: 24, validityUnit: 'h', autoRepeat: false, description: '' },
+  { id: 'ta-pf-sip',       name: 'SIP',                durationDays: 0, durationHours: 2, durationMinutes: 0, equipmentGroup: 'pre_fermenter', isDefault: true, phase: 'pre',  validityValue: 8,  validityUnit: 'h', autoRepeat: true,  description: '' },
 
   // Fermenter (Production) — large vessel full turnaround cycle + downstream transfer
-  { id: 'ta-f-cip',        name: 'CIP',                     durationDays: 0, durationHours: 1, durationMinutes: 0, equipmentGroup: 'fermenter',     isDefault: true },
-  { id: 'ta-f-media',      name: 'Media Preparation',       durationDays: 0, durationHours: 6, durationMinutes: 0, equipmentGroup: 'fermenter',     isDefault: true },
-  { id: 'ta-f-sip',        name: 'SIP',                     durationDays: 0, durationHours: 3, durationMinutes: 0, equipmentGroup: 'fermenter',     isDefault: true },
-  { id: 'ta-f-transfer',   name: 'Transfer to Downstream',  durationDays: 0, durationHours: 3, durationMinutes: 0, equipmentGroup: 'fermenter',     isDefault: true },
+  { id: 'ta-f-cip',        name: 'CIP',                     durationDays: 0, durationHours: 1, durationMinutes: 0, equipmentGroup: 'fermenter',     isDefault: true, phase: 'pre',  validityValue: 7,  validityUnit: 'd', autoRepeat: true,  description: 'Required after every fermenter batch' },
+  { id: 'ta-f-media',      name: 'Media Preparation',       durationDays: 0, durationHours: 6, durationMinutes: 0, equipmentGroup: 'fermenter',     isDefault: true, phase: 'pre',  validityValue: 24, validityUnit: 'h', autoRepeat: false, description: 'Production media prep' },
+  { id: 'ta-f-sip',        name: 'SIP',                     durationDays: 0, durationHours: 3, durationMinutes: 0, equipmentGroup: 'fermenter',     isDefault: true, phase: 'pre',  validityValue: 8,  validityUnit: 'h', autoRepeat: true,  description: 'Steam in Place after media load' },
+  { id: 'ta-f-transfer',   name: 'Transfer to Downstream',  durationDays: 0, durationHours: 3, durationMinutes: 0, equipmentGroup: 'fermenter',     isDefault: true, phase: 'post', validityValue: 0,  validityUnit: 'h', autoRepeat: false, description: 'Harvest transfer to clarification' },
 ];
 
 // ─── Default wallboard equipment groups (shopfloor focus, excludes inoculum) ─
