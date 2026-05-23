@@ -512,6 +512,17 @@ export interface MaintenanceTask {
 
 // Turnaround activity type — defines required gap activities between batches
 // (e.g. CIP, SIP, Cleaning). Configured per equipment group in Process Setup.
+//
+// Phase semantics:
+//   'pre'  — runs before the next batch can start (turnaround prep: CIP → Media → SIP → Ready)
+//   'post' — runs after the current batch ends (handoff: e.g. Transfer to Downstream)
+//
+// Validity window: if `validityValue > 0`, the activity's output stays "valid" only
+// for that long after completion. If the next batch doesn't start in time and
+// `autoRepeat` is true, the scheduler can re-run the activity to keep the vessel ready.
+export type TurnaroundPhase = 'pre' | 'post';
+export type ValidityUnit = 'h' | 'd' | 'w';
+
 export interface TurnaroundActivity {
   id: string;
   name: string;               // user-defined label, e.g. "CIP", "SIP", "Cleaning"
@@ -520,11 +531,50 @@ export interface TurnaroundActivity {
   durationMinutes: number;    // minutes component of duration
   equipmentGroup: string;       // references EquipmentGroup.id
   isDefault: boolean;         // if true, auto-inserted when scheduling new batches
+  phase?: TurnaroundPhase;    // when in the cycle (default: 'pre')
+  validityValue?: number;     // 0 or undefined = no expiry; otherwise positive number
+  validityUnit?: ValidityUnit; // default: 'h'
+  autoRepeat?: boolean;       // if validity expires before next batch, re-run (default: false)
+  description?: string;       // optional notes shown in the inspector
 }
 
 // Computed total duration in hours for scheduling math
 export function turnaroundTotalHours(t: TurnaroundActivity): number {
   return t.durationDays * 24 + t.durationHours + t.durationMinutes / 60;
+}
+
+// Convert validity window to hours; 0 = no expiry (Infinity for comparisons)
+export function turnaroundValidityHours(t: TurnaroundActivity): number {
+  if (!t.validityValue) return Infinity;
+  const unit = t.validityUnit ?? 'h';
+  if (unit === 'd') return t.validityValue * 24;
+  if (unit === 'w') return t.validityValue * 24 * 7;
+  return t.validityValue;
+}
+
+// Normalize legacy activities (added before phase/validity fields existed) by
+// applying sensible defaults based on name patterns. Idempotent.
+export function normalizeTurnaroundActivity(t: TurnaroundActivity): TurnaroundActivity {
+  const n = (t.name || '').toLowerCase();
+  const isTransfer = n.includes('transfer') || n.includes('harvest') || n.includes('handoff');
+  const defaultPhase: TurnaroundPhase = isTransfer ? 'post' : 'pre';
+  let defaultValidity = 0;
+  let defaultUnit: ValidityUnit = 'h';
+  let defaultRepeat = false;
+  if (defaultPhase === 'pre') {
+    if (n.includes('cip')) { defaultValidity = 7; defaultUnit = 'd'; defaultRepeat = true; }
+    else if (n.includes('sip')) { defaultValidity = 8; defaultUnit = 'h'; defaultRepeat = true; }
+    else if (n.includes('media')) { defaultValidity = 24; defaultUnit = 'h'; defaultRepeat = false; }
+    else { defaultValidity = 24; defaultUnit = 'h'; defaultRepeat = false; }
+  }
+  return {
+    ...t,
+    phase: t.phase ?? defaultPhase,
+    validityValue: t.validityValue ?? defaultValidity,
+    validityUnit: t.validityUnit ?? defaultUnit,
+    autoRepeat: t.autoRepeat ?? defaultRepeat,
+    description: t.description ?? '',
+  };
 }
 
 // Planned shutdown period — blocks all machines for the duration.

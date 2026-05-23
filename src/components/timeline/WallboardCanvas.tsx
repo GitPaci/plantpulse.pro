@@ -928,7 +928,7 @@ function drawTurnaroundBlocks(
 
     const group = machineGroupMap.get(machineId) ?? '';
     const defaultActs = turnaroundActivities.filter(
-      (t) => t.equipmentGroup === group && t.isDefault
+      (t) => t.equipmentGroup === group && t.isDefault && (t.phase ?? 'pre') === 'pre'
     );
     if (defaultActs.length === 0) continue;
 
