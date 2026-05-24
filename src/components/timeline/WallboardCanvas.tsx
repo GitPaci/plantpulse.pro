@@ -8,6 +8,7 @@ import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { usePlantPulseStore } from '@/lib/store';
 import { getWallboardBorderColor, SHIFT_GAP_COLOR, SHIFT_TEAM_COLORS } from '@/lib/colors';
 import { stageBarPosition, nowLineX, pixelsPerDay as getPPD } from '@/lib/timeline-math';
+import { orderedChainStageIds } from '@/lib/seed-train';
 import { isHoliday, isWeekend, isSaturday, isSunday } from '@/lib/holidays';
 import { isShiftCoveredAt, shiftBands } from '@/lib/shift-rotation';
 import type { ShiftCoverageConfig } from '@/lib/shift-rotation';
@@ -1291,6 +1292,7 @@ export default function WallboardCanvas({
   const machineGroups = usePlantPulseStore((s) => s.machineGroups);
   const stages = usePlantPulseStore((s) => s.stages);
   const batchChains = usePlantPulseStore((s) => s.batchChains);
+  const productLines = usePlantPulseStore((s) => s.productLines);
   const viewConfig = usePlantPulseStore((s) => s.viewConfig);
   const setViewConfig = usePlantPulseStore((s) => s.setViewConfig);
   const shutdownPeriods = usePlantPulseStore((s) => s.shutdownPeriods);
@@ -1419,20 +1421,40 @@ export default function WallboardCanvas({
 
   // Chain connector segments — dashed SVG paths linking the selected chain's
   // stages (trailing edge of stage N → leading edge of stage N+1).
+  // Chain is sorted by stageDefaults order (canonical seed-train sequence),
+  // not by startDatetime, so dragging an upstream stage past its downstream
+  // doesn't reverse the connector direction. Path geometry is bounded to the
+  // visible canvas (midX clamped, pairs spanning the whole viewport skipped,
+  // and a SVG <clipPath> safety net keeps stray geometry off unrelated rows).
   const chainConnectorSegments = useMemo(() => {
     if (!selectedStageId || dims.width === 0) return [];
     const selected = stages.find((s) => s.id === selectedStageId);
     if (!selected) return [];
 
-    const chain = stages
-      .filter((s) => s.batchChainId === selected.batchChainId)
-      .sort((a, b) => a.startDatetime.getTime() - b.startDatetime.getTime());
+    // Resolve canonical chain order via stageDefaults; fall back to startDatetime
+    // sort if the chain or product line can't be resolved (orphaned data).
+    const chainObj = batchChains.find((c) => c.id === selected.batchChainId);
+    const pl = chainObj ? productLines.find((p) => p.id === chainObj.productLine) : undefined;
+    let chain: Stage[];
+    if (pl && pl.stageDefaults.length > 0) {
+      const orderedIds = orderedChainStageIds(selected.batchChainId, stages, pl.stageDefaults);
+      const byId = new Map(stages.map((s) => [s.id, s]));
+      chain = orderedIds.map((id) => byId.get(id)).filter((s): s is Stage => !!s);
+    } else {
+      chain = stages
+        .filter((s) => s.batchChainId === selected.batchChainId)
+        .sort((a, b) => a.startDatetime.getTime() - b.startDatetime.getTime());
+    }
     if (chain.length < 2) return [];
 
     const rowYCenter = new Map<string, number>();
     for (const r of rows) {
       if (r.type === 'machine') rowYCenter.set(r.machineId, r.y + rowHeight / 2);
     }
+
+    const PAD = 24;
+    const MIN_X = LEFT_MARGIN + 4;
+    const MAX_X = dims.width - 4;
 
     const segs: { key: string; d: string; x2: number; y2: number }[] = [];
     for (let i = 0; i < chain.length - 1; i++) {
@@ -1453,29 +1475,45 @@ export default function WallboardCanvas({
       const x1 = curPos.left + curPos.width;
       const x2 = nxtPos.left;
 
-      // Skip pairs entirely off the visible canvas
-      if ((x1 < LEFT_MARGIN && x2 < LEFT_MARGIN) || (x1 > dims.width && x2 > dims.width)) {
-        continue;
-      }
+      // Skip pairs entirely off the same side, AND pairs whose path would
+      // span the entire viewport with both ends well outside (paints a long
+      // cross-canvas diagonal with no useful information).
+      if (x1 < LEFT_MARGIN && x2 < LEFT_MARGIN) continue;
+      if (x1 > dims.width && x2 > dims.width) continue;
+      if (Math.min(x1, x2) < LEFT_MARGIN - PAD && Math.max(x1, x2) > dims.width + PAD) continue;
 
       let d: string;
-      const r = Math.min(6, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2 || 6);
       const sameRow = y1 === y2;
-      if (sameRow || Math.abs(x2 - x1) < r * 2) {
-        d = `M ${x1} ${y1} L ${x2} ${y2}`;
-      } else if (x2 > x1) {
-        const dir = y2 > y1 ? 1 : -1;
-        const midX = x1 + Math.max(8, Math.min((x2 - x1) * 0.5, 40));
-        d = `M ${x1} ${y1} L ${midX - r} ${y1} Q ${midX} ${y1} ${midX} ${y1 + dir * r} L ${midX} ${y2 - dir * r} Q ${midX} ${y2} ${midX + r} ${y2} L ${x2} ${y2}`;
+      const r0 = Math.min(6, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2 || 6);
+
+      if (x2 >= x1) {
+        // Forward chain (normal case): straight on same row, rounded L-elbow otherwise.
+        if (sameRow || Math.abs(x2 - x1) < r0 * 2) {
+          d = `M ${x1} ${y1} L ${x2} ${y2}`;
+        } else {
+          const dir = y2 > y1 ? 1 : -1;
+          let midX = x1 + Math.max(8, Math.min((x2 - x1) * 0.5, 40));
+          // Clamp the pivot into the visible canvas so it doesn't drift off-screen
+          // when x1 itself is far off the left edge.
+          midX = Math.max(MIN_X, Math.min(MAX_X, midX));
+          const r = Math.min(r0, Math.abs(midX - x1), Math.abs(x2 - midX));
+          d = `M ${x1} ${y1} L ${midX - r} ${y1} Q ${midX} ${y1} ${midX} ${y1 + dir * r} L ${midX} ${y2 - dir * r} Q ${midX} ${y2} ${midX + r} ${y2} L ${x2} ${y2}`;
+        }
       } else {
-        // Reverse direction (chain overlap) — straight diagonal
-        d = `M ${x1} ${y1} L ${x2} ${y2}`;
+        // Backward chain (overlap): U-bow exits cur to the right, drops vertically,
+        // travels left under the bars, climbs to nxt. Signals "handoff overlap"
+        // deliberately instead of a wild diagonal.
+        const pad = 12;
+        const midY = Math.max(y1, y2) + rowHeight * 0.55;
+        const x1b = x1 + pad;
+        const x2b = x2 - pad;
+        d = `M ${x1} ${y1} L ${x1b} ${y1} L ${x1b} ${midY} L ${x2b} ${midY} L ${x2b} ${y2} L ${x2} ${y2}`;
       }
 
       segs.push({ key: `${cur.id}-${nxt.id}`, d, x2, y2 });
     }
     return segs;
-  }, [selectedStageId, stages, rows, dims.width, rowHeight, viewConfig.viewStart, viewConfig.numberOfDays]);
+  }, [selectedStageId, stages, batchChains, productLines, rows, dims.width, rowHeight, viewConfig.viewStart, viewConfig.numberOfDays]);
 
   // Main draw callback
   const draw = useCallback(() => {
@@ -2062,9 +2100,26 @@ export default function WallboardCanvas({
           }}
           aria-hidden="true"
         >
+          {/* Safety-net clip — bounds path geometry to the visible canvas
+              with a 16px overhang so landing dots near the edge survive.
+              Applied only to paths, not to circles. */}
+          <defs>
+            <clipPath id="pp-chain-connector-clip">
+              <rect
+                x={LEFT_MARGIN - 16}
+                y={0}
+                width={Math.max(0, dims.width - LEFT_MARGIN + 32)}
+                height={Math.max(totalHeight, dims.height)}
+              />
+            </clipPath>
+          </defs>
           {chainConnectorSegments.map((s) => (
             <g key={s.key}>
-              <path d={s.d} className="pp-chain-connector-path" />
+              <path
+                d={s.d}
+                className="pp-chain-connector-path"
+                clipPath="url(#pp-chain-connector-clip)"
+              />
               <circle cx={s.x2} cy={s.y2} r={3} className="pp-chain-connector-dot" />
             </g>
           ))}

@@ -27,6 +27,7 @@ import {
   type PendingRow,
 } from '@/lib/excel-io';
 import { currentShiftTeam } from '@/lib/shift-rotation';
+import { orderedChainStageIds } from '@/lib/seed-train';
 import { subDays, addDays, startOfDay, differenceInDays, format, isToday, isFuture } from 'date-fns';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { validateSchedule } from '@/lib/schedule-validation';
@@ -53,14 +54,6 @@ function inferViewMode(numberOfDays: number): ViewMode {
   if (numberOfDays <= 7) return 'week';
   if (numberOfDays <= 31) return 'month';
   return 'quarter';
-}
-
-function orderedChainStageIds(chainId: string, allStages: import('@/lib/types').Stage[], stageDefaults: import('@/lib/types').StageDefault[]): string[] {
-  const idx = new Map(stageDefaults.map((d, i) => [d.stageType, i]));
-  return allStages
-    .filter((s) => s.batchChainId === chainId)
-    .sort((a, b) => (idx.get(a.stageType) ?? 999) - (idx.get(b.stageType) ?? 999))
-    .map((s) => s.id);
 }
 
 // ─── Inline SVG icons (16×16, stroke-based) ───────────────────────────
