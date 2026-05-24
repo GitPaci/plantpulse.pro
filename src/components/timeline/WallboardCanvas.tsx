@@ -1171,20 +1171,24 @@ function drawNowLine(
   ctx.beginPath();
   ctx.strokeStyle = theme.now;
   ctx.lineWidth = 1.5;
-  ctx.setLineDash([4, 3]);
+  ctx.setLineDash([2, 4]);
   ctx.moveTo(x, TOP_MARGIN);
   ctx.lineTo(x, totalHeight);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Small triangle at top
+  // Glowing dot at top
+  ctx.save();
   ctx.fillStyle = theme.now;
   ctx.beginPath();
-  ctx.moveTo(x - 4, TOP_MARGIN);
-  ctx.lineTo(x + 4, TOP_MARGIN);
-  ctx.lineTo(x, TOP_MARGIN + 6);
-  ctx.closePath();
+  ctx.arc(x, TOP_MARGIN, 4, 0, Math.PI * 2);
   ctx.fill();
+  // Soft halo
+  ctx.globalAlpha = 0.25;
+  ctx.beginPath();
+  ctx.arc(x, TOP_MARGIN, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 /** Helper: draw a rounded rectangle path */
@@ -1412,6 +1416,66 @@ export default function WallboardCanvas({
 
   // Select color theme
   const theme = nightMode ? NIGHT_THEME : DAY_THEME;
+
+  // Chain connector segments — dashed SVG paths linking the selected chain's
+  // stages (trailing edge of stage N → leading edge of stage N+1).
+  const chainConnectorSegments = useMemo(() => {
+    if (!selectedStageId || dims.width === 0) return [];
+    const selected = stages.find((s) => s.id === selectedStageId);
+    if (!selected) return [];
+
+    const chain = stages
+      .filter((s) => s.batchChainId === selected.batchChainId)
+      .sort((a, b) => a.startDatetime.getTime() - b.startDatetime.getTime());
+    if (chain.length < 2) return [];
+
+    const rowYCenter = new Map<string, number>();
+    for (const r of rows) {
+      if (r.type === 'machine') rowYCenter.set(r.machineId, r.y + rowHeight / 2);
+    }
+
+    const segs: { key: string; d: string; x2: number; y2: number }[] = [];
+    for (let i = 0; i < chain.length - 1; i++) {
+      const cur = chain[i];
+      const nxt = chain[i + 1];
+      const y1 = rowYCenter.get(cur.machineId);
+      const y2 = rowYCenter.get(nxt.machineId);
+      if (y1 == null || y2 == null) continue;
+
+      const curPos = stageBarPosition(
+        viewConfig.viewStart, cur.startDatetime, cur.endDatetime,
+        dims.width, LEFT_MARGIN, viewConfig.numberOfDays
+      );
+      const nxtPos = stageBarPosition(
+        viewConfig.viewStart, nxt.startDatetime, nxt.endDatetime,
+        dims.width, LEFT_MARGIN, viewConfig.numberOfDays
+      );
+      const x1 = curPos.left + curPos.width;
+      const x2 = nxtPos.left;
+
+      // Skip pairs entirely off the visible canvas
+      if ((x1 < LEFT_MARGIN && x2 < LEFT_MARGIN) || (x1 > dims.width && x2 > dims.width)) {
+        continue;
+      }
+
+      let d: string;
+      const r = Math.min(6, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2 || 6);
+      const sameRow = y1 === y2;
+      if (sameRow || Math.abs(x2 - x1) < r * 2) {
+        d = `M ${x1} ${y1} L ${x2} ${y2}`;
+      } else if (x2 > x1) {
+        const dir = y2 > y1 ? 1 : -1;
+        const midX = x1 + Math.max(8, Math.min((x2 - x1) * 0.5, 40));
+        d = `M ${x1} ${y1} L ${midX - r} ${y1} Q ${midX} ${y1} ${midX} ${y1 + dir * r} L ${midX} ${y2 - dir * r} Q ${midX} ${y2} ${midX + r} ${y2} L ${x2} ${y2}`;
+      } else {
+        // Reverse direction (chain overlap) — straight diagonal
+        d = `M ${x1} ${y1} L ${x2} ${y2}`;
+      }
+
+      segs.push({ key: `${cur.id}-${nxt.id}`, d, x2, y2 });
+    }
+    return segs;
+  }, [selectedStageId, stages, rows, dims.width, rowHeight, viewConfig.viewStart, viewConfig.numberOfDays]);
 
   // Main draw callback
   const draw = useCallback(() => {
@@ -1982,6 +2046,30 @@ export default function WallboardCanvas({
         onMouseMove={(onStageClick || onMachineLabelClick || onShiftBandClick || showDowntime || notifyShiftWindows.length > 0 || enableDragResize || enableBackgroundPan || showCheckpoints) ? handleCanvasMouseMove : undefined}
         onMouseLeave={(showDowntime || notifyShiftWindows.length > 0 || showCheckpoints) ? handleCanvasMouseLeave : undefined}
       />
+      {/* Chain connector overlay — dashed lines linking the selected chain */}
+      {chainConnectorSegments.length > 0 && (
+        <svg
+          className={`pp-chain-connector${nightMode ? ' pp-chain-connector--night' : ''}`}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: dims.width,
+            height: Math.max(totalHeight, dims.height),
+            pointerEvents: 'none',
+            overflow: 'visible',
+            zIndex: 5,
+          }}
+          aria-hidden="true"
+        >
+          {chainConnectorSegments.map((s) => (
+            <g key={s.key}>
+              <path d={s.d} className="pp-chain-connector-path" />
+              <circle cx={s.x2} cy={s.y2} r={3} className="pp-chain-connector-dot" />
+            </g>
+          ))}
+        </svg>
+      )}
       {/* Drag ghost overlay */}
       {dragGhost && (
         <div

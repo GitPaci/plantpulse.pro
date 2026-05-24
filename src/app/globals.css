@@ -3477,31 +3477,73 @@ body {
   position: absolute;
   pointer-events: none;
   z-index: 50;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 8px 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: #0f1216;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 9px 11px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.45;
   max-width: 280px;
-  color: #334155;
+  color: #ecedef;
 }
 
 .pp-downtime-tooltip-title {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   font-weight: 600;
-  margin-bottom: 2px;
-  color: #92400e;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  margin-bottom: 3px;
+  color: rgba(255, 255, 255, 0.62);
+  text-transform: uppercase;
 }
 
 .pp-downtime-tooltip-reason {
-  color: #6b7280;
+  color: #d8dadd;
 }
 
 .pp-downtime-tooltip-time {
-  color: #6b7280;
+  color: rgba(255, 255, 255, 0.55);
   font-size: 11px;
-  margin-top: 2px;
+  margin-top: 3px;
+}
+
+/* ─── Chain connector overlay (Planner) ───────────────────────────────── */
+
+.pp-chain-connector-path {
+  stroke: #2563eb;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 3 3;
+  fill: none;
+  opacity: 0.88;
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.85));
+}
+
+.pp-chain-connector-dot {
+  fill: #2563eb;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+  opacity: 0.95;
+}
+
+.pp-chain-connector--night .pp-chain-connector-path {
+  stroke: #22d3ee;
+  filter: drop-shadow(0 0 1px rgba(12, 16, 33, 0.85));
+}
+
+.pp-chain-connector--night .pp-chain-connector-dot {
+  fill: #22d3ee;
+  stroke: #0c1021;
+}
+
+/* Subtle raised active state on segmented controls */
+.planner-viewmode-btn--active,
+.pp-density-btn--active {
+  box-shadow:
+    0 1px 2px rgba(15, 18, 22, 0.10),
+    0 0 0 1px rgba(15, 18, 22, 0.04);
 }
 
 /* ─── Downtime editor panel ───────────────────────────────────────────── */
