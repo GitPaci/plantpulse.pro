@@ -1426,10 +1426,12 @@ export default function WallboardCanvas({
   // doesn't reverse the connector direction. Path geometry is bounded to the
   // visible canvas (midX clamped, pairs spanning the whole viewport skipped,
   // and a SVG <clipPath> safety net keeps stray geometry off unrelated rows).
-  const chainConnectorSegments = useMemo(() => {
-    if (!selectedStageId || dims.width === 0) return [];
+  const { chainConnectorSegments, chainBreadcrumbs } = useMemo(() => {
+    const empty = { chainConnectorSegments: [] as { key: string; d: string; x2: number; y2: number }[],
+                    chainBreadcrumbs: [] as { key: string; dir: 'prev' | 'next'; x: number; y: number; text: string }[] };
+    if (!selectedStageId || dims.width === 0) return empty;
     const selected = stages.find((s) => s.id === selectedStageId);
-    if (!selected) return [];
+    if (!selected) return empty;
 
     // Resolve canonical chain order via stageDefaults; fall back to startDatetime
     // sort if the chain or product line can't be resolved (orphaned data).
@@ -1445,18 +1447,24 @@ export default function WallboardCanvas({
         .filter((s) => s.batchChainId === selected.batchChainId)
         .sort((a, b) => a.startDatetime.getTime() - b.startDatetime.getTime());
     }
-    if (chain.length < 2) return [];
+    if (chain.length < 2) return empty;
 
     const rowYCenter = new Map<string, number>();
     for (const r of rows) {
       if (r.type === 'machine') rowYCenter.set(r.machineId, r.y + rowHeight / 2);
     }
 
-    const PAD = 24;
+    const machineNameMap = new Map<string, string>();
+    for (const m of machines) machineNameMap.set(m.id, m.name);
+
     const MIN_X = LEFT_MARGIN + 4;
     const MAX_X = dims.width - 4;
+    const VISIBLE_LO = LEFT_MARGIN;
+    const VISIBLE_HI = dims.width;
 
     const segs: { key: string; d: string; x2: number; y2: number }[] = [];
+    const crumbs: { key: string; dir: 'prev' | 'next'; x: number; y: number; text: string }[] = [];
+
     for (let i = 0; i < chain.length - 1; i++) {
       const cur = chain[i];
       const nxt = chain[i + 1];
@@ -1475,34 +1483,47 @@ export default function WallboardCanvas({
       const x1 = curPos.left + curPos.width;
       const x2 = nxtPos.left;
 
-      // Skip pairs entirely off the same side, AND pairs whose path would
-      // span the entire viewport with both ends well outside (paints a long
-      // cross-canvas diagonal with no useful information).
-      if (x1 < LEFT_MARGIN && x2 < LEFT_MARGIN) continue;
-      if (x1 > dims.width && x2 > dims.width) continue;
-      if (Math.min(x1, x2) < LEFT_MARGIN - PAD && Math.max(x1, x2) > dims.width + PAD) continue;
+      const curEndVisible = x1 >= VISIBLE_LO && x1 <= VISIBLE_HI;
+      const nxtStartVisible = x2 >= VISIBLE_LO && x2 <= VISIBLE_HI;
 
+      // Case D: neither endpoint visible — skip entirely.
+      if (!curEndVisible && !nxtStartVisible) continue;
+
+      // Case B: cur visible, nxt off-canvas → right-pointing breadcrumb at cur's edge.
+      if (curEndVisible && !nxtStartVisible) {
+        const text = `${machineNameMap.get(nxt.machineId) ?? nxt.machineId} · ${batchLabelMap.get(nxt.batchChainId) ?? ''}`;
+        crumbs.push({ key: `${cur.id}-${nxt.id}-next`, dir: 'next', x: x1, y: y1, text });
+        continue;
+      }
+
+      // Case C: cur off-canvas, nxt visible → left-pointing breadcrumb at nxt's edge.
+      if (!curEndVisible && nxtStartVisible) {
+        const text = `${machineNameMap.get(cur.machineId) ?? cur.machineId} · ${batchLabelMap.get(cur.batchChainId) ?? ''}`;
+        crumbs.push({ key: `${cur.id}-${nxt.id}-prev`, dir: 'prev', x: x2, y: y2, text });
+        continue;
+      }
+
+      // Case A: both endpoints visible — draw the connector line.
       let d: string;
       const sameRow = y1 === y2;
       const r0 = Math.min(6, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2 || 6);
 
       if (x2 >= x1) {
-        // Forward chain (normal case): straight on same row, rounded L-elbow otherwise.
+        // Forward chain: straight on same row, rounded L-elbow otherwise.
         if (sameRow || Math.abs(x2 - x1) < r0 * 2) {
           d = `M ${x1} ${y1} L ${x2} ${y2}`;
         } else {
           const dir = y2 > y1 ? 1 : -1;
           let midX = x1 + Math.max(8, Math.min((x2 - x1) * 0.5, 40));
-          // Clamp the pivot into the visible canvas so it doesn't drift off-screen
-          // when x1 itself is far off the left edge.
+          // Belt-and-suspenders clamp — both endpoints are visible here, but keep
+          // the pivot inside the canvas just in case.
           midX = Math.max(MIN_X, Math.min(MAX_X, midX));
           const r = Math.min(r0, Math.abs(midX - x1), Math.abs(x2 - midX));
           d = `M ${x1} ${y1} L ${midX - r} ${y1} Q ${midX} ${y1} ${midX} ${y1 + dir * r} L ${midX} ${y2 - dir * r} Q ${midX} ${y2} ${midX + r} ${y2} L ${x2} ${y2}`;
         }
       } else {
         // Backward chain (overlap): U-bow exits cur to the right, drops vertically,
-        // travels left under the bars, climbs to nxt. Signals "handoff overlap"
-        // deliberately instead of a wild diagonal.
+        // travels left under the bars, climbs to nxt — signals handoff overlap.
         const pad = 12;
         const midY = Math.max(y1, y2) + rowHeight * 0.55;
         const x1b = x1 + pad;
@@ -1512,8 +1533,8 @@ export default function WallboardCanvas({
 
       segs.push({ key: `${cur.id}-${nxt.id}`, d, x2, y2 });
     }
-    return segs;
-  }, [selectedStageId, stages, batchChains, productLines, rows, dims.width, rowHeight, viewConfig.viewStart, viewConfig.numberOfDays]);
+    return { chainConnectorSegments: segs, chainBreadcrumbs: crumbs };
+  }, [selectedStageId, stages, batchChains, productLines, rows, machines, batchLabelMap, dims.width, rowHeight, viewConfig.viewStart, viewConfig.numberOfDays]);
 
   // Main draw callback
   const draw = useCallback(() => {
@@ -2125,6 +2146,24 @@ export default function WallboardCanvas({
           ))}
         </svg>
       )}
+      {/* Chain breadcrumb pills — anchor to the visible stage's row,
+          indicate that the chain continues off-canvas. */}
+      {chainBreadcrumbs.map((b) => (
+        <div
+          key={b.key}
+          className={`pp-chain-breadcrumb pp-chain-breadcrumb--${b.dir}${nightMode ? ' pp-chain-breadcrumb--night' : ''}`}
+          style={{
+            position: 'absolute',
+            top: b.y - 9,
+            ...(b.dir === 'next'
+              ? { left: Math.min(b.x + 6, dims.width - 8) }
+              : { left: Math.max(LEFT_MARGIN + 2, b.x - 6), transform: 'translateX(-100%)' }),
+            zIndex: 6,
+          }}
+        >
+          {b.dir === 'prev' ? `← ${b.text}` : `${b.text} →`}
+        </div>
+      ))}
       {/* Drag ghost overlay */}
       {dragGhost && (
         <div
