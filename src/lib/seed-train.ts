@@ -6,7 +6,27 @@
 // upstream stage. Works with any number of user-defined stages and durations.
 
 import { subHours, addHours } from 'date-fns';
-import type { StageDefault, StageTypeDefinition } from './types';
+import type { Stage, StageDefault, StageTypeDefinition } from './types';
+
+/**
+ * Return the stage IDs of a chain in canonical seed-train order
+ * (Inoculum → Seed n-2 → Seed n-1 → Production), keyed by the product
+ * line's stageDefaults sequence. Stages with an unknown stageType fall
+ * to the end. Used by the drag handler to relink linked chains and by
+ * the chain connector overlay to draw connectors in the right direction
+ * regardless of how the user has moved bars around.
+ */
+export function orderedChainStageIds(
+  chainId: string,
+  allStages: Stage[],
+  stageDefaults: StageDefault[]
+): string[] {
+  const idx = new Map(stageDefaults.map((d, i) => [d.stageType, i]));
+  return allStages
+    .filter((s) => s.batchChainId === chainId)
+    .sort((a, b) => (idx.get(a.stageType) ?? 999) - (idx.get(b.stageType) ?? 999))
+    .map((s) => s.id);
+}
 
 /**
  * Expand stage defaults by the `count` field from stage type definitions.
