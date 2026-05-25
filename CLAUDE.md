@@ -262,6 +262,7 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
   - `expandedActivityId` state for accordion-style inline editor; only one row open at a time
   - Add buttons for Pre and Post sections independently
   - CSS prefix: `.pp-ta-*` in `globals.css`
+- **`productChangeoverOnly` field** (`boolean`, default `false`): when `true`, the activity is only applied when the immediately adjacent batch (pre: the preceding batch, post: the following batch) on the same machine belongs to a **different product line**. Useful for cross-contamination cleaning steps on shared equipment. Canvas rendering (`drawTurnaroundBlocks()`) skips the hatch block for same-product transitions; scheduling (`requiredTurnaroundGap()`) conservatively includes the gap regardless (deferred: pass product line context to `requiredTurnaroundGap()`). Badge indicator `⇄` shown on the collapsed activity row when enabled. CSS: `.pp-ta-row-changeover` in `globals.css`.
 - Still pending: wiring phase-aware validity/auto-repeat logic into overlap detection engine (`lib/scheduling.ts`)
 
 #### 13. Shutdown periods (modern, no VBA equivalent)
@@ -609,6 +610,7 @@ interface TurnaroundActivity {
   validityValue?: number;     // how long the activity stays valid; 0 = no expiry
   validityUnit?: ValidityUnit; // 'h' | 'd' | 'w' — unit for validityValue
   autoRepeat?: boolean;       // re-run if validity expires before next batch starts
+  productChangeoverOnly?: boolean; // only apply when adjacent batch is a different product line (default: false)
   description?: string;       // optional operator note
 }
 

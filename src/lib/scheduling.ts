@@ -119,6 +119,8 @@ export function requiredTurnaroundGap(
   machineGroup: string,
   turnaroundActivities: TurnaroundActivity[]
 ): number {
+  // TODO: filter productChangeoverOnly activities when the adjacent batches share the same product line.
+  // Currently conservative — includes changeover activities regardless of product match.
   return turnaroundActivities
     .filter((ta) => ta.equipmentGroup === machineGroup && ta.isDefault)
     .reduce((sum, ta) => sum + turnaroundTotalHours(ta), 0);
