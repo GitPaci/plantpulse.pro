@@ -285,6 +285,7 @@ function TurnaroundSection({
                     : <>
                         <span>{a.validityValue}{a.validityUnit ?? 'h'}</span>
                         {a.autoRepeat && <span className="pp-ta-row-repeat" title="Auto-repeats if expired">↻</span>}
+                        {a.productChangeoverOnly && <span className="pp-ta-row-changeover" title="Product changeover only">⇄</span>}
                       </>
                   }
                 </div>
@@ -439,6 +440,13 @@ function TurnaroundEditor({
             onClick={() => onChange({ isDefault: !act.isDefault })}
           />
           <span>Auto-insert in new batches</span>
+        </label>
+        <label className="pp-ta-toggle-row" style={{ marginTop: 6 }}>
+          <span
+            className={`pp-ta-toggle${(act.productChangeoverOnly ?? false) ? ' pp-ta-toggle--on' : ''}`}
+            onClick={() => onChange({ productChangeoverOnly: !(act.productChangeoverOnly ?? false) })}
+          />
+          <span>Product changeover only</span>
         </label>
       </div>
 

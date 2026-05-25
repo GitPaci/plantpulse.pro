@@ -535,6 +535,7 @@ export interface TurnaroundActivity {
   validityValue?: number;     // 0 or undefined = no expiry; otherwise positive number
   validityUnit?: ValidityUnit; // default: 'h'
   autoRepeat?: boolean;       // if validity expires before next batch, re-run (default: false)
+  productChangeoverOnly?: boolean; // if true, only apply when adjacent batch is a different product line (default: false)
   description?: string;       // optional notes shown in the inspector
 }
 
@@ -573,6 +574,7 @@ export function normalizeTurnaroundActivity(t: TurnaroundActivity): TurnaroundAc
     validityValue: t.validityValue ?? defaultValidity,
     validityUnit: t.validityUnit ?? defaultUnit,
     autoRepeat: t.autoRepeat ?? defaultRepeat,
+    productChangeoverOnly: t.productChangeoverOnly ?? false,
     description: t.description ?? '',
   };
 }

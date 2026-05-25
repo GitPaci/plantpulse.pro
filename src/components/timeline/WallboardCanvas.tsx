@@ -886,7 +886,8 @@ function drawTurnaroundBlocks(
   nightMode: boolean,
   turnaroundActivities: TurnaroundActivity[],
   machineGroupMap: Map<string, string>,
-  rowHeight: number = ROW_HEIGHT
+  rowHeight: number = ROW_HEIGHT,
+  batchChains: BatchChain[] = []
 ) {
   if (stages.length === 0 || turnaroundActivities.length === 0) return;
 
@@ -1006,6 +1007,11 @@ function drawTurnaroundBlocks(
       const prev = i > 0 ? sorted[i - 1] : null;
       const next = i < sorted.length - 1 ? sorted[i + 1] : null;
 
+      // Helper: check if two stages are from different product lines (for productChangeoverOnly)
+      const myProductLine = batchChains.find((c) => c.id === stage.batchChainId)?.productLine;
+      const nextProductLine = next ? batchChains.find((c) => c.id === next.batchChainId)?.productLine : undefined;
+      const prevProductLine = prev ? batchChains.find((c) => c.id === prev.batchChainId)?.productLine : undefined;
+
       // --- Post-batch activities: walk forward from this stage's end. ---
       // Clip the chain to the next batch's start so we never bleed across.
       if (postActs.length > 0) {
@@ -1013,6 +1019,11 @@ function drawTurnaroundBlocks(
         let cursor = stage.endDatetime;
         for (const act of postActs) {
           if (cursor >= postLimit) break;
+          // Skip if activity is only for product changeovers and adjacent batch shares the same product line
+          if (act.productChangeoverOnly && (!next || myProductLine === nextProductLine)) {
+            cursor = addHours(cursor, turnaroundTotalHours(act));
+            continue;
+          }
           const actH = turnaroundTotalHours(act);
           const naturalEnd = addHours(cursor, actH);
           const blockEnd = naturalEnd > postLimit ? postLimit : naturalEnd;
@@ -1029,6 +1040,11 @@ function drawTurnaroundBlocks(
         for (let a = preActs.length - 1; a >= 0; a--) {
           if (cursor <= preLimit) break;
           const act = preActs[a];
+          // Skip if activity is only for product changeovers and adjacent batch shares the same product line
+          if (act.productChangeoverOnly && (!prev || myProductLine === prevProductLine)) {
+            cursor = addHours(cursor, -turnaroundTotalHours(act));
+            continue;
+          }
           const actH = turnaroundTotalHours(act);
           const naturalStart = addHours(cursor, -actH);
           const blockStart = naturalStart < preLimit ? preLimit : naturalStart;
@@ -1566,7 +1582,7 @@ export default function WallboardCanvas({
       drawDowntimeBlocks(ctx, downtimeWindows, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme);
     }
     if (showTurnaroundBlocks) {
-      drawTurnaroundBlocks(ctx, visibleStages, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, nightMode, turnaroundActivities, machineGroupMap, rowHeight);
+      drawTurnaroundBlocks(ctx, visibleStages, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, nightMode, turnaroundActivities, machineGroupMap, rowHeight, batchChains);
     }
     drawBatchBars(ctx, visibleStages, batchSeriesMap, batchLabelMap, rows, viewConfig.viewStart, viewConfig.numberOfDays, dims.width, theme, selectedStageId, rowHeight);
     // Checkpoint markers drawn on top of batch bars so they remain visible
