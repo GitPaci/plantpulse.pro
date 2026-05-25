@@ -6,7 +6,7 @@
 // return results. The caller (wizard / tool UI) reads from the Zustand store and
 // writes back via store actions.
 
-import { differenceInHours, addHours } from 'date-fns';
+import { differenceInHours, addHours, addDays } from 'date-fns';
 import type {
   Stage,
   Machine,
@@ -68,8 +68,21 @@ export function detectOverlaps(
   return conflicts;
 }
 
+// Shutdown periods store endDate as midnight of the LAST shutdown day (inclusive).
+// These helpers return Date objects and treat the effective blocking boundary as the
+// start of the day AFTER the last shutdown day, making the end comparison exclusive.
+// Also normalizes string dates defensively (guards against any future serialization).
+function shutdownEnd(s: ShutdownPeriod): Date {
+  const d = s.endDate instanceof Date ? s.endDate : new Date(s.endDate as unknown as string);
+  return addDays(d, 1); // e.g. Jun 22 00:00 → Jun 23 00:00 (blocks all of Jun 22)
+}
+function shutdownStart(s: ShutdownPeriod): Date {
+  return s.startDate instanceof Date ? s.startDate : new Date(s.startDate as unknown as string);
+}
+
 /**
  * Check whether a proposed time window falls within any shutdown period.
+ * endDate is treated as inclusive (the entire last day is blocked).
  */
 export function detectShutdownConflicts(
   proposedStart: Date,
@@ -77,7 +90,7 @@ export function detectShutdownConflicts(
   shutdowns: ShutdownPeriod[]
 ): ShutdownPeriod[] {
   return shutdowns.filter(
-    (s) => proposedStart < s.endDate && proposedEnd > s.startDate
+    (s) => proposedStart < shutdownEnd(s) && proposedEnd > shutdownStart(s)
   );
 }
 
@@ -99,7 +112,7 @@ export function chainShutdownShift(
   for (const stage of chainStages) {
     const conflicts = detectShutdownConflicts(stage.startDatetime, stage.endDatetime, shutdownPeriods);
     for (const c of conflicts) {
-      const push = differenceInHours(c.endDate, stage.startDatetime);
+      const push = differenceInHours(shutdownEnd(c), stage.startDatetime);
       if (push > maxPush) maxPush = push;
     }
   }
@@ -168,10 +181,12 @@ export function earliestAvailableTime(
   while (safetyLimit-- > 0) {
     const conflicts = detectShutdownConflicts(earliest, earliest, shutdownPeriods);
     if (conflicts.length === 0) break;
-    // Move to the end of the latest overlapping shutdown
-    let latestEnd = conflicts[0].endDate;
+    // Move to the start of the day after the latest overlapping shutdown
+    // (endDate is inclusive — blocking the entire last day)
+    let latestEnd = shutdownEnd(conflicts[0]);
     for (const c of conflicts) {
-      if (c.endDate > latestEnd) latestEnd = c.endDate;
+      const cEnd = shutdownEnd(c);
+      if (cEnd > latestEnd) latestEnd = cEnd;
     }
     earliest = latestEnd;
   }
