@@ -270,6 +270,7 @@ nowX = (numberOfDays / offsetFactor) * pixelsPerDay + (pixelsPerDay / 24) * Hour
 - Managed in Process Setup modal (Shutdowns tab)
 - Past shutdowns are visually dimmed; sorted by start date
 - Full CRUD in Zustand store (`add/update/deleteShutdownPeriod`)
+- **Date boundary convention**: `endDate` is stored as midnight of the LAST shutdown day (inclusive). The scheduling engine uses `shutdownEnd(s) = addDays(s.endDate, 1)` as the exclusive upper bound, so a shutdown ending "Jun 22" blocks all of Jun 22 — the first valid batch start is Jun 23 00:00. The visual calendar overlay uses `t <= sdEnd` (same inclusive logic). Do not change the storage format; always use `shutdownEnd()` in scheduling comparisons.
 - **Conflict warnings**: amber banner in Shutdowns tab when a shutdown period overlaps planned batch stages (informational, not blocking); shows affected batch names and conflict count badge
 - **Calendar overlay**: shutdown days rendered on Wallboard canvas as grey fill + diagonal hatch pattern (8px step, clipped to column); theme-aware (day: `rgba(120,120,140,0.18)`, night: `rgba(100,100,130,0.25)`)
 - **"PLANT SHUTDOWN" text label**: centered vertically across shutdown day columns on Wallboard canvas via `drawShutdownLabels()`; rotated -90° for multi-day shutdowns; includes shutdown name if set; theme-aware opacity
@@ -625,7 +626,9 @@ interface ShutdownPeriod {
   id: string;
   name: string;            // e.g. "Annual Shutdown 2026", "Christmas Break"
   startDate: Date;
-  endDate: Date;
+  endDate: Date;           // midnight of the LAST shutdown day (inclusive). scheduling.ts
+                           // uses shutdownEnd(s) = addDays(endDate, 1) as the exclusive
+                           // upper bound so that the entire last day is blocked.
   reason?: string;         // optional note
 }
 
